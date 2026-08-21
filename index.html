@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VOIDBELT // Réseau d'extraction</title>
+<meta name="description" content="VOIDBELT — extraction tactique dans la ceinture du vide.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23FF4D00' stroke-width='3'/%3E%3Crect y='14' width='32' height='4' fill='%23EDE7DA'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   VOIDBELT — page d'accueil
+   Direction artistique : brutalisme graphique / affiche suisse
+   ============================================================ */
+
+:root{
+  --black:#0A0A0B;
+  --bone:#EDE7DA;
+  --orange:#FF4D00;
+  --cyan:#2FE0F0;
+  --acid:#C9F227;
+  --dim:rgba(237,231,218,.42);
+  --line:rgba(237,231,218,.14);
+  --edge:2px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+html{-webkit-text-size-adjust:100%}
+
+body{
+  min-height:100vh;
+  background:var(--black);
+  color:var(--bone);
+  font-family:'Space Mono',ui-monospace,'Courier New',monospace;
+  font-size:13px;
+  line-height:1.5;
+  overflow-x:hidden;
+  display:grid;
+  grid-template-rows:auto 1fr auto auto;
+  position:relative;
+}
+
+/* ---------- couches décoratives ---------- */
+
+.grid-overlay{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(ellipse 90% 70% at 50% 45%, #000 25%, transparent 100%);
+  -webkit-mask-image:radial-gradient(ellipse 90% 70% at 50% 45%, #000 25%, transparent 100%);
+  opacity:.7;
+}
+
+.halo{
+  position:fixed; z-index:0; pointer-events:none;
+  width:min(1100px,120vw); aspect-ratio:1; left:50%; top:46%;
+  transform:translate(-50%,-50%);
+  background:radial-gradient(circle, rgba(255,77,0,.20) 0%, rgba(255,77,0,.06) 38%, transparent 66%);
+}
+
+.dots{
+  position:fixed; z-index:0; pointer-events:none;
+  right:-60px; bottom:-80px; width:520px; height:420px;
+  background-image:radial-gradient(var(--orange) 1.6px, transparent 1.7px);
+  background-size:14px 14px;
+  opacity:.5;
+  mask-image:linear-gradient(300deg, #000 10%, transparent 70%);
+  -webkit-mask-image:linear-gradient(300deg, #000 10%, transparent 70%);
+}
+
+.ghost-num{
+  position:fixed; z-index:0; pointer-events:none;
+  left:-.06em; bottom:-.28em;
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:clamp(180px,34vw,460px);
+  line-height:.8;
+  color:transparent;
+  -webkit-text-stroke:2px rgba(237,231,218,.07);
+  letter-spacing:-.04em;
+  user-select:none;
+}
+
+.scan{
+  position:fixed; inset:0; z-index:60; pointer-events:none;
+  background:repeating-linear-gradient(180deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px);
+  mix-blend-mode:multiply; opacity:.55;
+}
+
+/* ---------- barre supérieure ---------- */
+
+.topbar{
+  position:relative; z-index:10;
+  display:flex; align-items:stretch; justify-content:space-between;
+  border-bottom:var(--edge) solid var(--bone);
+  background:rgba(10,10,11,.72);
+  backdrop-filter:blur(3px);
+}
+
+.brand{
+  display:flex; align-items:center; gap:12px;
+  padding:14px 22px;
+  border-right:var(--edge) solid var(--bone);
+}
+
+.brand .mark{
+  width:26px; height:26px; flex:none; position:relative;
+  border:3px solid var(--orange); border-radius:50%;
+}
+.brand .mark::after{
+  content:""; position:absolute; left:-7px; right:-7px; top:50%;
+  height:3px; background:var(--bone); transform:translateY(-50%);
+}
+.brand .name{
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:16px; letter-spacing:.14em;
+}
+.brand .name em{ font-style:normal; color:var(--orange); }
+
+.menu{ display:flex; align-items:stretch; flex:1 }
+
+.menu span{
+  display:flex; align-items:center; gap:7px;
+  padding:0 20px;
+  font-size:11px; letter-spacing:.22em; text-transform:uppercase;
+  color:var(--dim);
+  border-right:1px solid var(--line);
+  white-space:nowrap;
+}
+.menu span b{ font-weight:400; font-size:9px; color:rgba(237,231,218,.22) }
+.menu span.on{ color:var(--black); background:var(--bone) }
+.menu span.on b{ color:rgba(10,10,11,.45) }
+
+.sysbar{
+  display:flex; align-items:center; gap:18px;
+  padding:0 20px;
+  border-left:var(--edge) solid var(--bone);
+  font-size:10px; letter-spacing:.18em; color:var(--dim);
+  white-space:nowrap;
+}
+.led{
+  display:inline-block; width:8px; height:8px; background:var(--acid);
+  margin-right:7px; vertical-align:-1px;
+  animation:blink 1.6s steps(1) infinite;
+}
+@keyframes blink{ 0%,70%{opacity:1} 71%,100%{opacity:.15} }
+
+/* ---------- rails latéraux ---------- */
+
+.rail{
+  position:fixed; top:50%; transform:translateY(-50%); z-index:9;
+  display:flex; flex-direction:column; gap:26px; align-items:center;
+  font-size:10px; letter-spacing:.3em; color:var(--dim);
+}
+.rail-l{ left:16px }
+.rail-r{ right:16px }
+.rail .vert{ writing-mode:vertical-rl; text-orientation:mixed }
+.rail-l .vert{ transform:rotate(180deg) }
+.rail .bar{ width:1px; height:70px; background:var(--line) }
+.rail .sq{ width:9px; height:9px; border:1px solid var(--dim) }
+.rail .sq.fill{ background:var(--orange); border-color:var(--orange) }
+
+/* ---------- contenu central ---------- */
+
+main{
+  position:relative; z-index:10;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:60px 24px;
+  gap:34px;
+}
+
+.eyebrow{
+  display:flex; align-items:center; gap:14px;
+  font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:var(--dim);
+}
+.eyebrow i{ display:block; width:44px; height:1px; background:var(--orange); font-style:normal }
+.eyebrow u{ text-decoration:none; color:var(--orange) }
+
+.wordmark{
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:clamp(56px,13.5vw,168px);
+  line-height:.82;
+  letter-spacing:-.035em;
+  text-align:center;
+  text-transform:uppercase;
+  text-shadow:3px 0 0 rgba(255,77,0,.85), -3px 0 0 rgba(47,224,240,.55);
+}
+.wordmark span{ color:var(--orange); text-shadow:none }
+
+.tagline{
+  display:flex; flex-wrap:wrap; justify-content:center; gap:10px 18px;
+  font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:var(--dim);
+  text-align:center;
+}
+.tagline b{ color:var(--bone); font-weight:400 }
+.tagline s{ text-decoration:none; color:var(--orange) }
+
+/* ---------- carte transmission ---------- */
+
+.transmission{
+  position:relative;
+  width:min(860px,100%);
+  border:var(--edge) solid var(--bone);
+  background:linear-gradient(180deg, rgba(17,17,19,.92), rgba(10,10,11,.92));
+  box-shadow:10px 10px 0 rgba(255,77,0,.9);
+}
+
+.tr-head{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:9px 16px;
+  background:var(--bone); color:var(--black);
+  font-size:10px; letter-spacing:.22em; text-transform:uppercase; font-weight:700;
+}
+.tr-head .ref{ font-weight:400; opacity:.6 }
+
+.tr-body{ padding:34px 34px 26px; position:relative }
+
+.tr-body::before{
+  content:"\201C";
+  position:absolute; left:14px; top:-6px;
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:110px; line-height:1; color:rgba(237,231,218,.07);
+}
+
+#quote{
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:clamp(19px,2.9vw,32px);
+  line-height:1.22;
+  letter-spacing:-.01em;
+  text-transform:uppercase;
+  position:relative;
+  min-height:1.2em;
+}
+
+#quote-fr{
+  margin-top:16px;
+  font-size:12px; line-height:1.6; color:var(--dim);
+  border-left:2px solid var(--orange); padding-left:12px;
+  max-width:62ch;
+}
+
+.tr-meta{
+  display:flex; flex-wrap:wrap;
+  border-top:1px solid var(--line);
+}
+.tr-meta > div{
+  flex:1 1 180px; padding:13px 16px;
+  border-right:1px solid var(--line);
+}
+.tr-meta > div:last-child{ border-right:0 }
+.tr-meta dt{
+  font-size:9px; letter-spacing:.26em; text-transform:uppercase;
+  color:rgba(237,231,218,.32); margin-bottom:5px;
+}
+.tr-meta dd{ font-size:13px; letter-spacing:.06em; text-transform:uppercase }
+.tr-meta dd.hl{ color:var(--orange) }
+.tr-meta dd.cy{ color:var(--cyan) }
+
+.hint{
+  font-size:10px; letter-spacing:.24em; text-transform:uppercase;
+  color:rgba(237,231,218,.3);
+  display:flex; align-items:center; gap:10px; text-align:center;
+}
+.hint i{
+  display:block; width:6px; height:6px; background:var(--cyan); font-style:normal;
+  animation:blink 2.4s steps(1) infinite; flex:none;
+}
+
+/* ---------- bas de page ---------- */
+
+.stripes{
+  height:14px;
+  background:repeating-linear-gradient(-45deg, var(--orange) 0 14px, var(--black) 14px 28px);
+  border-top:var(--edge) solid var(--bone);
+  position:relative; z-index:10;
+}
+
+.footer{
+  position:relative; z-index:10;
+  display:flex; align-items:stretch;
+  border-top:var(--edge) solid var(--bone);
+  background:rgba(10,10,11,.82);
+  font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--dim);
+}
+.footer .cell{
+  display:flex; align-items:center;
+  padding:11px 18px; border-right:1px solid var(--line); white-space:nowrap;
+}
+.footer .cell:last-child{ border-right:0; border-left:1px solid var(--line) }
+
+.ticker{ flex:1; overflow:hidden; position:relative; display:flex; align-items:center }
+.ticker-track{
+  display:flex; gap:44px; white-space:nowrap; padding-left:44px;
+  animation:slide 38s linear infinite;
+}
+.ticker-track b{ font-weight:400; color:var(--dim) }
+.ticker-track b::before{ content:"\25C6\00A0"; color:var(--orange) }
+@keyframes slide{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+/* ---------- animations d'entrée ---------- */
+
+@keyframes rise{
+  from{ opacity:0; transform:translateY(14px) }
+  to{ opacity:1; transform:none }
+}
+.rise{ animation:rise .7s cubic-bezier(.2,.7,.2,1) both }
+.d1{ animation-delay:.05s }
+.d2{ animation-delay:.15s }
+.d3{ animation-delay:.28s }
+.d4{ animation-delay:.42s }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation:none !important; transition:none !important }
+}
+
+/* ---------- adaptatif ---------- */
+
+@media (max-width:1180px){ .rail{ display:none } }
+
+@media (max-width:860px){
+  .topbar{ flex-wrap:wrap }
+  .brand{ flex:1 1 100%; border-right:0; border-bottom:1px solid var(--line) }
+  .menu{ flex:1 1 100%; overflow-x:auto }
+  .sysbar{ display:none }
+  main{ padding:44px 16px; gap:26px }
+  .tr-body{ padding:26px 20px 20px }
+  .transmission{ box-shadow:6px 6px 0 rgba(255,77,0,.9) }
+  .footer .cell:first-child{ display:none }
+}
+</style>
+</head>
+<body>
+
+<div class="grid-overlay"></div>
+<div class="halo"></div>
+<div class="dots"></div>
+<div class="ghost-num">07</div>
+
+<!-- ==================== BARRE SUPÉRIEURE ==================== -->
+<header class="topbar">
+  <div class="brand">
+    <div class="mark"></div>
+    <div class="name">VOID<em>BELT</em></div>
+  </div>
+
+  <nav class="menu" aria-label="Menu principal">
+    <span class="on"><b>01</b>ACCUEIL</span>
+    <span><b>02</b>LE JEU</span>
+    <span><b>03</b>FACTIONS</span>
+    <span><b>04</b>ARSENAL</span>
+    <span><b>05</b>JOURNAL</span>
+    <span><b>06</b>CONTACT</span>
+  </nav>
+
+  <div class="sysbar">
+    <span><i class="led"></i>LIAISON STABLE</span>
+    <span id="clock">--:--:--</span>
+  </div>
+</header>
+
+<!-- ==================== RAILS LATÉRAUX ==================== -->
+<aside class="rail rail-l" aria-hidden="true">
+  <div class="sq fill"></div>
+  <div class="vert">SECTEUR 07 / CEINTURE DU VIDE</div>
+  <div class="bar"></div>
+  <div class="sq"></div>
+</aside>
+
+<aside class="rail rail-r" aria-hidden="true">
+  <div class="sq"></div>
+  <div class="bar"></div>
+  <div class="vert">PROTOCOLE D'EXTRACTION — V.0.9.4</div>
+  <div class="sq fill"></div>
+</aside>
+
+<!-- ==================== ACCUEIL ==================== -->
+<main>
+
+  <div class="eyebrow rise d1"><i></i>ORBITE BASSE<u>//</u>ACCÈS AUTORISÉ<i></i></div>
+
+  <h1 class="wordmark rise d2">VOID<span>BELT</span></h1>
+
+  <div class="tagline rise d2">
+    <span><b>EXTRACTION TACTIQUE</b></span>
+    <s>/</s>
+    <span>3 OPÉRATEURS</span>
+    <s>/</s>
+    <span>ZÉRO SECONDE CHANCE</span>
+  </div>
+
+  <!-- carte transmission : contenu injecté par le script -->
+  <section class="transmission rise d3">
+    <div class="tr-head">
+      <span>&#9656; TRANSMISSION ENTRANTE — ARCHIVE CULTURELLE</span>
+      <span class="ref" id="ref">ARC 00/00</span>
+    </div>
+
+    <div class="tr-body">
+      <blockquote id="quote">CHARGEMENT DU FLUX...</blockquote>
+      <p id="quote-fr"></p>
+    </div>
+
+    <dl class="tr-meta">
+      <div><dt>Source</dt><dd class="hl" id="m-title">—</dd></div>
+      <div><dt>Créateur</dt><dd id="m-creator">—</dd></div>
+      <div><dt>Année</dt><dd class="cy" id="m-year">—</dd></div>
+      <div><dt>Format</dt><dd id="m-type">—</dd></div>
+    </dl>
+  </section>
+
+  <div class="hint rise d4"><i></i>Actualisez la page pour intercepter une autre transmission</div>
+
+</main>
+
+<!-- ==================== PIED DE PAGE ==================== -->
+<div class="stripes"></div>
+<footer class="footer">
+  <div class="cell">© 2026 VOIDBELT</div>
+  <div class="ticker"><div class="ticker-track" id="tick"></div></div>
+  <div class="cell">BUILD 0.9.4-ALPHA</div>
+</footer>
+
+<div class="scan"></div>
+
+<script>
+/* ============================================================
+   ARCHIVE — répliques de films et séries de science-fiction.
+   Une entrée est tirée au sort à chaque chargement de page,
+   en évitant celle affichée la fois précédente.
+   ============================================================ */
+
+var ARCHIVE = [
+  { q:"All those moments will be lost in time, like tears in rain.",
+    fr:"Tous ces moments se perdront dans le temps, comme des larmes dans la pluie.",
+    t:"Blade Runner", c:"Ridley Scott", y:1982, k:"Film" },
+
+  { q:"I'm sorry, Dave. I'm afraid I can't do that.",
+    fr:"Je suis désolé, Dave. Je crains de ne pouvoir faire cela.",
+    t:"2001 : L'Odyssée de l'espace", c:"Stanley Kubrick", y:1968, k:"Film" },
+
+  { q:"In space, no one can hear you scream.",
+    fr:"Dans l'espace, personne ne vous entend crier.",
+    t:"Alien", c:"Ridley Scott", y:1979, k:"Film" },
+
+  { q:"Big things have small beginnings.",
+    fr:"Les grandes choses ont de petits commencements.",
+    t:"Prometheus", c:"Ridley Scott", y:2012, k:"Film" },
+
+  { q:"The truth is out there.",
+    fr:"La vérité est ailleurs.",
+    t:"X-Files", c:"Chris Carter", y:1993, k:"Série" },
+
+  { q:"Space: the final frontier.",
+    fr:"L'espace, frontière de l'infini.",
+    t:"Star Trek", c:"Gene Roddenberry", y:1966, k:"Série" },
+
+  { q:"There is no spoon.",
+    fr:"Il n'y a pas de cuillère.",
+    t:"Matrix", c:"Lana & Lilly Wachowski", y:1999, k:"Film" },
+
+  { q:"So say we all.",
+    fr:"Ainsi parlons-nous tous.",
+    t:"Battlestar Galactica", c:"Ronald D. Moore", y:2004, k:"Série" },
+
+  { q:"Doors and corners, kid. That's where they get you.",
+    fr:"Les portes et les angles, gamin. C'est là qu'ils t'auront.",
+    t:"The Expanse", c:"Mark Fergus & Hawk Ostby", y:2015, k:"Série" },
+
+  { q:"I aim to misbehave.",
+    fr:"J'ai bien l'intention de mal me tenir.",
+    t:"Serenity / Firefly", c:"Joss Whedon", y:2005, k:"Film" },
+
+  { q:"Fear is the mind-killer.",
+    fr:"La peur tue l'esprit.",
+    t:"Dune", c:"Denis Villeneuve — d'après Frank Herbert", y:2021, k:"Film" },
+
+  { q:"Dying for the right cause is the most human thing we can do.",
+    fr:"Mourir pour une juste cause est la chose la plus humaine qui soit.",
+    t:"Blade Runner 2049", c:"Denis Villeneuve", y:2017, k:"Film" },
+
+  { q:"If you could see your whole life, would you change things?",
+    fr:"Si tu pouvais voir ta vie entière, changerais-tu quelque chose ?",
+    t:"Premier Contact", c:"Denis Villeneuve", y:2016, k:"Film" },
+
+  { q:"Would you like to know more?",
+    fr:"Voulez-vous en savoir plus ?",
+    t:"Starship Troopers", c:"Paul Verhoeven", y:1997, k:"Film" },
+
+  { q:"Dead or alive, you're coming with me.",
+    fr:"Mort ou vif, tu viens avec moi.",
+    t:"RoboCop", c:"Paul Verhoeven", y:1987, k:"Film" },
+
+  { q:"Get your ass to Mars.",
+    fr:"Ramène tes fesses sur Mars.",
+    t:"Total Recall", c:"Paul Verhoeven", y:1990, k:"Film" },
+
+  { q:"Come with me if you want to live.",
+    fr:"Viens avec moi si tu veux vivre.",
+    t:"Terminator", c:"James Cameron", y:1984, k:"Film" },
+
+  { q:"There is no fate but what we make for ourselves.",
+    fr:"Il n'y a d'autre destin que celui que l'on se forge.",
+    t:"Terminator 2 : Le Jugement dernier", c:"James Cameron", y:1991, k:"Film" },
+
+  { q:"Game over, man. Game over!",
+    fr:"C'est fini, mec. C'est fini !",
+    t:"Aliens, le retour", c:"James Cameron", y:1986, k:"Film" },
+
+  { q:"Where we're going, we won't need eyes to see.",
+    fr:"Là où nous allons, nous n'aurons pas besoin d'yeux pour voir.",
+    t:"Event Horizon", c:"Paul W. S. Anderson", y:1997, k:"Film" },
+
+  { q:"We used to look up at the sky and wonder at our place in the stars.",
+    fr:"Autrefois, nous levions les yeux vers le ciel en rêvant de notre place parmi les étoiles.",
+    t:"Interstellar", c:"Christopher Nolan", y:2014, k:"Film" },
+
+  { q:"These violent delights have violent ends.",
+    fr:"Ces plaisirs violents ont des fins violentes.",
+    t:"Westworld", c:"Jonathan Nolan & Lisa Joy", y:2016, k:"Série" },
+
+  { q:"May the Force be with you.",
+    fr:"Que la Force soit avec toi.",
+    t:"Star Wars", c:"George Lucas", y:1977, k:"Film" },
+
+  { q:"I burn my decency for someone else's future.",
+    fr:"Je brûle ma décence pour l'avenir d'un autre.",
+    t:"Andor", c:"Tony Gilroy", y:2022, k:"Série" },
+
+  { q:"This is the way.",
+    fr:"C'est la voie.",
+    t:"The Mandalorian", c:"Jon Favreau", y:2019, k:"Série" },
+
+  { q:"See you, space cowboy.",
+    fr:"À plus, cow-boy de l'espace.",
+    t:"Cowboy Bebop", c:"Shinichiro Watanabe", y:1998, k:"Série" },
+
+  { q:"The net is vast and infinite.",
+    fr:"Le réseau est vaste et infini.",
+    t:"Ghost in the Shell", c:"Mamoru Oshii", y:1995, k:"Film" },
+
+  { q:"Neo-Tokyo is about to explode.",
+    fr:"Neo-Tokyo est sur le point d'exploser.",
+    t:"Akira", c:"Katsuhiro Otomo", y:1988, k:"Film" },
+
+  { q:"Helping you is what I do.",
+    fr:"Vous aider, c'est ma raison d'être.",
+    t:"Moon", c:"Duncan Jones", y:2009, k:"Film" },
+
+  { q:"The work is mysterious and important.",
+    fr:"Le travail est mystérieux et important.",
+    t:"Severance", c:"Dan Erickson", y:2022, k:"Série" },
+
+  { q:"Isn't it strange, to create something that hates you?",
+    fr:"N'est-ce pas étrange de créer quelque chose qui vous déteste ?",
+    t:"Ex Machina", c:"Alex Garland", y:2014, k:"Film" },
+
+  { q:"There is no gene for the human spirit.",
+    fr:"Il n'existe aucun gène pour l'esprit humain.",
+    t:"Bienvenue à Gattaca", c:"Andrew Niccol", y:1997, k:"Film" },
+
+  { q:"Nobody trusts anybody now, and we're all very tired.",
+    fr:"Plus personne ne fait confiance à personne, et nous sommes tous très fatigués.",
+    t:"The Thing", c:"John Carpenter", y:1982, k:"Film" },
+
+  { q:"If it bleeds, we can kill it.",
+    fr:"Si ça saigne, on peut le tuer.",
+    t:"Predator", c:"John McTiernan", y:1987, k:"Film" },
+
+  { q:"There's no right, there's no wrong. There's only popular opinion.",
+    fr:"Il n'y a ni bien ni mal. Il n'y a que l'opinion dominante.",
+    t:"L'Armée des douze singes", c:"Terry Gilliam", y:1995, k:"Film" },
+
+  { q:"We don't want to conquer space. We want to expand Earth endlessly.",
+    fr:"Nous ne voulons pas conquérir l'espace. Nous voulons étendre la Terre à l'infini.",
+    t:"Solaris", c:"Andreï Tarkovski", y:1972, k:"Film" },
+
+  { q:"Violence is the last refuge of the incompetent.",
+    fr:"La violence est le dernier refuge de l'incompétence.",
+    t:"Fondation", c:"David S. Goyer — d'après Isaac Asimov", y:2021, k:"Série" },
+
+  { q:"Be seeing you.",
+    fr:"Bonjour chez vous.",
+    t:"Le Prisonnier", c:"Patrick McGoohan", y:1967, k:"Série" },
+
+  { q:"End of line.",
+    fr:"Fin de la transmission.",
+    t:"Tron", c:"Steven Lisberger", y:1982, k:"Film" },
+
+  { q:"Take your stinking paws off me, you damned dirty ape!",
+    fr:"Bas les pattes, sale singe !",
+    t:"La Planète des singes", c:"Franklin J. Schaffner", y:1968, k:"Film" },
+
+  { q:"Roads? Where we're going, we don't need roads.",
+    fr:"Des routes ? Là où on va, on n'a pas besoin de routes.",
+    t:"Retour vers le futur", c:"Robert Zemeckis", y:1985, k:"Film" },
+
+  { q:"Life finds a way.",
+    fr:"La vie trouve toujours un chemin.",
+    t:"Jurassic Park", c:"Steven Spielberg", y:1993, k:"Film" },
+
+  { q:"Hello, friend.",
+    fr:"Salut, l'ami.",
+    t:"Mr. Robot", c:"Sam Esmail", y:2015, k:"Série" },
+
+  { q:"We're all stories in the end.",
+    fr:"Au bout du compte, nous ne sommes que des histoires.",
+    t:"Doctor Who", c:"Sydney Newman", y:1963, k:"Série" },
+
+  { q:"Very odd, what happens in a world without children's voices.",
+    fr:"Étrange, ce qui arrive à un monde privé de voix d'enfants.",
+    t:"Les Fils de l'homme", c:"Alfonso Cuarón", y:2006, k:"Film" }
+];
+
+/* ---------- tirage sans répétition immédiate ---------- */
+
+function pickIndex(){
+  if (ARCHIVE.length < 2) return 0;
+  var last = -1;
+  try { last = parseInt(localStorage.getItem("voidbelt.lastArchive"), 10); } catch (e) {}
+  var i = Math.floor(Math.random() * ARCHIVE.length);
+  if (i === last) i = (i + 1) % ARCHIVE.length;
+  try { localStorage.setItem("voidbelt.lastArchive", String(i)); } catch (e) {}
+  return i;
+}
+
+/* ---------- effet de décodage sur la réplique ---------- */
+
+var GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/\\<>=*#%$@";
+
+function decode(el, text, duration){
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+    el.textContent = text;
+    return;
+  }
+  var start = performance.now();
+  function step(now){
+    var p = Math.min((now - start) / duration, 1);
+    var revealed = Math.floor(p * text.length);
+    var out = "";
+    for (var i = 0; i < text.length; i++){
+      var ch = text.charAt(i);
+      if (i < revealed || ch === " ") out += ch;
+      else out += GLYPHS.charAt(Math.floor(Math.random() * GLYPHS.length));
+    }
+    el.textContent = out;
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ---------- injection dans la carte ---------- */
+
+function pad(n){ return String(n).length < 2 ? "0" + n : String(n); }
+
+var idx = pickIndex();
+var item = ARCHIVE[idx];
+
+document.getElementById("ref").textContent = "ARC " + pad(idx + 1) + "/" + pad(ARCHIVE.length);
+document.getElementById("quote-fr").textContent = "« " + item.fr + " »";
+document.getElementById("m-title").textContent = item.t;
+document.getElementById("m-creator").textContent = item.c;
+document.getElementById("m-year").textContent = item.y;
+document.getElementById("m-type").textContent = item.k;
+
+decode(document.getElementById("quote"), item.q, 900);
+
+/* ---------- horloge de bord (UTC) ---------- */
+
+function tickClock(){
+  var d = new Date();
+  document.getElementById("clock").textContent =
+    pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds()) + " UTC";
+}
+tickClock();
+setInterval(tickClock, 1000);
+
+/* ---------- bandeau défilant ---------- */
+
+var NEWS = [
+  "SECTEUR 07 — TEMPÊTE DE DÉBRIS EN APPROCHE",
+  "PHASE D'ESSAI FERMÉE — INSCRIPTIONS BIENTÔT",
+  "PROTOCOLE D'EXTRACTION MIS À JOUR — V.0.9.4",
+  "TROIS FACTIONS ACTIVES SUR LA CEINTURE",
+  "AUCUNE BALISE DE SECOURS DÉTECTÉE",
+  "DIRECTION ARTISTIQUE INSPIRÉE DE MARATHON — BUNGIE"
+];
+
+var html = "";
+for (var n = 0; n < NEWS.length; n++) html += "<b>" + NEWS[n] + "</b>";
+document.getElementById("tick").innerHTML = html + html;
+</script>
+
+</body>
+</html>
