@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VOIDBELT // Réseau d'extraction</title>
-<meta name="description" content="VOIDBELT — extraction tactique dans la ceinture du vide.">
+<title>VOIDBELT // Colonisation industrielle</title>
+<meta name="description" content="VOIDBELT — minez, construisez, automatisez, colonisez, défendez, attaquez.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23FF4D00' stroke-width='3'/%3E%3Crect y='14' width='32' height='4' fill='%23EDE7DA'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,8 +12,8 @@
 <style>
 /* ============================================================
    VOIDBELT — site vitrine
-   Navigation : au defilement, transition par taches organiques.
-   Fond : champ d'asteroides interactif (canvas).
+   Deux pages, transition par glissement croise.
+   Fond : champ d'asteroides dense et interactif (canvas).
    ============================================================ */
 
 @property --spot{ syntax:'<number>'; inherits:true; initial-value:0 }
@@ -25,7 +25,6 @@
   --bone:#EDE7DA;
   --orange:#FF4D00;
   --cyan:#5FEBF7;
-  --acid:#D6FF3D;
 
   --txt:rgba(237,231,218,.96);
   --txt-2:rgba(237,231,218,.78);
@@ -37,7 +36,6 @@
   --fs-sm:clamp(11px, 1.15vmin, 18px);
   --fs-md:clamp(13px, 1.35vmin, 21px);
 
-  --pad-y:clamp(12px, 1.5vmin, 24px);
   --pad-x:clamp(16px, 2.0vmin, 34px);
 }
 
@@ -57,12 +55,13 @@ body{
   line-height:1.5;
   display:grid;
   grid-template-columns:minmax(0,100%);
-  grid-template-rows:auto minmax(0,1fr) auto auto;
+  grid-template-rows:minmax(0,1fr) auto auto;
   position:relative;
+  /* seuls les asteroides et les textes de l'interface sont cliquables */
+  user-select:none;
 }
 
-/* Aucun enfant de la grille ne doit pouvoir elargir la page. */
-.topbar, .stage, .stripes, .footer{ min-width:0; max-width:100% }
+.stage, .stripes, .footer{ min-width:0; max-width:100% }
 
 /* ============================================================
    COUCHES DE FOND
@@ -76,8 +75,8 @@ body{
 .grid-overlay{
   position:fixed; inset:0; z-index:0; pointer-events:none;
   background-image:
-    linear-gradient(rgba(237,231,218,.11) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(237,231,218,.11) 1px, transparent 1px);
+    linear-gradient(rgba(237,231,218,.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(237,231,218,.10) 1px, transparent 1px);
   background-size:clamp(48px,6vmin,110px) clamp(48px,6vmin,110px);
   mask-image:radial-gradient(ellipse 80% 75% at 50% 45%, #000 20%, transparent 100%);
   -webkit-mask-image:radial-gradient(ellipse 80% 75% at 50% 45%, #000 20%, transparent 100%);
@@ -100,7 +99,7 @@ body{
   right:-4vmin; bottom:-6vmin; width:52vmin; height:44vmin;
   background-image:radial-gradient(var(--orange) 1.7px, transparent 1.8px);
   background-size:clamp(12px,1.5vmin,26px) clamp(12px,1.5vmin,26px);
-  opacity:.5;
+  opacity:.45;
   mask-image:linear-gradient(300deg, #000 10%, transparent 70%);
   -webkit-mask-image:linear-gradient(300deg, #000 10%, transparent 70%);
 }
@@ -112,9 +111,8 @@ body{
   font-size:min(46vmin,34vw);
   line-height:.8;
   color:transparent;
-  -webkit-text-stroke:2px rgba(237,231,218,.09);
+  -webkit-text-stroke:2px rgba(237,231,218,.08);
   letter-spacing:-.04em;
-  user-select:none;
 }
 
 .scan{
@@ -123,56 +121,7 @@ body{
   mix-blend-mode:multiply; opacity:.5;
 }
 
-/* ============================================================
-   BARRE SUPERIEURE  (sans menu)
-   ============================================================ */
-
-.topbar{
-  position:relative; z-index:20;
-  display:flex; align-items:stretch; justify-content:space-between;
-  border-bottom:var(--edge) solid var(--bone);
-  background:rgba(10,10,11,.78);
-  backdrop-filter:blur(3px);
-}
-
-.brand{
-  display:flex; align-items:center; gap:.8em;
-  padding:var(--pad-y) var(--pad-x);
-  border-right:var(--edge) solid var(--bone);
-}
-.brand .mark{
-  width:1.9em; height:1.9em; flex:none; position:relative;
-  border:.22em solid var(--orange); border-radius:50%;
-  animation:spinmark 14s linear infinite;
-}
-.brand .mark::after{
-  content:""; position:absolute; left:-.5em; right:-.5em; top:50%;
-  height:.22em; background:var(--bone); transform:translateY(-50%);
-}
-@keyframes spinmark{ to{ transform:rotate(360deg) } }
-
-.brand .name{
-  font-family:'Archivo Black','Arial Black',sans-serif;
-  font-size:1.25em; letter-spacing:.14em; color:var(--txt);
-}
-.brand .name em{ font-style:normal; color:var(--orange) }
-
-.sysbar{
-  display:flex; align-items:center; gap:1.6em;
-  padding:0 var(--pad-x);
-  border-left:var(--edge) solid var(--bone);
-  font-size:var(--fs-xs); letter-spacing:.18em; color:var(--txt-2);
-  white-space:nowrap; overflow:hidden;
-}
-.sysbar b{ font-weight:400; color:var(--orange) }
-.led{
-  display:inline-block; width:.75em; height:.75em; background:var(--acid);
-  margin-right:.7em; vertical-align:-.05em;
-  animation:blink 1.6s steps(1) infinite;
-}
-@keyframes blink{ 0%,70%{opacity:1} 71%,100%{opacity:.15} }
-
-/* ---------- rails lateraux ---------- */
+/* ---------- rails lateraux (decoratifs) ---------- */
 
 .rail{
   position:fixed; top:50%; transform:translateY(-50%); z-index:9;
@@ -189,7 +138,7 @@ body{
 .rail .sq.fill{ background:var(--orange); border-color:var(--orange) }
 
 /* ============================================================
-   SCENE  —  les pages occupent la meme case de grille
+   SCENE — les deux pages se superposent et se croisent
    ============================================================ */
 
 .stage{ position:relative; z-index:10; overflow:hidden }
@@ -197,15 +146,31 @@ body{
 .page{
   position:absolute; inset:0;
   overflow-y:auto; overscroll-behavior:contain;
-  visibility:hidden;
+  opacity:0; visibility:hidden; pointer-events:none;
+  transform:translate3d(0, var(--off, 0px), 0) scale(.992);
+  /* fondu traversant : la page sortante s'efface vite, l'entrante arrive
+     ensuite. Sans ce decalage, les deux textes se superposent au milieu
+     de la transition et deviennent illisibles. */
+  transition:
+    opacity .18s cubic-bezier(.4,0,1,1),
+    transform .52s cubic-bezier(.3,0,.2,1),
+    visibility 0s linear .52s;
+  will-change:transform, opacity;
   scrollbar-width:thin;
   scrollbar-color:rgba(237,231,218,.25) transparent;
 }
-.page.on{ visibility:visible }
+.page.on{
+  opacity:1; visibility:visible; pointer-events:auto;
+  transform:translate3d(0,0,0) scale(1);
+  transition:
+    opacity .30s cubic-bezier(0,0,.2,1) .18s,
+    transform .56s cubic-bezier(.16,.84,.24,1),
+    visibility 0s;
+}
 .page::-webkit-scrollbar{ width:8px }
 .page::-webkit-scrollbar-thumb{ background:rgba(237,231,218,.22) }
 
-/* --- page 01 : accueil --- */
+/* ---------- page 01 : accueil ---------- */
 
 .home{
   min-height:100%;
@@ -224,7 +189,7 @@ body{
 .eyebrow i{ display:block; width:4em; height:1px; background:var(--orange); font-style:normal }
 .eyebrow u{ text-decoration:none; color:var(--orange) }
 
-/* ---------- LOGO : jeux de lumiere + reaction au curseur ---------- */
+/* ---------- LOGO : lumiere animee + reaction au curseur ---------- */
 
 .wordmark{
   --mx:50%; --my:50%; --spot:0; --tx:1; --rx:0deg; --ry:0deg;
@@ -234,10 +199,8 @@ body{
   letter-spacing:-.035em;
   text-transform:uppercase;
   display:block; text-align:center;
-  cursor:crosshair;
   transform:perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
   transition:transform .35s cubic-bezier(.2,.7,.2,1), --spot .3s linear, --tx .3s linear;
-  filter:drop-shadow(0 0 .5em rgba(255,77,0,.18));
   animation:logoglow 6s ease-in-out infinite;
 }
 @keyframes logoglow{
@@ -247,7 +210,7 @@ body{
 
 .wordmark .w{
   display:inline-block;
-  color:var(--base);            /* repli si le decoupage sur texte echoue */
+  color:var(--base);                 /* repli si le decoupage sur texte echoue */
   background-image:
     radial-gradient(circle at var(--mx) var(--my),
       rgba(255,255,255,calc(.95 * var(--spot))) 0%,
@@ -263,8 +226,8 @@ body{
   background-position:0 0, 160% 0, 0 0;
   -webkit-background-clip:text; background-clip:text;
   color:transparent;
-  /* NB : un text-shadow se peindrait par-dessus le fond decoupe et masquerait
-     la couleur. Les drop-shadow, eux, restent derriere. */
+  /* NB : un text-shadow se peindrait PAR-DESSUS le fond decoupe et masquerait
+     la couleur des lettres. Les drop-shadow, eux, restent derriere. */
   filter:
     drop-shadow(calc(var(--tx) *  .028em) 0 0 rgba(255,77,0,.85))
     drop-shadow(calc(var(--tx) * -.028em) 0 0 rgba(95,235,247,.55));
@@ -287,7 +250,7 @@ body{
 .tagline b{ color:var(--txt); font-weight:400 }
 .tagline s{ text-decoration:none; color:var(--orange) }
 
-/* ---------- carte transmission ---------- */
+/* ---------- la petite interface ---------- */
 
 .transmission{
   position:relative;
@@ -295,12 +258,13 @@ body{
   border:var(--edge) solid var(--bone);
   background:linear-gradient(180deg, rgba(20,20,22,.94), rgba(10,10,11,.94));
   animation:cardglow 6s ease-in-out infinite;
+  /* le texte de l'interface doit rester selectionnable et copiable */
+  user-select:text; -webkit-user-select:text;
 }
 @keyframes cardglow{
   0%,100%{ box-shadow:.55em .55em 0 rgba(255,77,0,.92), 0 0 0    rgba(255,77,0,0) }
   50%    { box-shadow:.55em .55em 0 rgba(255,77,0,.92), 0 0 2.4em rgba(255,77,0,.16) }
 }
-/* reflet lent qui balaie la carte */
 .transmission::after{
   content:""; position:absolute; inset:0; pointer-events:none;
   background:linear-gradient(115deg, transparent 42%, rgba(255,255,255,.06) 50%, transparent 58%);
@@ -325,14 +289,13 @@ body{
 @keyframes headpass{ 0%{transform:translateX(-120%)} 60%,100%{transform:translateX(360%)} }
 
 .tr-body{ padding:clamp(22px,3.2vmin,54px) clamp(20px,3vmin,50px) clamp(18px,2.4vmin,40px);
-          position:relative; overflow:hidden }
+          position:relative; overflow:hidden; cursor:text }
 .tr-body::before{
   content:"\201C";
   position:absolute; left:.1em; top:0;
   font-family:'Archivo Black','Arial Black',sans-serif;
   font-size:7em; line-height:1; color:rgba(237,231,218,.07);
 }
-/* fine ligne de balayage cyan */
 .tr-body::after{
   content:""; position:absolute; left:0; right:0; height:1px; top:0;
   background:linear-gradient(90deg, transparent, rgba(95,235,247,.5), transparent);
@@ -340,10 +303,10 @@ body{
   animation:scanline 8s cubic-bezier(.5,0,.5,1) infinite;
 }
 @keyframes scanline{
-  0%      { top:0;    opacity:0 }
-  6%      { opacity:.9 }
-  48%     { top:100%; opacity:0 }
-  100%    { top:100%; opacity:0 }
+  0%  { top:0;    opacity:0 }
+  6%  { opacity:.9 }
+  48% { top:100%; opacity:0 }
+  100%{ top:100%; opacity:0 }
 }
 
 #quote{
@@ -386,6 +349,7 @@ body{
   display:block; width:.6em; height:.6em; background:var(--cyan); font-style:normal;
   animation:blink 2.4s steps(1) infinite; flex:none;
 }
+@keyframes blink{ 0%,70%{opacity:1} 71%,100%{opacity:.15} }
 
 .cue{
   display:flex; flex-direction:column; align-items:center; gap:.5em;
@@ -395,19 +359,16 @@ body{
 .cue s{ text-decoration:none; font-size:1.4em; color:var(--orange); animation:bob 1.8s ease-in-out infinite }
 @keyframes bob{ 0%,100%{transform:translateY(0);opacity:.5} 50%{transform:translateY(.35em);opacity:1} }
 
-/* --- page 02 : le jeu --- */
+/* ---------- page 02 : le jeu ---------- */
 
 .brief{
   min-height:100%;
   padding:clamp(28px,5vmin,90px) clamp(18px,7vmin,150px) clamp(40px,6vmin,110px);
   display:flex; flex-direction:column; align-items:center;
 }
-.brief-inner{ width:min(94vw, calc(var(--fs-md) * 66)) }
-
-.tagline-warn{
-  display:inline-block; margin-bottom:2em;
-  border:1px solid var(--orange); color:var(--orange);
-  padding:.5em 1em; font-size:var(--fs-xs); letter-spacing:.26em; text-transform:uppercase;
+.brief-inner{
+  width:min(94vw, calc(var(--fs-md) * 66));
+  user-select:text; -webkit-user-select:text;
 }
 
 .brief h2{
@@ -434,55 +395,35 @@ body{
 .brief h3 b{ font-weight:400; color:var(--txt-3) }
 
 .brief p{ color:var(--txt-2); line-height:1.75; margin-bottom:1em }
-.brief p strong{ color:var(--txt); font-weight:400; background:rgba(255,77,0,.12) }
+.brief p strong{ color:var(--txt); font-weight:400; background:rgba(255,77,0,.14) }
 
-.specs{
-  display:flex; flex-wrap:wrap; gap:0;
-  border:var(--edge) solid var(--bone); margin:0 0 2.8em;
-  background:rgba(20,20,22,.7);
-}
-.specs > div{ flex:1 1 12em; padding:1.2em 1.4em; border-right:1px solid var(--line) }
-.specs > div:last-child{ border-right:0 }
-.specs dt{
-  font-size:var(--fs-xs); letter-spacing:.26em; text-transform:uppercase;
-  color:var(--txt-3); margin-bottom:.6em;
-}
-.specs dd{
+.welcome{
   font-family:'Archivo Black','Arial Black',sans-serif;
-  font-size:calc(var(--fs-md) * 1.5); text-transform:uppercase; color:var(--txt);
+  font-size:clamp(22px, min(5.5vw, 4.4vmin), 58px);
+  line-height:1.05; letter-spacing:-.02em; text-transform:uppercase;
+  color:#F6F2EA; margin:.4em 0 1.2em;
 }
-.specs dd.hl{ color:var(--orange) }
+.welcome span{ color:var(--orange) }
+
+.verbs{
+  display:flex; flex-wrap:wrap;
+  border:var(--edge) solid var(--bone);
+  background:rgba(20,20,22,.72);
+  margin-bottom:2.4em;
+}
+.verbs span{
+  flex:1 1 8em; padding:1em .9em;
+  border-right:1px solid var(--line);
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:var(--fs-sm); letter-spacing:.04em; text-transform:uppercase;
+  text-align:center; color:var(--txt);
+}
+.verbs span:last-child{ border-right:0 }
+.verbs span:nth-child(2n){ color:var(--orange) }
 
 .endnote{
-  border-top:1px solid var(--line); padding-top:1.6em; margin-top:1em;
+  border-top:1px solid var(--line); padding-top:1.6em;
   font-size:var(--fs-xs); letter-spacing:.24em; text-transform:uppercase; color:var(--txt-3);
-}
-
-/* ============================================================
-   TRANSITION PAR TACHES
-   ============================================================ */
-
-#wipe{
-  position:fixed; inset:0; z-index:70; pointer-events:none;
-  display:none; overflow:hidden;
-}
-#wipe.run{ display:block }
-#wipe i{
-  position:absolute; display:block;
-  transform:translate(-50%,-50%) scale(0) rotate(var(--rot));
-  background:var(--ink);
-  box-shadow:inset 0 0 0 1px rgba(237,231,218,.07);
-  will-change:transform;
-}
-#wipe i.hot{ background:var(--orange); box-shadow:none }
-#wipe i.pale{ background:var(--bone); box-shadow:none }
-#wipe.cover i{
-  transform:translate(-50%,-50%) scale(1) rotate(var(--rot));
-  transition:transform .36s cubic-bezier(.32,.72,.35,1) var(--d);
-}
-#wipe.clear i{
-  transform:translate(-50%,-50%) scale(0) rotate(var(--rot));
-  transition:transform .34s cubic-bezier(.55,.05,.6,.4) var(--d);
 }
 
 /* ============================================================
@@ -505,10 +446,11 @@ body{
   color:var(--txt-2);
 }
 .footer .cell{
-  display:flex; align-items:center;
+  display:flex; align-items:center; gap:1.6em;
   padding:.95em var(--pad-x); border-right:1px solid var(--line); white-space:nowrap;
 }
 .footer .cell:last-child{ border-right:0; border-left:1px solid var(--line) }
+.footer b{ font-weight:400; color:var(--orange) }
 
 .ticker{ flex:1 1 0; min-width:0; overflow:hidden; position:relative; display:flex; align-items:center }
 .ticker-track{
@@ -544,12 +486,9 @@ body{
 @media (max-width:1180px){ .rail{ display:none } }
 
 @media (max-width:860px){
-  .topbar{ flex-wrap:wrap }
-  .brand{ flex:1 1 100%; border-right:0; border-bottom:1px solid var(--line) }
-  .sysbar{ flex:1 1 100%; border-left:0; padding:.6em var(--pad-x); gap:1.1em; justify-content:space-between }
-  .sysbar .hide-s{ display:none }
   .transmission{ animation:none; box-shadow:.35em .35em 0 rgba(255,77,0,.92) }
   .footer .cell:first-child{ display:none }
+  .verbs span{ flex:1 1 33% }
 }
 </style>
 </head>
@@ -561,22 +500,6 @@ body{
 <div class="dots"></div>
 <div class="ghost-num">07</div>
 
-<!-- ==================== BARRE SUPERIEURE ==================== -->
-<header class="topbar">
-  <div class="brand">
-    <div class="mark"></div>
-    <div class="name">VOID<em>BELT</em></div>
-  </div>
-
-  <div class="sysbar">
-    <span><i class="led"></i>LIAISON STABLE</span>
-    <span class="hide-s">DÉBRIS PULVÉRISÉS <b id="kills">00</b></span>
-    <span class="hide-s" id="clock">--:--:--</span>
-    <span>SÉQ <b id="seq">01/02</b></span>
-  </div>
-</header>
-
-<!-- ==================== RAILS ==================== -->
 <aside class="rail rail-l" aria-hidden="true">
   <div class="sq fill"></div>
   <div class="vert">SECTEUR 07 / CEINTURE DU VIDE</div>
@@ -587,7 +510,7 @@ body{
 <aside class="rail rail-r" aria-hidden="true">
   <div class="sq"></div>
   <div class="bar"></div>
-  <div class="vert">PROTOCOLE D'EXTRACTION — V.0.9.4</div>
+  <div class="vert">PROTOCOLE DE COLONISATION — V.0.9.4</div>
   <div class="sq fill"></div>
 </aside>
 
@@ -602,11 +525,11 @@ body{
     <h1 class="wordmark rise d2" id="wordmark"><span class="w w-void">VOID</span><span class="w w-belt">BELT</span></h1>
 
     <div class="tagline rise d2">
-      <span><b>EXTRACTION TACTIQUE</b></span>
+      <span><b>COLONISATION INDUSTRIELLE</b></span>
       <s>/</s>
-      <span>3 OPÉRATEURS</span>
+      <span>AUTOMATISATION</span>
       <s>/</s>
-      <span>ZÉRO SECONDE CHANCE</span>
+      <span>CONFLIT ENTRE JOUEURS</span>
     </div>
 
     <section class="transmission rise d3">
@@ -638,103 +561,68 @@ body{
   <div class="page brief" id="p1">
     <div class="brief-inner">
 
-      <div class="tagline-warn rise d1">Brief provisoire — texte à remplacer</div>
-
       <h2 class="rise d1">LE <span>JEU</span></h2>
 
       <p class="lede rise d2">
-        VOIDBELT est un jeu de tir d'extraction à la première personne. Trois opérateurs,
-        une ceinture d'astéroïdes qui ne veut de bien à personne, et une seule règle qui
-        compte vraiment : ce que vous ne ramenez pas au sas, vous ne l'avez jamais eu.
+        Vous êtes un <strong>Vanguard</strong>, une unité spéciale envoyée aux confins de
+        l'espace pour coloniser une planète désertique inconnue. Votre mission est simple :
+        survivre, vous développer et transformer ce bout de caillou en une véritable
+        puissance industrielle.
       </p>
 
-      <dl class="specs rise d2">
-        <div><dt>Escouade</dt><dd class="hl">3 JOUEURS</dd></div>
-        <div><dt>Durée</dt><dd>22 MIN</dd></div>
-        <div><dt>Factions</dt><dd>03</dd></div>
-        <div><dt>Secteurs</dt><dd class="hl">07</dd></div>
-      </dl>
-
       <section class="rise d3">
-        <h3>01 <b>—</b> La promesse</h3>
+        <h3>01 <b>—</b> Partir de presque rien</h3>
         <p>
-          Vous descendez sur un caillou en rotation lente, quelque part entre deux orbites que
-          personne n'a pris la peine de cartographier correctement. Vous avez vingt-deux minutes
-          avant que la fenêtre de récupération ne se referme, une liste de choses à trouver, et
-          la certitude désagréable que deux autres escouades ont reçu exactement le même brief.
-        </p>
-        <p>
-          <strong>Rien n'est garanti.</strong> Le matériel que vous emportez, vous pouvez le perdre.
-          Le matériel que vous trouvez, vous ne le gardez qu'en franchissant le sas. C'est un jeu
-          qui vous demande d'évaluer en permanence ce que vaut un risque, et qui ne vous console
-          jamais quand vous vous trompez.
+          Commencez avec presque rien. Minez les ressources de la planète, construisez vos
+          premières machines, automatisez votre production et développez progressivement
+          votre technologie. Au fil de vos recherches, votre colonie grandit : convois,
+          camions, trains, réseaux logistiques, usines toujours plus avancées et immenses
+          systèmes de défense viennent peu à peu transformer votre petit avant-poste en
+          forteresse industrielle.
         </p>
       </section>
 
       <section class="rise d3">
-        <h3>02 <b>—</b> La boucle</h3>
+        <h3>02 <b>—</b> Au-delà de la première planète</h3>
         <p>
-          Préparation au dock : vous choisissez votre armement, vos consommables et le poids que
-          vous acceptez de traîner. Chaque kilo compte, parce que la gravité de la ceinture est
-          capricieuse et que courir vite reste la meilleure des armures.
-        </p>
-        <p>
-          Insertion : la capsule vous largue à un point que vous ne choisissez qu'à moitié.
-          Les premières secondes servent à écouter — les relais radio, les vibrations dans la
-          structure, les tirs lointains qui vous disent où ne pas aller.
-        </p>
-        <p>
-          Extraction : le sas s'ouvre pendant quatre-vingt-dix secondes. Il s'ouvre pour tout le
-          monde en même temps. C'est là que la plupart des parties se décident, et c'est là que
-          les meilleures histoires commencent.
+          Mais votre première planète ne sera pas votre seule source de richesse. Explorez
+          l'espace, colonisez des astéroïdes et exploitez leurs ressources uniques pour
+          accélérer votre développement.
         </p>
       </section>
 
       <section class="rise d3">
-        <h3>03 <b>—</b> La ceinture</h3>
+        <h3>03 <b>—</b> Le conflit entre joueurs</h3>
         <p>
-          Le Secteur 07 est un chantier abandonné en cours de démantèlement : des raffineries
-          coupées en deux, des dortoirs restés éclairés, des couloirs qui se terminent
-          brusquement sur le vide. On y trouve encore des affaires personnelles, des tasses
-          posées sur des consoles, des messages écrits à la main sur les cloisons.
+          Puis vient le moment où vos recherches vous permettent enfin de franchir une
+          nouvelle frontière : <strong>le conflit entre joueurs.</strong> À partir de là,
+          vous pouvez attaquer, défendre, conquérir et coloniser les territoires ennemis.
         </p>
         <p>
-          L'environnement est un adversaire à part entière. Les tempêtes de débris coupent les
-          lignes de vue et brouillent les capteurs. Les sections dépressurisées transforment
-          chaque porte en décision. <strong>Le silence, ici, est une information.</strong>
-        </p>
-      </section>
-
-      <section class="rise d3">
-        <h3>04 <b>—</b> Les opérateurs</h3>
-        <p>
-          Trois factions se partagent la ceinture, et aucune n'a entièrement tort. Vous ne
-          choisissez pas un camp par idéologie mais par méthode : celle qui entre par la porte,
-          celle qui entre par le plafond, celle qui attend que les deux autres se soient
-          épuisées.
-        </p>
-        <p>
-          Les opérateurs ne montent pas en niveau. Ils accumulent des contrats, des dettes et
-          une réputation qui modifie la façon dont le reste du secteur réagit à votre présence.
-          Une escouade trop bruyante finit par être attendue.
+          Mais détruire une colonie ne signifie pas tout perdre. Vos infrastructures
+          principales sont protégées : même après une attaque, votre empire peut se relever.
+          En revanche, chaque assaut peut endommager vos défenses et affaiblir votre
+          capacité à protéger votre production.
         </p>
       </section>
 
       <section class="rise d3">
-        <h3>05 <b>—</b> Ce qui arrive ensuite</h3>
+        <h3>04 <b>—</b> Construisez en conséquence</h3>
         <p>
-          Le développement est en cours. La phase d'essai fermée ouvrira sur invitation, par
-          vagues, secteur par secteur. Les notes de version, les journaux de conception et les
-          fausses excuses pour les retards seront publiés ici même.
-        </p>
-        <p>
-          En attendant, cette page tient lieu de brief. Elle sera remplacée dès qu'il y aura
-          quelque chose de plus honnête à raconter.
+          Alors construisez intelligemment, automatisez tout ce qui peut l'être, renforcez
+          vos défenses et préparez-vous à voir débarquer quelqu'un qui pense que
+          <strong>vos ressources seraient mieux chez lui.</strong>
         </p>
       </section>
+
+      <div class="welcome rise d3">Bienvenue dans <span>VoidBelt</span>.</div>
+
+      <div class="verbs rise d4">
+        <span>Mine</span><span>Construis</span><span>Automatise</span><span>Colonise</span><span>Défends</span><span>Attaque</span>
+      </div>
 
       <div class="endnote rise d4">
-        Fin du brief — remontez pour revenir au terminal d'accueil
+        Remontez pour revenir au terminal d'accueil
       </div>
 
     </div>
@@ -742,15 +630,15 @@ body{
 
 </div>
 
-<!-- ==================== TRANSITION ==================== -->
-<div id="wipe" aria-hidden="true"></div>
-
 <!-- ==================== BAS DE PAGE ==================== -->
 <div class="stripes"></div>
 <footer class="footer">
   <div class="cell">© 2026 VOIDBELT</div>
   <div class="ticker"><div class="ticker-track" id="tick"></div></div>
-  <div class="cell">BUILD 0.9.4-ALPHA</div>
+  <div class="cell">
+    <span>DÉBRIS <b id="kills">00</b></span>
+    <span>SÉQ <b id="seq">01/02</b></span>
+  </div>
 </footer>
 
 <div class="scan"></div>
@@ -948,7 +836,8 @@ function decode(el, text, duration){
 
 /* ============================================================
    2 — CHAMP D'ASTEROIDES
-   Les rochers derivent, s'ecartent du curseur et se brisent au clic.
+   Dense, reagit au curseur, se brise au clic, et file lors
+   des changements de page (methode warp).
    ============================================================ */
 
 var Field = (function(){
@@ -958,7 +847,7 @@ var Field = (function(){
   var W = 0, H = 0;
   var rocks = [], shards = [], stars = [];
   var mx = -9999, my = -9999, px = 0, py = 0, tpx = 0, tpy = 0;
-  var broken = 0, hovering = false;
+  var broken = 0, hovering = false, warpT = 0;
 
   function rand(a, b){ return a + Math.random() * (b - a); }
 
@@ -973,14 +862,14 @@ var Field = (function(){
   }
 
   function makeRock(x, y){
-    var r = rand(13, 52);
+    var r = rand(7, 44);
     return {
       x: x, y: y,
       vx: rand(-0.20, 0.20), vy: rand(-0.16, 0.16),
       r: r, pts: silhouette(r, Math.floor(rand(7, 12))),
-      rot: rand(0, 6.28), spin: rand(-0.004, 0.004),
-      depth: rand(0.30, 1.15),
-      hot: Math.random() < 0.14
+      rot: rand(0, 6.28), spin: rand(-0.005, 0.005),
+      depth: rand(0.25, 1.20),
+      hot: Math.random() < 0.13
     };
   }
 
@@ -993,11 +882,11 @@ var Field = (function(){
   }
 
   function build(){
-    var target = Math.max(14, Math.min(30, Math.round((W * H) / 52000)));
+    var n = Math.max(40, Math.min(120, Math.round((W * H) / 13000)));
     rocks = [];
-    for (var i = 0; i < target; i++) rocks.push(makeRock(rand(0, W), rand(0, H)));
+    for (var i = 0; i < n; i++) rocks.push(makeRock(rand(0, W), rand(0, H)));
     stars = [];
-    var sc = Math.round((W * H) / 9000);
+    var sc = Math.round((W * H) / 7000);
     for (var j = 0; j < sc; j++){
       stars.push({ x: rand(0, W), y: rand(0, H), s: rand(0.4, 1.5),
                    a: rand(0.10, 0.55), tw: rand(0.4, 1.8), ph: rand(0, 6.28) });
@@ -1043,10 +932,26 @@ var Field = (function(){
     ctx.closePath();
   }
 
-  function frame(t){
-    ctx.clearRect(0, 0, W, H);
+  /* impulsion donnee au champ pendant un changement de page */
+  function warp(dir){
+    warpT = 1;
+    for (var i = 0; i < rocks.length; i++){
+      rocks[i].vy -= dir * (1.6 + Math.random() * 3.2) * (0.35 + rocks[i].depth);
+    }
+  }
 
-    /* parallaxe douce vers la position du curseur */
+  function frame(t){
+    /* pendant le warp on n'efface que partiellement : les rochers laissent
+       une trainee, ce qui donne la sensation de vitesse. */
+    if (warpT > 0.02){
+      ctx.fillStyle = "rgba(10,10,11,.26)";
+      ctx.fillRect(0, 0, W, H);
+      warpT *= 0.92;
+    } else {
+      if (warpT !== 0){ warpT = 0; }
+      ctx.clearRect(0, 0, W, H);
+    }
+
     px += (tpx - px) * 0.05;
     py += (tpy - py) * 0.05;
 
@@ -1062,7 +967,6 @@ var Field = (function(){
     for (i = 0; i < rocks.length; i++){
       var rk = rocks[i];
 
-      /* repulsion autour du curseur */
       var ddx = rk.x - mx, ddy = rk.y - my;
       var d2 = ddx * ddx + ddy * ddy;
       if (d2 < 32400 && d2 > 1){
@@ -1115,7 +1019,6 @@ var Field = (function(){
     window.addEventListener("resize", resize);
 
     if (REDUCED){
-      /* rendu statique : pas de boucle d'animation */
       ctx.clearRect(0, 0, W, H);
       for (var i = 0; i < rocks.length; i++){
         var rk = rocks[i];
@@ -1131,7 +1034,7 @@ var Field = (function(){
       mx = e.clientX; my = e.clientY;
       tpx = (e.clientX / W - 0.5) * 34;
       tpy = (e.clientY / H - 0.5) * 34;
-      var over = hit(e.clientX, e.clientY) >= 0;
+      var over = hit(e.clientX, e.clientY) >= 0 && !inText(e.target);
       if (over !== hovering){
         hovering = over;
         document.body.style.cursor = over ? "crosshair" : "";
@@ -1141,117 +1044,67 @@ var Field = (function(){
     window.addEventListener("pointerleave", function(){ mx = my = -9999; });
 
     window.addEventListener("pointerdown", function(e){
-      /* on ne casse rien si le clic vise un element de l'interface */
-      if (e.target && e.target.closest && e.target.closest(".wordmark, .transmission, .topbar, .footer")) return;
+      if (inText(e.target)) return;      /* on laisse selectionner le texte */
       var i = hit(e.clientX, e.clientY);
       if (i < 0) return;
-      var rk = rocks[i];
-      shatter(rk);
+      shatter(rocks[i]);
       rocks.splice(i, 1);
-      rocks.push(spawnEdge());   /* un autre apparait ailleurs, au hasard */
+      rocks.push(spawnEdge());           /* un autre entre par un bord, au hasard */
     });
 
     requestAnimationFrame(frame);
   }
 
-  return { init: init };
+  /* zones ou le clic sert a selectionner du texte, pas a casser un rocher */
+  function inText(el){
+    return !!(el && el.closest && el.closest(".transmission, .brief-inner, .footer"));
+  }
+
+  return { init: init, warp: warp };
 })();
 
 Field.init();
 
 /* ============================================================
-   3 — TRANSITION PAR TACHES
-   ============================================================ */
-
-var Wipe = (function(){
-  var box = document.getElementById("wipe");
-  var COVER = 360, CLEAR = 340, ROW = 34, JITTER = 90;
-
-  function radius(){
-    function v(){ return (30 + Math.random() * 40).toFixed(0); }
-    return v() + "% " + v() + "% " + v() + "% " + v() + "% / " +
-           v() + "% " + v() + "% " + v() + "% " + v() + "%";
-  }
-
-  function play(dir, onCover, onDone){
-    var vw = window.innerWidth, vh = window.innerHeight;
-    var cols = Math.max(4, Math.round(vw / 110));
-    var rows = Math.max(4, Math.round(vh / 110));
-    var cw = vw / cols, ch = vh / rows;
-    var frag = document.createDocumentFragment();
-    var last = 0, r, c;
-
-    box.innerHTML = "";
-    box.className = "run";
-
-    for (r = 0; r < rows; r++){
-      for (c = 0; c < cols; c++){
-        var order = dir > 0 ? (rows - 1 - r) : r;       /* sens d'apparition */
-        var d = order * ROW + Math.random() * JITTER;
-        if (d > last) last = d;
-        var b = document.createElement("i");
-        var roll = Math.random();
-        b.className = roll < 0.13 ? "hot" : (roll < 0.18 ? "pale" : "");
-        b.style.left = ((c + 0.5) * cw) + "px";
-        b.style.top = ((r + 0.5) * ch) + "px";
-        b.style.width = (cw * 1.85) + "px";
-        b.style.height = (ch * 1.85) + "px";
-        b.style.borderRadius = radius();
-        b.style.setProperty("--d", d.toFixed(0) + "ms");
-        b.style.setProperty("--rot", ((Math.random() * 70 - 35) | 0) + "deg");
-        frag.appendChild(b);
-      }
-    }
-    box.appendChild(frag);
-
-    /* phase 1 : les taches recouvrent l'ecran */
-    requestAnimationFrame(function(){
-      requestAnimationFrame(function(){ box.className = "run cover"; });
-    });
-
-    setTimeout(function(){
-      onCover();
-      /* phase 2 : elles se retirent dans le meme sens, la page apparait par plaques */
-      box.className = "run cover clear";
-      setTimeout(function(){
-        box.className = "";
-        box.innerHTML = "";
-        onDone();
-      }, last + CLEAR + 60);
-    }, last + COVER + 40);
-  }
-
-  return { play: play };
-})();
-
-/* ============================================================
-   4 — NAVIGATION AU DEFILEMENT
+   3 — NAVIGATION : glissement croise des deux pages
    ============================================================ */
 
 (function(){
   var pages = [document.getElementById("p0"), document.getElementById("p1")];
   var seq = document.getElementById("seq");
   var cur = 0, busy = false, acc = 0, accAt = 0;
+  var DUR = 560;
 
   function atEdge(el, dir){
     if (dir > 0) return el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
     return el.scrollTop <= 2;
   }
 
-  function land(target, dir){
-    var el = pages[target];
-    pages[cur].classList.remove("on");
-    el.classList.add("on");
-    el.scrollTop = dir > 0 ? 0 : Math.max(0, el.scrollHeight - el.clientHeight);
+  function go(target, dir){
+    if (busy || target < 0 || target >= pages.length || target === cur) return;
+    busy = true; acc = 0;
+
+    var out = pages[cur], inc = pages[target];
+
+    /* la page sortante glisse dans le sens du defilement,
+       l'entrante arrive du cote oppose */
+    out.style.setProperty("--off", (-7 * dir) + "vh");
+    inc.style.setProperty("--off", ( 7 * dir) + "vh");
+    inc.scrollTop = dir > 0 ? 0 : Math.max(0, inc.scrollHeight - inc.clientHeight);
+
+    if (REDUCED){
+      out.classList.remove("on");
+      inc.classList.add("on");
+    } else {
+      Field.warp(dir);
+      out.classList.remove("on");
+      void inc.offsetWidth;              /* fige l'etat de depart avant la transition */
+      inc.classList.add("on");
+    }
+
     cur = target;
     seq.textContent = pad(cur + 1) + "/" + pad(pages.length);
-  }
-
-  function go(target, dir){
-    if (busy || target < 0 || target >= pages.length) return;
-    busy = true; acc = 0;
-    if (REDUCED){ land(target, dir); busy = false; return; }
-    Wipe.play(dir, function(){ land(target, dir); }, function(){ busy = false; });
+    setTimeout(function(){ busy = false; }, REDUCED ? 0 : DUR);
   }
 
   window.addEventListener("wheel", function(e){
@@ -1293,21 +1146,20 @@ var Wipe = (function(){
 })();
 
 /* ============================================================
-   5 — LOGO : lumiere qui suit le curseur
+   4 — LOGO : lumiere qui suit le curseur
    ============================================================ */
 
 (function(){
   var wm = document.getElementById("wordmark");
   if (!wm || REDUCED) return;
-
   var words = wm.querySelectorAll(".w");
 
   wm.addEventListener("pointermove", function(e){
     var r = wm.getBoundingClientRect();
     var x = (e.clientX - r.left) / r.width;
     var y = (e.clientY - r.top) / r.height;
-    /* chaque mot possede sa propre boite de fond : on lui donne les
-       coordonnees du curseur dans SON repere, sinon le halo se dedouble. */
+    /* chaque mot a sa propre boite de fond : on lui donne les coordonnees
+       du curseur dans SON repere, sinon le halo se dedouble. */
     for (var i = 0; i < words.length; i++){
       var wr = words[i].getBoundingClientRect();
       words[i].style.setProperty("--mx", (((e.clientX - wr.left) / wr.width) * 100).toFixed(1) + "%");
@@ -1328,18 +1180,8 @@ var Wipe = (function(){
 })();
 
 /* ============================================================
-   6 — HORLOGE ET BANDEAU
+   5 — BANDEAU DEFILANT
    ============================================================ */
-
-(function(){
-  var el = document.getElementById("clock");
-  function tick(){
-    var d = new Date();
-    el.textContent = pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds()) + " UTC";
-  }
-  tick();
-  setInterval(tick, 1000);
-})();
 
 (function(){
   var NEWS = [
@@ -1351,8 +1193,8 @@ var Wipe = (function(){
     "MERCI DE NE PAS NOURRIR LES DÉBRIS",
     "QUELQU'UN A REPEINT LE SAS EN ORANGE — NOUS CHERCHONS TOUJOURS QUI",
     "LE DISTRIBUTEUR DU PONT 4 MANGE ENCORE LES JETONS",
-    "AUCUNE BALISE DE SECOURS DÉTECTÉE — ON A BIEN CHERCHÉ, PROMIS",
-    "TROIS FACTIONS ACTIVES SUR LA CEINTURE, DEUX SE PARLENT ENCORE"
+    "LA FOREUSE 12 FAIT UN BRUIT BIZARRE, ON PRÉFÈRE NE PAS SAVOIR",
+    "AUCUNE BALISE DE SECOURS DÉTECTÉE — ON A BIEN CHERCHÉ, PROMIS"
   ];
   var html = "";
   for (var i = 0; i < NEWS.length; i++) html += "<b>" + NEWS[i] + "</b>";
