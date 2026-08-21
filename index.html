@@ -57,9 +57,13 @@ body{
   font-size:var(--fs-md);
   line-height:1.5;
   display:grid;
+  grid-template-columns:minmax(0,100%);
   grid-template-rows:auto minmax(0,1fr) auto auto;
   position:relative;
 }
+
+/* Aucun enfant de la grille ne doit pouvoir elargir la page. */
+.topbar, main, .stripes, .footer{ min-width:0; max-width:100%; }
 
 /* ---------- couches décoratives ---------- */
 
@@ -138,7 +142,7 @@ body{
 }
 .brand .name em{ font-style:normal; color:var(--orange) }
 
-.menu{ display:flex; align-items:stretch; flex:1 }
+.menu{ display:flex; align-items:stretch; flex:1 1 0; min-width:0; overflow:hidden }
 
 .menu span{
   display:flex; align-items:center; gap:.6em;
@@ -320,7 +324,7 @@ main{
 }
 .footer .cell:last-child{ border-right:0; border-left:1px solid var(--line) }
 
-.ticker{ flex:1; overflow:hidden; position:relative; display:flex; align-items:center }
+.ticker{ flex:1 1 0; min-width:0; overflow:hidden; position:relative; display:flex; align-items:center }
 .ticker-track{
   display:flex; gap:4em; white-space:nowrap; padding-left:4em;
   animation:slide 38s linear infinite;
@@ -663,6 +667,9 @@ function decode(el, text, duration){
     el.textContent = text;
     return;
   }
+  /* filet de securite : si rAF ne tourne pas (onglet en arriere-plan),
+     le texte final est pose malgre tout. */
+  setTimeout(function(){ if (el.textContent !== text) el.textContent = text; }, duration + 200);
   var start = performance.now();
   function step(now){
     var p = Math.min((now - start) / duration, 1);
