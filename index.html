@@ -11,33 +11,32 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
-   VOIDBELT — page d'accueil
-   Direction artistique : brutalisme graphique / affiche suisse
-   Mise à l'échelle : tout est relatif au viewport (vmin/vw),
-   la page occupe exactement 100% de la hauteur d'écran.
+   VOIDBELT — site vitrine
+   Navigation : au defilement, transition par taches organiques.
+   Fond : champ d'asteroides interactif (canvas).
    ============================================================ */
 
+@property --spot{ syntax:'<number>'; inherits:true; initial-value:0 }
+@property --tx  { syntax:'<number>'; inherits:true; initial-value:1 }
+
 :root{
-  /* couleurs */
   --black:#0A0A0B;
+  --ink:#141416;
   --bone:#EDE7DA;
   --orange:#FF4D00;
   --cyan:#5FEBF7;
   --acid:#D6FF3D;
 
-  /* niveaux de texte — remontés pour rester lisibles sur fond noir */
   --txt:rgba(237,231,218,.96);
   --txt-2:rgba(237,231,218,.78);
   --txt-3:rgba(237,231,218,.60);
   --line:rgba(237,231,218,.20);
   --edge:2px;
 
-  /* échelle typographique */
   --fs-xs:clamp(10px, 1.00vmin, 16px);
   --fs-sm:clamp(11px, 1.15vmin, 18px);
   --fs-md:clamp(13px, 1.35vmin, 21px);
 
-  /* rythme */
   --pad-y:clamp(12px, 1.5vmin, 24px);
   --pad-x:clamp(16px, 2.0vmin, 34px);
 }
@@ -63,15 +62,22 @@ body{
 }
 
 /* Aucun enfant de la grille ne doit pouvoir elargir la page. */
-.topbar, main, .stripes, .footer{ min-width:0; max-width:100%; }
+.topbar, .stage, .stripes, .footer{ min-width:0; max-width:100% }
 
-/* ---------- couches décoratives ---------- */
+/* ============================================================
+   COUCHES DE FOND
+   ============================================================ */
+
+#space{
+  position:fixed; inset:0; z-index:1; pointer-events:none;
+  width:100%; height:100%;
+}
 
 .grid-overlay{
   position:fixed; inset:0; z-index:0; pointer-events:none;
   background-image:
-    linear-gradient(rgba(237,231,218,.13) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(237,231,218,.13) 1px, transparent 1px);
+    linear-gradient(rgba(237,231,218,.11) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(237,231,218,.11) 1px, transparent 1px);
   background-size:clamp(48px,6vmin,110px) clamp(48px,6vmin,110px);
   mask-image:radial-gradient(ellipse 80% 75% at 50% 45%, #000 20%, transparent 100%);
   -webkit-mask-image:radial-gradient(ellipse 80% 75% at 50% 45%, #000 20%, transparent 100%);
@@ -81,7 +87,12 @@ body{
   position:fixed; z-index:0; pointer-events:none;
   width:min(150vmin,140vw); aspect-ratio:1; left:50%; top:48%;
   transform:translate(-50%,-50%);
-  background:radial-gradient(circle, rgba(255,77,0,.22) 0%, rgba(255,77,0,.07) 38%, transparent 66%);
+  background:radial-gradient(circle, rgba(255,77,0,.20) 0%, rgba(255,77,0,.06) 38%, transparent 66%);
+  animation:breathe 11s ease-in-out infinite;
+}
+@keyframes breathe{
+  0%,100%{ opacity:.75; transform:translate(-50%,-50%) scale(1) }
+  50%    { opacity:1;   transform:translate(-50%,-50%) scale(1.06) }
 }
 
 .dots{
@@ -89,7 +100,7 @@ body{
   right:-4vmin; bottom:-6vmin; width:52vmin; height:44vmin;
   background-image:radial-gradient(var(--orange) 1.7px, transparent 1.8px);
   background-size:clamp(12px,1.5vmin,26px) clamp(12px,1.5vmin,26px);
-  opacity:.55;
+  opacity:.5;
   mask-image:linear-gradient(300deg, #000 10%, transparent 70%);
   -webkit-mask-image:linear-gradient(300deg, #000 10%, transparent 70%);
 }
@@ -101,21 +112,23 @@ body{
   font-size:min(46vmin,34vw);
   line-height:.8;
   color:transparent;
-  -webkit-text-stroke:2px rgba(237,231,218,.10);
+  -webkit-text-stroke:2px rgba(237,231,218,.09);
   letter-spacing:-.04em;
   user-select:none;
 }
 
 .scan{
-  position:fixed; inset:0; z-index:60; pointer-events:none;
+  position:fixed; inset:0; z-index:58; pointer-events:none;
   background:repeating-linear-gradient(180deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px);
   mix-blend-mode:multiply; opacity:.5;
 }
 
-/* ---------- barre supérieure ---------- */
+/* ============================================================
+   BARRE SUPERIEURE  (sans menu)
+   ============================================================ */
 
 .topbar{
-  position:relative; z-index:10;
+  position:relative; z-index:20;
   display:flex; align-items:stretch; justify-content:space-between;
   border-bottom:var(--edge) solid var(--bone);
   background:rgba(10,10,11,.78);
@@ -127,42 +140,31 @@ body{
   padding:var(--pad-y) var(--pad-x);
   border-right:var(--edge) solid var(--bone);
 }
-
 .brand .mark{
   width:1.9em; height:1.9em; flex:none; position:relative;
   border:.22em solid var(--orange); border-radius:50%;
+  animation:spinmark 14s linear infinite;
 }
 .brand .mark::after{
   content:""; position:absolute; left:-.5em; right:-.5em; top:50%;
   height:.22em; background:var(--bone); transform:translateY(-50%);
 }
+@keyframes spinmark{ to{ transform:rotate(360deg) } }
+
 .brand .name{
   font-family:'Archivo Black','Arial Black',sans-serif;
   font-size:1.25em; letter-spacing:.14em; color:var(--txt);
 }
 .brand .name em{ font-style:normal; color:var(--orange) }
 
-.menu{ display:flex; align-items:stretch; flex:1 1 0; min-width:0; overflow:hidden }
-
-.menu span{
-  display:flex; align-items:center; gap:.6em;
-  padding:0 var(--pad-x);
-  font-size:var(--fs-sm); letter-spacing:.22em; text-transform:uppercase;
-  color:var(--txt-2);
-  border-right:1px solid var(--line);
-  white-space:nowrap;
-}
-.menu span b{ font-weight:400; font-size:.8em; color:var(--txt-3) }
-.menu span.on{ color:var(--black); background:var(--bone) }
-.menu span.on b{ color:rgba(10,10,11,.55) }
-
 .sysbar{
   display:flex; align-items:center; gap:1.6em;
   padding:0 var(--pad-x);
   border-left:var(--edge) solid var(--bone);
   font-size:var(--fs-xs); letter-spacing:.18em; color:var(--txt-2);
-  white-space:nowrap;
+  white-space:nowrap; overflow:hidden;
 }
+.sysbar b{ font-weight:400; color:var(--orange) }
 .led{
   display:inline-block; width:.75em; height:.75em; background:var(--acid);
   margin-right:.7em; vertical-align:-.05em;
@@ -170,12 +172,13 @@ body{
 }
 @keyframes blink{ 0%,70%{opacity:1} 71%,100%{opacity:.15} }
 
-/* ---------- rails latéraux ---------- */
+/* ---------- rails lateraux ---------- */
 
 .rail{
   position:fixed; top:50%; transform:translateY(-50%); z-index:9;
   display:flex; flex-direction:column; gap:2em; align-items:center;
   font-size:var(--fs-xs); letter-spacing:.3em; color:var(--txt-2);
+  pointer-events:none;
 }
 .rail-l{ left:1.6vmin }
 .rail-r{ right:1.6vmin }
@@ -185,16 +188,32 @@ body{
 .rail .sq{ width:.7em; height:.7em; border:1px solid var(--txt-3) }
 .rail .sq.fill{ background:var(--orange); border-color:var(--orange) }
 
-/* ---------- contenu central ---------- */
+/* ============================================================
+   SCENE  —  les pages occupent la meme case de grille
+   ============================================================ */
 
-main{
-  position:relative; z-index:10;
+.stage{ position:relative; z-index:10; overflow:hidden }
+
+.page{
+  position:absolute; inset:0;
+  overflow-y:auto; overscroll-behavior:contain;
+  visibility:hidden;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(237,231,218,.25) transparent;
+}
+.page.on{ visibility:visible }
+.page::-webkit-scrollbar{ width:8px }
+.page::-webkit-scrollbar-thumb{ background:rgba(237,231,218,.22) }
+
+/* --- page 01 : accueil --- */
+
+.home{
+  min-height:100%;
   display:flex; flex-direction:column; align-items:center;
   justify-content:center;
   justify-content:safe center;
-  gap:clamp(18px,2.8vmin,48px);
+  gap:clamp(16px,2.4vmin,42px);
   padding:clamp(24px,4vmin,70px) clamp(16px,6vmin,120px);
-  overflow-y:auto;
 }
 
 .eyebrow{
@@ -205,17 +224,60 @@ main{
 .eyebrow i{ display:block; width:4em; height:1px; background:var(--orange); font-style:normal }
 .eyebrow u{ text-decoration:none; color:var(--orange) }
 
+/* ---------- LOGO : jeux de lumiere + reaction au curseur ---------- */
+
 .wordmark{
+  --mx:50%; --my:50%; --spot:0; --tx:1; --rx:0deg; --ry:0deg;
   font-family:'Archivo Black','Arial Black',sans-serif;
   font-size:clamp(40px, min(13.5vw, 16vmin), 240px);
   line-height:.82;
   letter-spacing:-.035em;
-  text-align:center;
   text-transform:uppercase;
-  color:#F6F2EA;
-  text-shadow:.025em 0 0 rgba(255,77,0,.9), -.025em 0 0 rgba(95,235,247,.6);
+  display:block; text-align:center;
+  cursor:crosshair;
+  transform:perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
+  transition:transform .35s cubic-bezier(.2,.7,.2,1), --spot .3s linear, --tx .3s linear;
+  filter:drop-shadow(0 0 .5em rgba(255,77,0,.18));
+  animation:logoglow 6s ease-in-out infinite;
 }
-.wordmark span{ color:var(--orange); text-shadow:none }
+@keyframes logoglow{
+  0%,100%{ filter:drop-shadow(0 0 .35em rgba(255,77,0,.14)) }
+  50%    { filter:drop-shadow(0 0 .9em  rgba(255,77,0,.30)) }
+}
+
+.wordmark .w{
+  display:inline-block;
+  color:var(--base);            /* repli si le decoupage sur texte echoue */
+  background-image:
+    radial-gradient(circle at var(--mx) var(--my),
+      rgba(255,255,255,calc(.95 * var(--spot))) 0%,
+      rgba(255,255,255,0) 30%),
+    linear-gradient(100deg,
+      transparent 38%,
+      rgba(255,255,255,.60) 47%,
+      rgba(255,255,255,.15) 52%,
+      transparent 60%),
+    linear-gradient(var(--base), var(--base));
+  background-size:100% 100%, 320% 100%, 100% 100%;
+  background-repeat:no-repeat;
+  background-position:0 0, 160% 0, 0 0;
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent;
+  /* NB : un text-shadow se peindrait par-dessus le fond decoupe et masquerait
+     la couleur. Les drop-shadow, eux, restent derriere. */
+  filter:
+    drop-shadow(calc(var(--tx) *  .028em) 0 0 rgba(255,77,0,.85))
+    drop-shadow(calc(var(--tx) * -.028em) 0 0 rgba(95,235,247,.55));
+  animation:sweep 7s linear infinite;
+}
+.wordmark .w-void{ --base:#F6F2EA }
+.wordmark .w-belt{ --base:#FF4D00; animation-delay:-3.5s }
+@keyframes sweep{
+  0%  { background-position:0 0, 170% 0, 0 0 }
+  55% { background-position:0 0, -70% 0, 0 0 }
+  100%{ background-position:0 0, -70% 0, 0 0 }
+}
+.wordmark:hover .w{ animation-duration:2.4s }
 
 .tagline{
   display:flex; flex-wrap:wrap; justify-content:center; gap:.7em 1.4em;
@@ -232,37 +294,67 @@ main{
   width:min(92vw, calc(var(--fs-md) * 62));
   border:var(--edge) solid var(--bone);
   background:linear-gradient(180deg, rgba(20,20,22,.94), rgba(10,10,11,.94));
-  box-shadow:.55em .55em 0 rgba(255,77,0,.92);
+  animation:cardglow 6s ease-in-out infinite;
 }
+@keyframes cardglow{
+  0%,100%{ box-shadow:.55em .55em 0 rgba(255,77,0,.92), 0 0 0    rgba(255,77,0,0) }
+  50%    { box-shadow:.55em .55em 0 rgba(255,77,0,.92), 0 0 2.4em rgba(255,77,0,.16) }
+}
+/* reflet lent qui balaie la carte */
+.transmission::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(115deg, transparent 42%, rgba(255,255,255,.06) 50%, transparent 58%);
+  background-size:280% 100%;
+  animation:sheen 9s linear infinite;
+}
+@keyframes sheen{ from{background-position:170% 0} to{background-position:-70% 0} }
 
 .tr-head{
   display:flex; align-items:center; justify-content:space-between; gap:1.2em;
   padding:.75em 1.3em;
   background:var(--bone); color:var(--black);
   font-size:var(--fs-xs); letter-spacing:.22em; text-transform:uppercase; font-weight:700;
+  position:relative; overflow:hidden;
 }
 .tr-head .ref{ font-weight:400; color:rgba(10,10,11,.7) }
+.tr-head::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(90deg, transparent, rgba(255,77,0,.28), transparent);
+  width:38%; animation:headpass 5.5s ease-in-out infinite;
+}
+@keyframes headpass{ 0%{transform:translateX(-120%)} 60%,100%{transform:translateX(360%)} }
 
-.tr-body{ padding:clamp(22px,3.2vmin,54px) clamp(20px,3vmin,50px) clamp(18px,2.4vmin,40px); position:relative }
-
+.tr-body{ padding:clamp(22px,3.2vmin,54px) clamp(20px,3vmin,50px) clamp(18px,2.4vmin,40px);
+          position:relative; overflow:hidden }
 .tr-body::before{
   content:"\201C";
-  position:absolute; left:.12em; top:-.1em;
+  position:absolute; left:.1em; top:0;
   font-family:'Archivo Black','Arial Black',sans-serif;
-  font-size:7em; line-height:1; color:rgba(237,231,218,.08);
+  font-size:7em; line-height:1; color:rgba(237,231,218,.07);
+}
+/* fine ligne de balayage cyan */
+.tr-body::after{
+  content:""; position:absolute; left:0; right:0; height:1px; top:0;
+  background:linear-gradient(90deg, transparent, rgba(95,235,247,.5), transparent);
+  pointer-events:none;
+  animation:scanline 8s cubic-bezier(.5,0,.5,1) infinite;
+}
+@keyframes scanline{
+  0%      { top:0;    opacity:0 }
+  6%      { opacity:.9 }
+  48%     { top:100%; opacity:0 }
+  100%    { top:100%; opacity:0 }
 }
 
 #quote{
   font-family:'Archivo Black','Arial Black',sans-serif;
   font-size:clamp(18px, min(4.2vw, 3.6vmin), 46px);
   line-height:1.2;
-  letter-spacing:-.005em;
   text-transform:uppercase;
   color:#F6F2EA;
   position:relative;
   min-height:1.2em;
 }
-
 #quote-vo{
   margin-top:1.2em;
   font-size:var(--fs-sm); line-height:1.6; color:var(--txt-2);
@@ -274,14 +366,8 @@ main{
   text-transform:uppercase; color:var(--orange); margin-bottom:.35em;
 }
 
-.tr-meta{
-  display:flex; flex-wrap:wrap;
-  border-top:1px solid var(--line);
-}
-.tr-meta > div{
-  flex:1 1 14em; padding:1em 1.3em;
-  border-right:1px solid var(--line);
-}
+.tr-meta{ display:flex; flex-wrap:wrap; border-top:1px solid var(--line) }
+.tr-meta > div{ flex:1 1 14em; padding:1em 1.3em; border-right:1px solid var(--line) }
 .tr-meta > div:last-child{ border-right:0 }
 .tr-meta dt{
   font-size:var(--fs-xs); letter-spacing:.26em; text-transform:uppercase;
@@ -301,17 +387,117 @@ main{
   animation:blink 2.4s steps(1) infinite; flex:none;
 }
 
-/* ---------- bas de page ---------- */
+.cue{
+  display:flex; flex-direction:column; align-items:center; gap:.5em;
+  font-size:var(--fs-xs); letter-spacing:.3em; text-transform:uppercase;
+  color:var(--txt-3);
+}
+.cue s{ text-decoration:none; font-size:1.4em; color:var(--orange); animation:bob 1.8s ease-in-out infinite }
+@keyframes bob{ 0%,100%{transform:translateY(0);opacity:.5} 50%{transform:translateY(.35em);opacity:1} }
+
+/* --- page 02 : le jeu --- */
+
+.brief{
+  min-height:100%;
+  padding:clamp(28px,5vmin,90px) clamp(18px,7vmin,150px) clamp(40px,6vmin,110px);
+  display:flex; flex-direction:column; align-items:center;
+}
+.brief-inner{ width:min(94vw, calc(var(--fs-md) * 66)) }
+
+.tagline-warn{
+  display:inline-block; margin-bottom:2em;
+  border:1px solid var(--orange); color:var(--orange);
+  padding:.5em 1em; font-size:var(--fs-xs); letter-spacing:.26em; text-transform:uppercase;
+}
+
+.brief h2{
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:clamp(30px, min(8vw, 7vmin), 96px);
+  line-height:.9; letter-spacing:-.03em; text-transform:uppercase;
+  color:#F6F2EA; margin-bottom:.35em;
+}
+.brief h2 span{ color:var(--orange) }
+
+.brief .lede{
+  font-size:calc(var(--fs-md) * 1.15); line-height:1.65; color:var(--txt);
+  border-left:3px solid var(--orange); padding-left:1em; margin-bottom:2.6em;
+  max-width:70ch;
+}
+
+.brief section{ margin-bottom:2.8em; max-width:76ch }
+.brief h3{
+  display:flex; align-items:center; gap:1em;
+  font-size:var(--fs-sm); letter-spacing:.3em; text-transform:uppercase;
+  color:var(--orange); font-weight:400; margin-bottom:1em;
+}
+.brief h3::after{ content:""; flex:1; height:1px; background:var(--line) }
+.brief h3 b{ font-weight:400; color:var(--txt-3) }
+
+.brief p{ color:var(--txt-2); line-height:1.75; margin-bottom:1em }
+.brief p strong{ color:var(--txt); font-weight:400; background:rgba(255,77,0,.12) }
+
+.specs{
+  display:flex; flex-wrap:wrap; gap:0;
+  border:var(--edge) solid var(--bone); margin:0 0 2.8em;
+  background:rgba(20,20,22,.7);
+}
+.specs > div{ flex:1 1 12em; padding:1.2em 1.4em; border-right:1px solid var(--line) }
+.specs > div:last-child{ border-right:0 }
+.specs dt{
+  font-size:var(--fs-xs); letter-spacing:.26em; text-transform:uppercase;
+  color:var(--txt-3); margin-bottom:.6em;
+}
+.specs dd{
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:calc(var(--fs-md) * 1.5); text-transform:uppercase; color:var(--txt);
+}
+.specs dd.hl{ color:var(--orange) }
+
+.endnote{
+  border-top:1px solid var(--line); padding-top:1.6em; margin-top:1em;
+  font-size:var(--fs-xs); letter-spacing:.24em; text-transform:uppercase; color:var(--txt-3);
+}
+
+/* ============================================================
+   TRANSITION PAR TACHES
+   ============================================================ */
+
+#wipe{
+  position:fixed; inset:0; z-index:70; pointer-events:none;
+  display:none; overflow:hidden;
+}
+#wipe.run{ display:block }
+#wipe i{
+  position:absolute; display:block;
+  transform:translate(-50%,-50%) scale(0) rotate(var(--rot));
+  background:var(--ink);
+  box-shadow:inset 0 0 0 1px rgba(237,231,218,.07);
+  will-change:transform;
+}
+#wipe i.hot{ background:var(--orange); box-shadow:none }
+#wipe i.pale{ background:var(--bone); box-shadow:none }
+#wipe.cover i{
+  transform:translate(-50%,-50%) scale(1) rotate(var(--rot));
+  transition:transform .36s cubic-bezier(.32,.72,.35,1) var(--d);
+}
+#wipe.clear i{
+  transform:translate(-50%,-50%) scale(0) rotate(var(--rot));
+  transition:transform .34s cubic-bezier(.55,.05,.6,.4) var(--d);
+}
+
+/* ============================================================
+   BAS DE PAGE
+   ============================================================ */
 
 .stripes{
   height:clamp(12px,1.5vmin,26px);
   background:repeating-linear-gradient(-45deg, var(--orange) 0 1.2em, var(--black) 1.2em 2.4em);
   border-top:var(--edge) solid var(--bone);
-  position:relative; z-index:10;
+  position:relative; z-index:20;
 }
 
 .footer{
-  position:relative; z-index:10;
+  position:relative; z-index:20;
   display:flex; align-items:stretch;
   border-top:var(--edge) solid var(--bone);
   background:rgba(10,10,11,.88);
@@ -327,72 +513,70 @@ main{
 .ticker{ flex:1 1 0; min-width:0; overflow:hidden; position:relative; display:flex; align-items:center }
 .ticker-track{
   display:flex; gap:4em; white-space:nowrap; padding-left:4em;
-  animation:slide 38s linear infinite;
+  animation:slide 46s linear infinite;
 }
 .ticker-track b{ font-weight:400; color:var(--txt-2) }
 .ticker-track b::before{ content:"\25C6\00A0"; color:var(--orange) }
 @keyframes slide{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
 
-/* ---------- animations d'entrée ---------- */
+/* ============================================================
+   ENTREES
+   ============================================================ */
 
 @keyframes rise{
-  from{ opacity:0; transform:translateY(14px) }
-  to{ opacity:1; transform:none }
+  from{ opacity:0; transform:translateY(16px) }
+  to  { opacity:1; transform:none }
 }
-.rise{ animation:rise .7s cubic-bezier(.2,.7,.2,1) both }
-.d1{ animation-delay:.05s }
-.d2{ animation-delay:.15s }
-.d3{ animation-delay:.28s }
-.d4{ animation-delay:.42s }
+.rise{ opacity:1 }
+.page.on .rise{ animation:rise .65s cubic-bezier(.2,.7,.2,1) both }
+.d1{ animation-delay:.02s } .d2{ animation-delay:.10s }
+.d3{ animation-delay:.20s } .d4{ animation-delay:.32s }
 
 @media (prefers-reduced-motion: reduce){
   *{ animation:none !important; transition:none !important }
+  .rise{ opacity:1 !important; transform:none !important }
 }
 
-/* ---------- adaptatif ---------- */
+/* ============================================================
+   ADAPTATIF
+   ============================================================ */
 
 @media (max-width:1180px){ .rail{ display:none } }
 
 @media (max-width:860px){
   .topbar{ flex-wrap:wrap }
   .brand{ flex:1 1 100%; border-right:0; border-bottom:1px solid var(--line) }
-  .menu{ flex:1 1 100%; overflow-x:auto }
-  .sysbar{ display:none }
-  .transmission{ box-shadow:.35em .35em 0 rgba(255,77,0,.92) }
+  .sysbar{ flex:1 1 100%; border-left:0; padding:.6em var(--pad-x); gap:1.1em; justify-content:space-between }
+  .sysbar .hide-s{ display:none }
+  .transmission{ animation:none; box-shadow:.35em .35em 0 rgba(255,77,0,.92) }
   .footer .cell:first-child{ display:none }
 }
 </style>
 </head>
 <body>
 
+<canvas id="space" aria-hidden="true"></canvas>
 <div class="grid-overlay"></div>
 <div class="halo"></div>
 <div class="dots"></div>
 <div class="ghost-num">07</div>
 
-<!-- ==================== BARRE SUPÉRIEURE ==================== -->
+<!-- ==================== BARRE SUPERIEURE ==================== -->
 <header class="topbar">
   <div class="brand">
     <div class="mark"></div>
     <div class="name">VOID<em>BELT</em></div>
   </div>
 
-  <nav class="menu" aria-label="Menu principal">
-    <span class="on"><b>01</b>ACCUEIL</span>
-    <span><b>02</b>LE JEU</span>
-    <span><b>03</b>FACTIONS</span>
-    <span><b>04</b>ARSENAL</span>
-    <span><b>05</b>JOURNAL</span>
-    <span><b>06</b>CONTACT</span>
-  </nav>
-
   <div class="sysbar">
     <span><i class="led"></i>LIAISON STABLE</span>
-    <span id="clock">--:--:--</span>
+    <span class="hide-s">DÉBRIS PULVÉRISÉS <b id="kills">00</b></span>
+    <span class="hide-s" id="clock">--:--:--</span>
+    <span>SÉQ <b id="seq">01/02</b></span>
   </div>
 </header>
 
-<!-- ==================== RAILS LATÉRAUX ==================== -->
+<!-- ==================== RAILS ==================== -->
 <aside class="rail rail-l" aria-hidden="true">
   <div class="sq fill"></div>
   <div class="vert">SECTEUR 07 / CEINTURE DU VIDE</div>
@@ -407,46 +591,161 @@ main{
   <div class="sq fill"></div>
 </aside>
 
-<!-- ==================== ACCUEIL ==================== -->
-<main>
+<!-- ==================== SCENE ==================== -->
+<div class="stage" id="stage">
 
-  <div class="eyebrow rise d1"><i></i>ORBITE BASSE<u>//</u>ACCÈS AUTORISÉ<i></i></div>
+  <!-- ---------- PAGE 01 ---------- -->
+  <div class="page home on" id="p0">
 
-  <h1 class="wordmark rise d2">VOID<span>BELT</span></h1>
+    <div class="eyebrow rise d1"><i></i>ORBITE BASSE<u>//</u>ACCÈS AUTORISÉ<i></i></div>
 
-  <div class="tagline rise d2">
-    <span><b>EXTRACTION TACTIQUE</b></span>
-    <s>/</s>
-    <span>3 OPÉRATEURS</span>
-    <s>/</s>
-    <span>ZÉRO SECONDE CHANCE</span>
+    <h1 class="wordmark rise d2" id="wordmark"><span class="w w-void">VOID</span><span class="w w-belt">BELT</span></h1>
+
+    <div class="tagline rise d2">
+      <span><b>EXTRACTION TACTIQUE</b></span>
+      <s>/</s>
+      <span>3 OPÉRATEURS</span>
+      <s>/</s>
+      <span>ZÉRO SECONDE CHANCE</span>
+    </div>
+
+    <section class="transmission rise d3">
+      <div class="tr-head">
+        <span>&#9656; TRANSMISSION ENTRANTE — ARCHIVE CULTURELLE</span>
+        <span class="ref" id="ref">ARC 00/00</span>
+      </div>
+
+      <div class="tr-body">
+        <blockquote id="quote">CHARGEMENT DU FLUX...</blockquote>
+        <p id="quote-vo"><b>Version originale</b><span id="vo"></span></p>
+      </div>
+
+      <dl class="tr-meta">
+        <div><dt>Source</dt><dd class="hl" id="m-title">—</dd></div>
+        <div><dt>Créateur</dt><dd id="m-creator">—</dd></div>
+        <div><dt>Année</dt><dd class="cy" id="m-year">—</dd></div>
+        <div><dt>Format</dt><dd id="m-type">—</dd></div>
+      </dl>
+    </section>
+
+    <div class="hint rise d4"><i></i>Actualisez la page pour intercepter une autre transmission</div>
+
+    <div class="cue rise d4"><span>Défilez</span><s>&#9660;</s></div>
+
   </div>
 
-  <!-- carte transmission : contenu injecté par le script -->
-  <section class="transmission rise d3">
-    <div class="tr-head">
-      <span>&#9656; TRANSMISSION ENTRANTE — ARCHIVE CULTURELLE</span>
-      <span class="ref" id="ref">ARC 00/00</span>
+  <!-- ---------- PAGE 02 ---------- -->
+  <div class="page brief" id="p1">
+    <div class="brief-inner">
+
+      <div class="tagline-warn rise d1">Brief provisoire — texte à remplacer</div>
+
+      <h2 class="rise d1">LE <span>JEU</span></h2>
+
+      <p class="lede rise d2">
+        VOIDBELT est un jeu de tir d'extraction à la première personne. Trois opérateurs,
+        une ceinture d'astéroïdes qui ne veut de bien à personne, et une seule règle qui
+        compte vraiment : ce que vous ne ramenez pas au sas, vous ne l'avez jamais eu.
+      </p>
+
+      <dl class="specs rise d2">
+        <div><dt>Escouade</dt><dd class="hl">3 JOUEURS</dd></div>
+        <div><dt>Durée</dt><dd>22 MIN</dd></div>
+        <div><dt>Factions</dt><dd>03</dd></div>
+        <div><dt>Secteurs</dt><dd class="hl">07</dd></div>
+      </dl>
+
+      <section class="rise d3">
+        <h3>01 <b>—</b> La promesse</h3>
+        <p>
+          Vous descendez sur un caillou en rotation lente, quelque part entre deux orbites que
+          personne n'a pris la peine de cartographier correctement. Vous avez vingt-deux minutes
+          avant que la fenêtre de récupération ne se referme, une liste de choses à trouver, et
+          la certitude désagréable que deux autres escouades ont reçu exactement le même brief.
+        </p>
+        <p>
+          <strong>Rien n'est garanti.</strong> Le matériel que vous emportez, vous pouvez le perdre.
+          Le matériel que vous trouvez, vous ne le gardez qu'en franchissant le sas. C'est un jeu
+          qui vous demande d'évaluer en permanence ce que vaut un risque, et qui ne vous console
+          jamais quand vous vous trompez.
+        </p>
+      </section>
+
+      <section class="rise d3">
+        <h3>02 <b>—</b> La boucle</h3>
+        <p>
+          Préparation au dock : vous choisissez votre armement, vos consommables et le poids que
+          vous acceptez de traîner. Chaque kilo compte, parce que la gravité de la ceinture est
+          capricieuse et que courir vite reste la meilleure des armures.
+        </p>
+        <p>
+          Insertion : la capsule vous largue à un point que vous ne choisissez qu'à moitié.
+          Les premières secondes servent à écouter — les relais radio, les vibrations dans la
+          structure, les tirs lointains qui vous disent où ne pas aller.
+        </p>
+        <p>
+          Extraction : le sas s'ouvre pendant quatre-vingt-dix secondes. Il s'ouvre pour tout le
+          monde en même temps. C'est là que la plupart des parties se décident, et c'est là que
+          les meilleures histoires commencent.
+        </p>
+      </section>
+
+      <section class="rise d3">
+        <h3>03 <b>—</b> La ceinture</h3>
+        <p>
+          Le Secteur 07 est un chantier abandonné en cours de démantèlement : des raffineries
+          coupées en deux, des dortoirs restés éclairés, des couloirs qui se terminent
+          brusquement sur le vide. On y trouve encore des affaires personnelles, des tasses
+          posées sur des consoles, des messages écrits à la main sur les cloisons.
+        </p>
+        <p>
+          L'environnement est un adversaire à part entière. Les tempêtes de débris coupent les
+          lignes de vue et brouillent les capteurs. Les sections dépressurisées transforment
+          chaque porte en décision. <strong>Le silence, ici, est une information.</strong>
+        </p>
+      </section>
+
+      <section class="rise d3">
+        <h3>04 <b>—</b> Les opérateurs</h3>
+        <p>
+          Trois factions se partagent la ceinture, et aucune n'a entièrement tort. Vous ne
+          choisissez pas un camp par idéologie mais par méthode : celle qui entre par la porte,
+          celle qui entre par le plafond, celle qui attend que les deux autres se soient
+          épuisées.
+        </p>
+        <p>
+          Les opérateurs ne montent pas en niveau. Ils accumulent des contrats, des dettes et
+          une réputation qui modifie la façon dont le reste du secteur réagit à votre présence.
+          Une escouade trop bruyante finit par être attendue.
+        </p>
+      </section>
+
+      <section class="rise d3">
+        <h3>05 <b>—</b> Ce qui arrive ensuite</h3>
+        <p>
+          Le développement est en cours. La phase d'essai fermée ouvrira sur invitation, par
+          vagues, secteur par secteur. Les notes de version, les journaux de conception et les
+          fausses excuses pour les retards seront publiés ici même.
+        </p>
+        <p>
+          En attendant, cette page tient lieu de brief. Elle sera remplacée dès qu'il y aura
+          quelque chose de plus honnête à raconter.
+        </p>
+      </section>
+
+      <div class="endnote rise d4">
+        Fin du brief — remontez pour revenir au terminal d'accueil
+      </div>
+
     </div>
+  </div>
 
-    <div class="tr-body">
-      <blockquote id="quote">CHARGEMENT DU FLUX...</blockquote>
-      <p id="quote-vo"><b>Version originale</b><span id="vo"></span></p>
-    </div>
+</div>
 
-    <dl class="tr-meta">
-      <div><dt>Source</dt><dd class="hl" id="m-title">—</dd></div>
-      <div><dt>Créateur</dt><dd id="m-creator">—</dd></div>
-      <div><dt>Année</dt><dd class="cy" id="m-year">—</dd></div>
-      <div><dt>Format</dt><dd id="m-type">—</dd></div>
-    </dl>
-  </section>
+<!-- ==================== TRANSITION ==================== -->
+<div id="wipe" aria-hidden="true"></div>
 
-  <div class="hint rise d4"><i></i>Actualisez la page pour intercepter une autre transmission</div>
-
-</main>
-
-<!-- ==================== PIED DE PAGE ==================== -->
+<!-- ==================== BAS DE PAGE ==================== -->
 <div class="stripes"></div>
 <footer class="footer">
   <div class="cell">© 2026 VOIDBELT</div>
@@ -457,196 +756,153 @@ main{
 <div class="scan"></div>
 
 <script>
+(function(){
+"use strict";
+
+var REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function pad(n){ return String(n).length < 2 ? "0" + n : String(n); }
+
 /* ============================================================
-   ARCHIVE — répliques de films et séries de science-fiction.
-   fr = réplique affichée (version française), vo = version originale.
-   Une entrée est tirée au sort à chaque chargement de page,
-   en évitant celle affichée la fois précédente.
+   1 — ARCHIVE : repliques de films et series
    ============================================================ */
 
 var ARCHIVE = [
   { fr:"Tous ces moments se perdront dans le temps, comme des larmes dans la pluie.",
     vo:"All those moments will be lost in time, like tears in rain.",
     t:"Blade Runner", c:"Ridley Scott", y:1982, k:"Film" },
-
   { fr:"Je suis désolé, Dave. Je crains de ne pouvoir le faire.",
     vo:"I'm sorry, Dave. I'm afraid I can't do that.",
     t:"2001 : L'Odyssée de l'espace", c:"Stanley Kubrick", y:1968, k:"Film" },
-
   { fr:"Dans l'espace, personne ne vous entend crier.",
     vo:"In space, no one can hear you scream.",
     t:"Alien", c:"Ridley Scott", y:1979, k:"Film" },
-
   { fr:"Les grandes choses ont de petits commencements.",
     vo:"Big things have small beginnings.",
     t:"Prometheus", c:"Ridley Scott", y:2012, k:"Film" },
-
   { fr:"La vérité est ailleurs.",
     vo:"The truth is out there.",
     t:"X-Files", c:"Chris Carter", y:1993, k:"Série" },
-
   { fr:"L'espace, frontière de l'infini.",
     vo:"Space: the final frontier.",
     t:"Star Trek", c:"Gene Roddenberry", y:1966, k:"Série" },
-
   { fr:"Il n'y a pas de cuillère.",
     vo:"There is no spoon.",
     t:"Matrix", c:"Lana & Lilly Wachowski", y:1999, k:"Film" },
-
   { fr:"Ainsi parlons-nous tous.",
     vo:"So say we all.",
     t:"Battlestar Galactica", c:"Ronald D. Moore", y:2004, k:"Série" },
-
   { fr:"Les portes et les angles, gamin. C'est là qu'ils t'auront.",
     vo:"Doors and corners, kid. That's where they get you.",
     t:"The Expanse", c:"Mark Fergus & Hawk Ostby", y:2015, k:"Série" },
-
   { fr:"J'ai bien l'intention de mal me tenir.",
     vo:"I aim to misbehave.",
     t:"Serenity / Firefly", c:"Joss Whedon", y:2005, k:"Film" },
-
   { fr:"La peur tue l'esprit.",
     vo:"Fear is the mind-killer.",
     t:"Dune", c:"Denis Villeneuve — d'après Frank Herbert", y:2021, k:"Film" },
-
   { fr:"Mourir pour une juste cause est la chose la plus humaine qui soit.",
     vo:"Dying for the right cause is the most human thing we can do.",
     t:"Blade Runner 2049", c:"Denis Villeneuve", y:2017, k:"Film" },
-
   { fr:"Si tu pouvais voir ta vie entière, changerais-tu quelque chose ?",
     vo:"If you could see your whole life, would you change things?",
     t:"Premier Contact", c:"Denis Villeneuve", y:2016, k:"Film" },
-
   { fr:"Voulez-vous en savoir plus ?",
     vo:"Would you like to know more?",
     t:"Starship Troopers", c:"Paul Verhoeven", y:1997, k:"Film" },
-
   { fr:"Mort ou vif, tu viens avec moi.",
     vo:"Dead or alive, you're coming with me.",
     t:"RoboCop", c:"Paul Verhoeven", y:1987, k:"Film" },
-
   { fr:"Ramène tes fesses sur Mars.",
     vo:"Get your ass to Mars.",
     t:"Total Recall", c:"Paul Verhoeven", y:1990, k:"Film" },
-
   { fr:"Viens avec moi si tu veux vivre.",
     vo:"Come with me if you want to live.",
     t:"Terminator", c:"James Cameron", y:1984, k:"Film" },
-
   { fr:"Il n'y a pas d'autre destin que celui que l'on se forge.",
     vo:"There is no fate but what we make for ourselves.",
     t:"Terminator 2 : Le Jugement dernier", c:"James Cameron", y:1991, k:"Film" },
-
   { fr:"C'est fini, mec. C'est fini !",
     vo:"Game over, man. Game over!",
     t:"Aliens, le retour", c:"James Cameron", y:1986, k:"Film" },
-
   { fr:"Là où nous allons, nous n'aurons pas besoin d'yeux pour voir.",
     vo:"Where we're going, we won't need eyes to see.",
     t:"Event Horizon", c:"Paul W. S. Anderson", y:1997, k:"Film" },
-
   { fr:"Autrefois, nous levions les yeux vers le ciel en rêvant de notre place parmi les étoiles.",
     vo:"We used to look up at the sky and wonder at our place in the stars.",
     t:"Interstellar", c:"Christopher Nolan", y:2014, k:"Film" },
-
   { fr:"Ces plaisirs violents ont des fins violentes.",
     vo:"These violent delights have violent ends.",
     t:"Westworld", c:"Jonathan Nolan & Lisa Joy", y:2016, k:"Série" },
-
   { fr:"Que la Force soit avec toi.",
     vo:"May the Force be with you.",
     t:"Star Wars", c:"George Lucas", y:1977, k:"Film" },
-
   { fr:"Je brûle ma décence pour l'avenir d'un autre.",
     vo:"I burn my decency for someone else's future.",
     t:"Andor", c:"Tony Gilroy", y:2022, k:"Série" },
-
   { fr:"C'est la voie.",
     vo:"This is the way.",
     t:"The Mandalorian", c:"Jon Favreau", y:2019, k:"Série" },
-
   { fr:"À plus, cow-boy de l'espace.",
     vo:"See you, space cowboy.",
     t:"Cowboy Bebop", c:"Shinichiro Watanabe", y:1998, k:"Série" },
-
   { fr:"Le réseau est vaste et infini.",
     vo:"The net is vast and infinite.",
     t:"Ghost in the Shell", c:"Mamoru Oshii", y:1995, k:"Film" },
-
   { fr:"Neo-Tokyo est sur le point d'exploser.",
     vo:"Neo-Tokyo is about to explode.",
     t:"Akira", c:"Katsuhiro Otomo", y:1988, k:"Film" },
-
   { fr:"Vous aider, c'est ma raison d'être.",
     vo:"Helping you is what I do.",
     t:"Moon", c:"Duncan Jones", y:2009, k:"Film" },
-
   { fr:"Le travail est mystérieux et important.",
     vo:"The work is mysterious and important.",
     t:"Severance", c:"Dan Erickson", y:2022, k:"Série" },
-
   { fr:"N'est-ce pas étrange de créer quelque chose qui vous déteste ?",
     vo:"Isn't it strange, to create something that hates you?",
     t:"Ex Machina", c:"Alex Garland", y:2014, k:"Film" },
-
   { fr:"Il n'existe aucun gène pour l'esprit humain.",
     vo:"There is no gene for the human spirit.",
     t:"Bienvenue à Gattaca", c:"Andrew Niccol", y:1997, k:"Film" },
-
   { fr:"Plus personne ne fait confiance à personne, et nous sommes tous très fatigués.",
     vo:"Nobody trusts anybody now, and we're all very tired.",
     t:"The Thing", c:"John Carpenter", y:1982, k:"Film" },
-
   { fr:"Si ça saigne, on peut le tuer.",
     vo:"If it bleeds, we can kill it.",
     t:"Predator", c:"John McTiernan", y:1987, k:"Film" },
-
   { fr:"Il n'y a ni bien ni mal. Il n'y a que l'opinion dominante.",
     vo:"There's no right, there's no wrong. There's only popular opinion.",
     t:"L'Armée des douze singes", c:"Terry Gilliam", y:1995, k:"Film" },
-
   { fr:"Nous ne voulons pas conquérir l'espace. Nous voulons étendre la Terre à l'infini.",
     vo:"We don't want to conquer space. We want to expand Earth endlessly.",
     t:"Solaris", c:"Andreï Tarkovski", y:1972, k:"Film" },
-
   { fr:"La violence est le dernier refuge de l'incompétence.",
     vo:"Violence is the last refuge of the incompetent.",
     t:"Fondation", c:"David S. Goyer — d'après Isaac Asimov", y:2021, k:"Série" },
-
   { fr:"Bonjour chez vous.",
     vo:"Be seeing you.",
     t:"Le Prisonnier", c:"Patrick McGoohan", y:1967, k:"Série" },
-
   { fr:"Fin de la transmission.",
     vo:"End of line.",
     t:"Tron", c:"Steven Lisberger", y:1982, k:"Film" },
-
   { fr:"Bas les pattes, sale singe !",
     vo:"Take your stinking paws off me, you damned dirty ape!",
     t:"La Planète des singes", c:"Franklin J. Schaffner", y:1968, k:"Film" },
-
   { fr:"Des routes ? Là où on va, on n'a pas besoin de routes.",
     vo:"Roads? Where we're going, we don't need roads.",
     t:"Retour vers le futur", c:"Robert Zemeckis", y:1985, k:"Film" },
-
   { fr:"La vie trouve toujours un chemin.",
     vo:"Life finds a way.",
     t:"Jurassic Park", c:"Steven Spielberg", y:1993, k:"Film" },
-
   { fr:"Salut, l'ami.",
     vo:"Hello, friend.",
     t:"Mr. Robot", c:"Sam Esmail", y:2015, k:"Série" },
-
   { fr:"Au bout du compte, nous ne sommes que des histoires.",
     vo:"We're all stories in the end.",
     t:"Doctor Who", c:"Sydney Newman", y:1963, k:"Série" },
-
   { fr:"Étrange, ce qui arrive à un monde privé de voix d'enfants.",
     vo:"Very odd, what happens in a world without children's voices.",
     t:"Les Fils de l'homme", c:"Alfonso Cuarón", y:2006, k:"Film" }
 ];
-
-/* ---------- tirage sans répétition immédiate ---------- */
 
 function pickIndex(){
   if (ARCHIVE.length < 2) return 0;
@@ -658,17 +914,10 @@ function pickIndex(){
   return i;
 }
 
-/* ---------- effet de décodage sur la réplique ---------- */
-
 var GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/\\<>=*#%$@";
 
 function decode(el, text, duration){
-  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches){
-    el.textContent = text;
-    return;
-  }
-  /* filet de securite : si rAF ne tourne pas (onglet en arriere-plan),
-     le texte final est pose malgre tout. */
+  if (REDUCED){ el.textContent = text; return; }
   setTimeout(function(){ if (el.textContent !== text) el.textContent = text; }, duration + 200);
   var start = performance.now();
   function step(now){
@@ -686,46 +935,431 @@ function decode(el, text, duration){
   requestAnimationFrame(step);
 }
 
-/* ---------- injection dans la carte ---------- */
+(function loadArchive(){
+  var i = pickIndex(), it = ARCHIVE[i];
+  document.getElementById("ref").textContent = "ARC " + pad(i + 1) + "/" + pad(ARCHIVE.length);
+  document.getElementById("vo").textContent = "« " + it.vo + " »";
+  document.getElementById("m-title").textContent = it.t;
+  document.getElementById("m-creator").textContent = it.c;
+  document.getElementById("m-year").textContent = it.y;
+  document.getElementById("m-type").textContent = it.k;
+  decode(document.getElementById("quote"), it.fr, 900);
+})();
 
-function pad(n){ return String(n).length < 2 ? "0" + n : String(n); }
+/* ============================================================
+   2 — CHAMP D'ASTEROIDES
+   Les rochers derivent, s'ecartent du curseur et se brisent au clic.
+   ============================================================ */
 
-var idx = pickIndex();
-var item = ARCHIVE[idx];
+var Field = (function(){
+  var cvs = document.getElementById("space");
+  var ctx = cvs.getContext("2d");
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var W = 0, H = 0;
+  var rocks = [], shards = [], stars = [];
+  var mx = -9999, my = -9999, px = 0, py = 0, tpx = 0, tpy = 0;
+  var broken = 0, hovering = false;
 
-document.getElementById("ref").textContent = "ARC " + pad(idx + 1) + "/" + pad(ARCHIVE.length);
-document.getElementById("vo").textContent = "« " + item.vo + " »";
-document.getElementById("m-title").textContent = item.t;
-document.getElementById("m-creator").textContent = item.c;
-document.getElementById("m-year").textContent = item.y;
-document.getElementById("m-type").textContent = item.k;
+  function rand(a, b){ return a + Math.random() * (b - a); }
 
-decode(document.getElementById("quote"), item.fr, 900);
+  function silhouette(r, n){
+    var pts = [], i, a, rr;
+    for (i = 0; i < n; i++){
+      a = (i / n) * Math.PI * 2;
+      rr = r * rand(0.62, 1.12);
+      pts.push([Math.cos(a) * rr, Math.sin(a) * rr]);
+    }
+    return pts;
+  }
 
-/* ---------- horloge de bord (UTC) ---------- */
+  function makeRock(x, y){
+    var r = rand(13, 52);
+    return {
+      x: x, y: y,
+      vx: rand(-0.20, 0.20), vy: rand(-0.16, 0.16),
+      r: r, pts: silhouette(r, Math.floor(rand(7, 12))),
+      rot: rand(0, 6.28), spin: rand(-0.004, 0.004),
+      depth: rand(0.30, 1.15),
+      hot: Math.random() < 0.14
+    };
+  }
 
-function tickClock(){
-  var d = new Date();
-  document.getElementById("clock").textContent =
-    pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds()) + " UTC";
-}
-tickClock();
-setInterval(tickClock, 1000);
+  function spawnEdge(){
+    var side = Math.floor(Math.random() * 4), m = 70;
+    if (side === 0) return makeRock(rand(0, W), -m);
+    if (side === 1) return makeRock(W + m, rand(0, H));
+    if (side === 2) return makeRock(rand(0, W), H + m);
+    return makeRock(-m, rand(0, H));
+  }
 
-/* ---------- bandeau défilant ---------- */
+  function build(){
+    var target = Math.max(14, Math.min(30, Math.round((W * H) / 52000)));
+    rocks = [];
+    for (var i = 0; i < target; i++) rocks.push(makeRock(rand(0, W), rand(0, H)));
+    stars = [];
+    var sc = Math.round((W * H) / 9000);
+    for (var j = 0; j < sc; j++){
+      stars.push({ x: rand(0, W), y: rand(0, H), s: rand(0.4, 1.5),
+                   a: rand(0.10, 0.55), tw: rand(0.4, 1.8), ph: rand(0, 6.28) });
+    }
+  }
 
-var NEWS = [
-  "SECTEUR 07 — TEMPÊTE DE DÉBRIS EN APPROCHE",
-  "PHASE D'ESSAI FERMÉE — INSCRIPTIONS BIENTÔT",
-  "PROTOCOLE D'EXTRACTION MIS À JOUR — V.0.9.4",
-  "TROIS FACTIONS ACTIVES SUR LA CEINTURE",
-  "AUCUNE BALISE DE SECOURS DÉTECTÉE",
-  "DIRECTION ARTISTIQUE INSPIRÉE DE MARATHON — BUNGIE"
-];
+  function resize(){
+    W = cvs.clientWidth; H = cvs.clientHeight;
+    cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    build();
+  }
 
-var html = "";
-for (var n = 0; n < NEWS.length; n++) html += "<b>" + NEWS[n] + "</b>";
-document.getElementById("tick").innerHTML = html + html;
+  function shatter(rk){
+    var n = Math.floor(rand(6, 11));
+    for (var i = 0; i < n; i++){
+      var a = rand(0, 6.28), sp = rand(0.7, 3.4), sr = rk.r * rand(0.10, 0.30);
+      shards.push({
+        x: rk.x, y: rk.y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        pts: silhouette(sr, 5), rot: rand(0, 6.28), spin: rand(-0.10, 0.10),
+        life: 1, hot: rk.hot
+      });
+    }
+    broken++;
+    var el = document.getElementById("kills");
+    if (el) el.textContent = pad(broken);
+  }
+
+  function hit(cx, cy){
+    for (var i = rocks.length - 1; i >= 0; i--){
+      var rk = rocks[i];
+      var dx = cx - (rk.x + px * rk.depth), dy = cy - (rk.y + py * rk.depth);
+      if (dx * dx + dy * dy < rk.r * rk.r * 1.25) return i;
+    }
+    return -1;
+  }
+
+  function drawShape(pts){
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+  }
+
+  function frame(t){
+    ctx.clearRect(0, 0, W, H);
+
+    /* parallaxe douce vers la position du curseur */
+    px += (tpx - px) * 0.05;
+    py += (tpy - py) * 0.05;
+
+    var i, k;
+
+    for (i = 0; i < stars.length; i++){
+      var st = stars[i];
+      var a = st.a * (0.55 + 0.45 * Math.sin(t * 0.001 * st.tw + st.ph));
+      ctx.fillStyle = "rgba(237,231,218," + a.toFixed(3) + ")";
+      ctx.fillRect(st.x + px * 0.25, st.y + py * 0.25, st.s, st.s);
+    }
+
+    for (i = 0; i < rocks.length; i++){
+      var rk = rocks[i];
+
+      /* repulsion autour du curseur */
+      var ddx = rk.x - mx, ddy = rk.y - my;
+      var d2 = ddx * ddx + ddy * ddy;
+      if (d2 < 32400 && d2 > 1){
+        var d = Math.sqrt(d2), f = (1 - d / 180) * 0.55;
+        rk.vx += (ddx / d) * f; rk.vy += (ddy / d) * f;
+      }
+
+      rk.vx *= 0.985; rk.vy *= 0.985;
+      rk.x += rk.vx; rk.y += rk.vy; rk.rot += rk.spin;
+
+      var m = rk.r + 60;
+      if (rk.x < -m) rk.x = W + m; else if (rk.x > W + m) rk.x = -m;
+      if (rk.y < -m) rk.y = H + m; else if (rk.y > H + m) rk.y = -m;
+
+      ctx.save();
+      ctx.translate(rk.x + px * rk.depth, rk.y + py * rk.depth);
+      ctx.rotate(rk.rot);
+      drawShape(rk.pts);
+      ctx.fillStyle = "rgba(20,20,22,.55)";
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = rk.hot
+        ? "rgba(255,77,0," + (0.20 + rk.depth * 0.30).toFixed(3) + ")"
+        : "rgba(237,231,218," + (0.07 + rk.depth * 0.13).toFixed(3) + ")";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    for (k = shards.length - 1; k >= 0; k--){
+      var sh = shards[k];
+      sh.x += sh.vx; sh.y += sh.vy; sh.rot += sh.spin;
+      sh.vx *= 0.97; sh.vy *= 0.97;
+      sh.life -= 0.016;
+      if (sh.life <= 0){ shards.splice(k, 1); continue; }
+      ctx.save();
+      ctx.translate(sh.x, sh.y);
+      ctx.rotate(sh.rot);
+      drawShape(sh.pts);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = (sh.hot ? "rgba(255,77,0," : "rgba(237,231,218,") + sh.life.toFixed(3) + ")";
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  function init(){
+    resize();
+    window.addEventListener("resize", resize);
+
+    if (REDUCED){
+      /* rendu statique : pas de boucle d'animation */
+      ctx.clearRect(0, 0, W, H);
+      for (var i = 0; i < rocks.length; i++){
+        var rk = rocks[i];
+        ctx.save(); ctx.translate(rk.x, rk.y); ctx.rotate(rk.rot);
+        drawShape(rk.pts);
+        ctx.strokeStyle = "rgba(237,231,218,.14)"; ctx.stroke();
+        ctx.restore();
+      }
+      return;
+    }
+
+    window.addEventListener("pointermove", function(e){
+      mx = e.clientX; my = e.clientY;
+      tpx = (e.clientX / W - 0.5) * 34;
+      tpy = (e.clientY / H - 0.5) * 34;
+      var over = hit(e.clientX, e.clientY) >= 0;
+      if (over !== hovering){
+        hovering = over;
+        document.body.style.cursor = over ? "crosshair" : "";
+      }
+    }, { passive: true });
+
+    window.addEventListener("pointerleave", function(){ mx = my = -9999; });
+
+    window.addEventListener("pointerdown", function(e){
+      /* on ne casse rien si le clic vise un element de l'interface */
+      if (e.target && e.target.closest && e.target.closest(".wordmark, .transmission, .topbar, .footer")) return;
+      var i = hit(e.clientX, e.clientY);
+      if (i < 0) return;
+      var rk = rocks[i];
+      shatter(rk);
+      rocks.splice(i, 1);
+      rocks.push(spawnEdge());   /* un autre apparait ailleurs, au hasard */
+    });
+
+    requestAnimationFrame(frame);
+  }
+
+  return { init: init };
+})();
+
+Field.init();
+
+/* ============================================================
+   3 — TRANSITION PAR TACHES
+   ============================================================ */
+
+var Wipe = (function(){
+  var box = document.getElementById("wipe");
+  var COVER = 360, CLEAR = 340, ROW = 34, JITTER = 90;
+
+  function radius(){
+    function v(){ return (30 + Math.random() * 40).toFixed(0); }
+    return v() + "% " + v() + "% " + v() + "% " + v() + "% / " +
+           v() + "% " + v() + "% " + v() + "% " + v() + "%";
+  }
+
+  function play(dir, onCover, onDone){
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var cols = Math.max(4, Math.round(vw / 110));
+    var rows = Math.max(4, Math.round(vh / 110));
+    var cw = vw / cols, ch = vh / rows;
+    var frag = document.createDocumentFragment();
+    var last = 0, r, c;
+
+    box.innerHTML = "";
+    box.className = "run";
+
+    for (r = 0; r < rows; r++){
+      for (c = 0; c < cols; c++){
+        var order = dir > 0 ? (rows - 1 - r) : r;       /* sens d'apparition */
+        var d = order * ROW + Math.random() * JITTER;
+        if (d > last) last = d;
+        var b = document.createElement("i");
+        var roll = Math.random();
+        b.className = roll < 0.13 ? "hot" : (roll < 0.18 ? "pale" : "");
+        b.style.left = ((c + 0.5) * cw) + "px";
+        b.style.top = ((r + 0.5) * ch) + "px";
+        b.style.width = (cw * 1.85) + "px";
+        b.style.height = (ch * 1.85) + "px";
+        b.style.borderRadius = radius();
+        b.style.setProperty("--d", d.toFixed(0) + "ms");
+        b.style.setProperty("--rot", ((Math.random() * 70 - 35) | 0) + "deg");
+        frag.appendChild(b);
+      }
+    }
+    box.appendChild(frag);
+
+    /* phase 1 : les taches recouvrent l'ecran */
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){ box.className = "run cover"; });
+    });
+
+    setTimeout(function(){
+      onCover();
+      /* phase 2 : elles se retirent dans le meme sens, la page apparait par plaques */
+      box.className = "run cover clear";
+      setTimeout(function(){
+        box.className = "";
+        box.innerHTML = "";
+        onDone();
+      }, last + CLEAR + 60);
+    }, last + COVER + 40);
+  }
+
+  return { play: play };
+})();
+
+/* ============================================================
+   4 — NAVIGATION AU DEFILEMENT
+   ============================================================ */
+
+(function(){
+  var pages = [document.getElementById("p0"), document.getElementById("p1")];
+  var seq = document.getElementById("seq");
+  var cur = 0, busy = false, acc = 0, accAt = 0;
+
+  function atEdge(el, dir){
+    if (dir > 0) return el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+    return el.scrollTop <= 2;
+  }
+
+  function land(target, dir){
+    var el = pages[target];
+    pages[cur].classList.remove("on");
+    el.classList.add("on");
+    el.scrollTop = dir > 0 ? 0 : Math.max(0, el.scrollHeight - el.clientHeight);
+    cur = target;
+    seq.textContent = pad(cur + 1) + "/" + pad(pages.length);
+  }
+
+  function go(target, dir){
+    if (busy || target < 0 || target >= pages.length) return;
+    busy = true; acc = 0;
+    if (REDUCED){ land(target, dir); busy = false; return; }
+    Wipe.play(dir, function(){ land(target, dir); }, function(){ busy = false; });
+  }
+
+  window.addEventListener("wheel", function(e){
+    if (busy) return;
+    var dir = e.deltaY > 0 ? 1 : -1;
+    if (!atEdge(pages[cur], dir)){ acc = 0; return; }
+    var target = cur + dir;
+    if (target < 0 || target >= pages.length){ acc = 0; return; }
+    var now = performance.now();
+    if (now - accAt > 320) acc = 0;
+    accAt = now;
+    acc += Math.abs(e.deltaY);
+    if (acc > 130) go(target, dir);
+  }, { passive: true });
+
+  window.addEventListener("keydown", function(e){
+    if (busy) return;
+    var dir = 0;
+    if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ") dir = 1;
+    else if (e.key === "ArrowUp" || e.key === "PageUp") dir = -1;
+    else return;
+    if (!atEdge(pages[cur], dir)) return;
+    var target = cur + dir;
+    if (target < 0 || target >= pages.length) return;
+    e.preventDefault();
+    go(target, dir);
+  });
+
+  var ty = 0;
+  window.addEventListener("touchstart", function(e){ ty = e.touches[0].clientY; }, { passive: true });
+  window.addEventListener("touchend", function(e){
+    if (busy) return;
+    var dy = ty - (e.changedTouches[0] ? e.changedTouches[0].clientY : ty);
+    if (Math.abs(dy) < 70) return;
+    var dir = dy > 0 ? 1 : -1;
+    if (!atEdge(pages[cur], dir)) return;
+    go(cur + dir, dir);
+  }, { passive: true });
+})();
+
+/* ============================================================
+   5 — LOGO : lumiere qui suit le curseur
+   ============================================================ */
+
+(function(){
+  var wm = document.getElementById("wordmark");
+  if (!wm || REDUCED) return;
+
+  var words = wm.querySelectorAll(".w");
+
+  wm.addEventListener("pointermove", function(e){
+    var r = wm.getBoundingClientRect();
+    var x = (e.clientX - r.left) / r.width;
+    var y = (e.clientY - r.top) / r.height;
+    /* chaque mot possede sa propre boite de fond : on lui donne les
+       coordonnees du curseur dans SON repere, sinon le halo se dedouble. */
+    for (var i = 0; i < words.length; i++){
+      var wr = words[i].getBoundingClientRect();
+      words[i].style.setProperty("--mx", (((e.clientX - wr.left) / wr.width) * 100).toFixed(1) + "%");
+      words[i].style.setProperty("--my", (((e.clientY - wr.top) / wr.height) * 100).toFixed(1) + "%");
+    }
+    wm.style.setProperty("--tx", (1 + (x - 0.5) * 2.6).toFixed(3));
+    wm.style.setProperty("--ry", ((x - 0.5) * 11).toFixed(2) + "deg");
+    wm.style.setProperty("--rx", ((0.5 - y) * 8).toFixed(2) + "deg");
+    wm.style.setProperty("--spot", "1");
+  });
+
+  wm.addEventListener("pointerleave", function(){
+    wm.style.setProperty("--spot", "0");
+    wm.style.setProperty("--tx", "1");
+    wm.style.setProperty("--rx", "0deg");
+    wm.style.setProperty("--ry", "0deg");
+  });
+})();
+
+/* ============================================================
+   6 — HORLOGE ET BANDEAU
+   ============================================================ */
+
+(function(){
+  var el = document.getElementById("clock");
+  function tick(){
+    var d = new Date();
+    el.textContent = pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes()) + ":" + pad(d.getUTCSeconds()) + " UTC";
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+
+(function(){
+  var NEWS = [
+    "SECTEUR 07 — TEMPÊTE DE DÉBRIS EN APPROCHE",
+    "RAPPEL : LE SAS 3 N'EST PAS UNE POUBELLE",
+    "LE CAFÉ DE BORD EST FROID DEPUIS 47 JOURS",
+    "PERDU : UNE CLÉ À MOLETTE EN ORBITE BASSE — RÉCOMPENSE HONNÊTE",
+    "LA GRAVITÉ ARTIFICIELLE SERA RÉTABLIE APRÈS LA PAUSE DÉJEUNER",
+    "MERCI DE NE PAS NOURRIR LES DÉBRIS",
+    "QUELQU'UN A REPEINT LE SAS EN ORANGE — NOUS CHERCHONS TOUJOURS QUI",
+    "LE DISTRIBUTEUR DU PONT 4 MANGE ENCORE LES JETONS",
+    "AUCUNE BALISE DE SECOURS DÉTECTÉE — ON A BIEN CHERCHÉ, PROMIS",
+    "TROIS FACTIONS ACTIVES SUR LA CEINTURE, DEUX SE PARLENT ENCORE"
+  ];
+  var html = "";
+  for (var i = 0; i < NEWS.length; i++) html += "<b>" + NEWS[i] + "</b>";
+  document.getElementById("tick").innerHTML = html + html;
+})();
+
+})();
 </script>
 
 </body>
