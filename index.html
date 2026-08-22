@@ -485,7 +485,11 @@ body.on-chain #beltbg{ opacity:1 }
   display:flex; flex-direction:column; justify-content:space-between; gap:1.2em;
   font-size:clamp(9.5px, 1.62vh, 17px);
   user-select:text; -webkit-user-select:text;
+  /* le conteneur couvre toute la page : s'il captait la souris, le tapis
+     ne serait saisissable nulle part. Seuls les blocs de texte repondent. */
+  pointer-events:none;
 }
+.chain-head, .chain .ore, .chain .endnote{ pointer-events:auto }
 
 /* les blocs de texte sont opaques : le tapis passe derriere, pas dessous */
 .chain-head{
@@ -795,7 +799,9 @@ body.on-chain #beltbg{ opacity:1 }
         <div class="endnote rise d4">
           <span>Remontez vers le dossier</span>
           <s>//</s>
-          <span>Cliquez sur le fond pour retracer la ligne</span>
+          <span>Saisissez le tapis pour le décaler</span>
+          <s>//</s>
+          <span>Effleurez un minerai pour le briser</span>
         </div>
       </div>
 
@@ -1695,9 +1701,11 @@ Train.init();
 
 /* ============================================================
    2 ter — LA CHAINE : fond de la page 03
-   Un convoyeur qui zigzague sur toute la page en suivant une
-   courbe tiree au hasard, charge de minerais qui defilent.
-   Un clic retrace une nouvelle ligne.
+   Vue du dessus. Un convoyeur zigzague sur toute la page en
+   suivant une courbe tiree au hasard a chaque chargement, et
+   les minerais voyagent SUR le tapis, en deux files.
+   On peut saisir le tapis et le decaler verticalement (dans
+   son couloir, pas plus), et effleurer un minerai le brise.
    ============================================================ */
 
 var Belt = (function(){
@@ -1706,11 +1714,16 @@ var Belt = (function(){
   var DPR = Math.min(window.devicePixelRatio || 1, 2);
   var W = 0, H = 0, S = 1;
 
-  var active = false, drawn = false, hover = false, last = 0;
-  var path = [], cum = [], total = 0, ores = [], shift = 0;
+  var active = false, drawn = false, last = 0;
+  var nodes = [], path = [], cum = [], total = 0;
+  var ores = [], shards = [], pebbles = [];
+  var shift = 0, gapY = 200;
 
-  var BW = 26;                           /* largeur du tapis, avant echelle */
-  var SPEED = 132;                       /* pixels/seconde */
+  var grabbed = -1, grabPY = 0, grabNY = 0, released = -1e9, cursor = "";
+
+  var BW = 30;                           /* largeur du tapis, avant echelle */
+  var SPEED = 116;                       /* pixels/seconde */
+  var LIMIT = 64;                        /* debattement vertical maximum */
 
   /* les quatre minerais transportes, dans l'ordre des fiches de la page */
   var KINDS = [
@@ -1724,14 +1737,15 @@ var Belt = (function(){
   function rand(a, b){ return a + Math.random() * (b - a); }
   function dist(a, b){ var dx = b[0] - a[0], dy = b[1] - a[1]; return Math.sqrt(dx * dx + dy * dy); }
   function mix(a, b, t){ return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+  function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
 
   function glowSprite(rgb){
     var c = document.createElement("canvas");
     c.width = c.height = 64;
     var g = c.getContext("2d");
     var rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    rg.addColorStop(0, "rgba(" + rgb + ",.55)");
-    rg.addColorStop(.45, "rgba(" + rgb + ",.16)");
+    rg.addColorStop(0, "rgba(" + rgb + ",.5)");
+    rg.addColorStop(.45, "rgba(" + rgb + ",.14)");
     rg.addColorStop(1, "rgba(" + rgb + ",0)");
     g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
     return c;
@@ -1756,22 +1770,26 @@ var Belt = (function(){
 
   /* ---------------- la courbe ---------------- */
 
-  /* Serpentin : des rangees parcourues alternativement de gauche a droite
-     puis de droite a gauche, chaque point etant ecarte au hasard de sa
-     rangee. La ligne couvre ainsi toute la page tout en zigzaguant. */
+  /* Serpentin : des rangees parcourues alternativement dans un sens puis
+     dans l'autre, chaque point ecarte au hasard de sa rangee. La ligne
+     couvre toute la page en zigzaguant, et differe a chaque chargement.
+     Chaque point garde son couloir : c'est lui qui bornera le glissement. */
   function waypoints(){
-    var rows = Math.max(3, Math.min(6, Math.round(H / 200)));
-    var padX = Math.max(46, W * .07);
-    var padY = Math.max(52, H * .13);
-    var gapY = (H - padY * 2) / (rows - 1);
-    var wp = [], i, j;
+    var rows = Math.max(3, Math.min(6, Math.round(H / 200) + (Math.random() < .4 ? 1 : 0)));
+    var padX = Math.max(46, W * rand(.05, .09));
+    var padY = Math.max(52, H * rand(.11, .15));
+    var flip = Math.random() < .5;                 /* on entre par la gauche ou la droite */
+    gapY = (H - padY * 2) / (rows - 1);
 
-    /* amplitude du zigzag : la plus large possible, en gardant toujours
+    /* amplitude du zigzag : la plus large possible en gardant toujours
        un couloir libre entre deux rangees voisines. */
     var amp = Math.max(gapY * .12, Math.min(gapY * .42, (gapY - 52 * S) / 2));
+    var margin = BW * .95 * S;
+    var out = [], i, j;
 
     for (i = 0; i < rows; i++){
-      var y = padY + gapY * i + rand(-gapY * .05, gapY * .05);
+      var base = padY + gapY * i;
+      var y = base + rand(-gapY * .05, gapY * .05);
       var k = 4 + Math.floor(rand(0, 3));          /* 4 a 6 points par rangee */
       var row = [];
       for (j = 0; j < k; j++){
@@ -1779,17 +1797,27 @@ var Belt = (function(){
         var x = padX + (W - padX * 2) * f;
         var off = (j % 2 ? -1 : 1) * rand(amp * .45, amp);
         if (j === 0 || j === k - 1) off *= .18;    /* virages francs mais propres */
-        row.push([x, y + off]);
+        row.push(node(x, y + off, base, margin));
       }
-      if (i % 2) row.reverse();                    /* une rangee sur deux a l'envers */
-      wp = wp.concat(row);
+      if ((i % 2 === 0) === flip) row.reverse();   /* une rangee sur deux a l'envers */
+      out = out.concat(row);
     }
 
     /* la ligne entre et ressort du cadre : elle ne s'arrete pas en l'air */
-    var first = wp[0], lastp = wp[wp.length - 1];
-    wp.unshift([first[0] - W * .2, first[1] - amp * .3]);
-    wp.push([lastp[0] + (lastp[0] > W * .5 ? 1 : -1) * W * .2, lastp[1] + amp * .3]);
-    return wp;
+    /* chaque extremite sort par le bord dont elle est la plus proche,
+       sinon la ligne se replie sur elle-meme en epingle. */
+    var a = out[0], b = out[out.length - 1];
+    out.unshift(node(a.x + (a.x > W * .5 ? 1 : -1) * W * .2, a.y - amp * .3, a.base, margin));
+    out.push(node(b.x + (b.x > W * .5 ? 1 : -1) * W * .2, b.y + amp * .3, b.base, margin));
+    return out;
+  }
+
+  function node(x, y, base, margin){
+    return {
+      x: x, y: y, y0: y, base: base,
+      lo: Math.max(margin, base - gapY * .5 + margin),
+      hi: Math.min(H - margin, base + gapY * .5 - margin)
+    };
   }
 
   /* Catmull-Rom centripete : passe par tous les points sans boucler
@@ -1811,26 +1839,26 @@ var Belt = (function(){
     return mix(b1, b2, (tt - t1) / (t2 - t1));
   }
 
-  function sample(wp){
-    var ext = [wp[0]].concat(wp, [wp[wp.length - 1]]);
-    var out = [], i, s, steps;
+  function resample(){
+    var raw = [], i, s, steps;
+    for (i = 0; i < nodes.length; i++) raw.push([nodes[i].x, nodes[i].y]);
+    var ext = [raw[0]].concat(raw, [raw[raw.length - 1]]);
+
+    path = [];
     for (i = 0; i + 3 < ext.length; i++){
       steps = Math.max(6, Math.round(dist(ext[i + 1], ext[i + 2]) / 12));
-      for (s = 0; s < steps; s++) out.push(spline(ext[i], ext[i + 1], ext[i + 2], ext[i + 3], s / steps));
+      for (s = 0; s < steps; s++) path.push(spline(ext[i], ext[i + 1], ext[i + 2], ext[i + 3], s / steps));
     }
-    out.push(wp[wp.length - 1].slice());
-    return out;
-  }
+    path.push(raw[raw.length - 1].slice());
 
-  function measure(){
     cum = [0];
-    for (var i = 1; i < path.length; i++) cum[i] = cum[i - 1] + dist(path[i - 1], path[i]);
+    for (i = 1; i < path.length; i++) cum[i] = cum[i - 1] + dist(path[i - 1], path[i]);
     total = cum[cum.length - 1];
   }
 
   /* position et tangente a l'abscisse curviligne s */
   function at(s){
-    if (s < 0) s = 0; else if (s >= total) s = s % total;
+    if (s < 0) s = ((s % total) + total) % total; else if (s >= total) s = s % total;
     var lo = 0, hi = cum.length - 1, mid;
     while (lo < hi - 1){
       mid = (lo + hi) >> 1;
@@ -1839,30 +1867,73 @@ var Belt = (function(){
     var a = path[lo], b = path[hi];
     var seg = cum[hi] - cum[lo] || 1;
     var f = (s - cum[lo]) / seg;
-    var tx = (b[0] - a[0]) / seg, ty = (b[1] - a[1]) / seg;
-    return { x: a[0] + (b[0] - a[0]) * f, y: a[1] + (b[1] - a[1]) * f, tx: tx, ty: ty };
+    return {
+      x: a[0] + (b[0] - a[0]) * f,
+      y: a[1] + (b[1] - a[1]) * f,
+      tx: (b[0] - a[0]) / seg,
+      ty: (b[1] - a[1]) / seg
+    };
+  }
+
+  /* ---------------- le chargement ---------------- */
+
+  function freshOre(o){
+    o.k = Math.floor(rand(0, KINDS.length));
+    o.r = rand(5.2, 8.6) * S;
+    o.pts = silhouette(o.r, Math.floor(rand(6, 9)));
+    o.rot = rand(0, 6.28);
+    o.hot = Math.random() < .22;
+    return o;
   }
 
   function loadOres(){
-    var n = Math.max(8, Math.min(48, Math.round(total / 175)));
-    var gap = total / n;
+    var gap = 32 * S;
+    var per = Math.max(6, Math.floor(total / gap));
     ores = [];
+    for (var lane = 0; lane < 2; lane++){
+      for (var i = 0; i < per; i++){
+        if (Math.random() < .34) continue;          /* le tapis n'est jamais plein */
+        ores.push(freshOre({
+          off: i * gap + rand(-gap * .18, gap * .18),
+          lane: lane ? 1 : -1,
+          sx: -999, sy: -999
+        }));
+      }
+    }
+  }
+
+  /* le minerai brise repart du debut de la ligne, donc hors cadre */
+  function shatter(o){
+    var n = Math.floor(rand(5, 9));
     for (var i = 0; i < n; i++){
-      var r = rand(7, 13) * S;
-      ores.push({
-        off: i * gap + rand(-gap * .22, gap * .22),
-        k: Math.floor(rand(0, KINDS.length)),
-        r: r,
-        pts: silhouette(r, Math.floor(rand(6, 9))),
-        rot: rand(0, 6.28)
+      var a = rand(0, 6.28), sp = rand(20, 105) * S;
+      shards.push({
+        x: o.sx, y: o.sy,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        pts: silhouette(o.r * rand(.22, .46), 5),
+        rot: rand(0, 6.28), spin: rand(-4, 4),
+        k: o.k, life: 1
       });
+    }
+    freshOre(o);
+    o.off = (-shift + rand(4, 120) * S) % total;
+    o.sx = o.sy = -999;
+  }
+
+  function scatter(){
+    pebbles = [];
+    var n = Math.round((W * H) / 26000);
+    for (var i = 0; i < n; i++){
+      pebbles.push({ x: rand(0, W), y: rand(0, H), r: rand(1.2, 3.6) * S, a: rand(.05, .16) });
     }
   }
 
   function build(){
-    path = sample(waypoints());
-    measure();
+    nodes = waypoints();
+    resample();
     loadOres();
+    scatter();
+    shards = [];
   }
 
   function resize(){
@@ -1883,12 +1954,19 @@ var Belt = (function(){
     g.addColorStop(1,  "#08080B");
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
-    var step = 46 * S;
+    var step = 46 * S, i;
     ctx.lineWidth = 1; ctx.strokeStyle = "rgba(95,235,247,.045)";
     ctx.beginPath();
-    for (var x = step; x < W; x += step){ ctx.moveTo(Math.round(x) + .5, 0); ctx.lineTo(Math.round(x) + .5, H); }
-    for (var y = step; y < H; y += step){ ctx.moveTo(0, Math.round(y) + .5); ctx.lineTo(W, Math.round(y) + .5); }
+    for (i = step; i < W; i += step){ ctx.moveTo(Math.round(i) + .5, 0); ctx.lineTo(Math.round(i) + .5, H); }
+    for (i = step; i < H; i += step){ ctx.moveTo(0, Math.round(i) + .5); ctx.lineTo(W, Math.round(i) + .5); }
     ctx.stroke();
+
+    /* caillasse au sol : la vue du dessus a besoin d'un peu de grain */
+    for (i = 0; i < pebbles.length; i++){
+      var p = pebbles[i];
+      ctx.fillStyle = "rgba(237,231,218," + p.a.toFixed(3) + ")";
+      ctx.fillRect(p.x, p.y, p.r, p.r);
+    }
 
     var r = ctx.createRadialGradient(W * .5, H * .5, 0, W * .5, H * .5, Math.max(W, H) * .62);
     r.addColorStop(0, "rgba(95,235,247,.055)");
@@ -1902,74 +1980,84 @@ var Belt = (function(){
     for (var i = 1; i < path.length; i++) ctx.lineTo(path[i][0], path[i][1]);
   }
 
-  /* pieds de support, sous le tapis */
-  function legs(){
-    var step = 150 * S, h = 20 * S, w = 11 * S;
-    ctx.lineWidth = 2 * S; ctx.strokeStyle = "rgba(237,231,218,.16)";
-    ctx.beginPath();
-    for (var s = step * .5; s < total; s += step){
-      var p = at(s);
-      ctx.moveTo(p.x, p.y); ctx.lineTo(p.x, p.y + h);
-      ctx.moveTo(p.x - w, p.y + h); ctx.lineTo(p.x + w, p.y + h);
-    }
-    ctx.stroke();
-  }
-
   function belt(){
     var w = BW * S;
     ctx.lineJoin = "round"; ctx.lineCap = "round";
 
     tracePath();
-    ctx.lineWidth = w + 9 * S; ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.stroke();
-    ctx.lineWidth = w;         ctx.strokeStyle = "rgba(237,231,218,.30)"; ctx.stroke();
-    ctx.lineWidth = w - 5 * S; ctx.strokeStyle = "#101015"; ctx.stroke();
-  }
+    ctx.lineWidth = w + 10 * S; ctx.strokeStyle = "rgba(0,0,0,.5)";        ctx.stroke();
+    ctx.lineWidth = w;          ctx.strokeStyle = "rgba(237,231,218,.34)"; ctx.stroke();
+    ctx.lineWidth = w - 5 * S;  ctx.strokeStyle = "#101015";               ctx.stroke();
 
-  /* taquets du tapis : c'est eux qui donnent le mouvement */
-  function cleats(){
-    var step = 30 * S, half = (BW - 9) * S * .5;
-    ctx.lineWidth = 2 * S; ctx.strokeStyle = "rgba(237,231,218,.14)";
+    /* chevrons : vus du dessus, ce sont eux qui disent le sens de marche */
+    var step = 26 * S, half = (BW * .5 - 5) * S, len = 5.5 * S;
+    ctx.lineWidth = 2 * S; ctx.strokeStyle = "rgba(237,231,218,.17)";
     ctx.beginPath();
     for (var s = step - (shift % step); s < total; s += step){
       var p = at(s);
-      ctx.moveTo(p.x + p.ty * half, p.y - p.tx * half);
-      ctx.lineTo(p.x - p.ty * half, p.y + p.tx * half);
+      var nx = -p.ty, ny = p.tx;
+      ctx.moveTo(p.x + nx * half - p.tx * len, p.y + ny * half - p.ty * len);
+      ctx.lineTo(p.x + p.tx * len, p.y + p.ty * len);
+      ctx.lineTo(p.x - nx * half - p.tx * len, p.y - ny * half - p.ty * len);
     }
     ctx.stroke();
   }
 
   function drawOres(){
-    var lift = BW * .5 * S;
-    for (var i = 0; i < ores.length; i++){
-      var o = ores[i];
-      var p = at((o.off + shift) % total);
-      /* la normale doit toujours pointer vers le haut de l'ecran :
-         le minerai se pose sur le tapis, il ne pend pas dessous. */
-      var nx = -p.ty, ny = p.tx;
-      if (ny > 0){ nx = -nx; ny = -ny; }
-      var x = p.x + nx * (lift + o.r * .68);
-      var y = p.y + ny * (lift + o.r * .68);
+    var i, o, p, nx, ny, lane = BW * .21 * S;
+    for (i = 0; i < ores.length; i++){
+      o = ores[i];
+      p = at(o.off + shift);
+      nx = -p.ty; ny = p.tx;
+      o.sx = p.x + nx * lane * o.lane;
+      o.sy = p.y + ny * lane * o.lane;
 
-      ctx.globalAlpha = .8;
-      ctx.drawImage(GLOW[o.k], x - o.r * 2.1, y - o.r * 2.1, o.r * 4.2, o.r * 4.2);
-      ctx.globalAlpha = 1;
+      if (o.hot){
+        ctx.globalAlpha = .75;
+        ctx.drawImage(GLOW[o.k], o.sx - o.r * 2.4, o.sy - o.r * 2.4, o.r * 4.8, o.r * 4.8);
+        ctx.globalAlpha = 1;
+      }
 
       ctx.save();
-      ctx.translate(x, y);
+      ctx.translate(o.sx, o.sy);
       ctx.rotate(o.rot);
       drawShape(o.pts);
-      ctx.fillStyle = "rgba(" + KINDS[o.k] + ",.16)"; ctx.fill();
-      ctx.lineWidth = 1.6; ctx.strokeStyle = "rgba(" + KINDS[o.k] + ",.9)"; ctx.stroke();
+      ctx.fillStyle = "rgba(" + KINDS[o.k] + ",.28)"; ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(" + KINDS[o.k] + ",.92)"; ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function stepShards(dt){
+    for (var i = shards.length - 1; i >= 0; i--){
+      var f = shards[i];
+      f.x += f.vx * dt; f.y += f.vy * dt;
+      f.vx *= (1 - 2.4 * dt); f.vy *= (1 - 2.4 * dt);
+      f.rot += f.spin * dt;
+      f.life -= 1.05 * dt;
+      if (f.life <= 0) shards.splice(i, 1);
+    }
+  }
+
+  function drawShards(){
+    for (var i = 0; i < shards.length; i++){
+      var f = shards[i];
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.rotate(f.rot);
+      drawShape(f.pts);
+      ctx.lineWidth = 1.3;
+      ctx.strokeStyle = "rgba(" + KINDS[f.k] + "," + Math.max(0, f.life).toFixed(3) + ")";
+      ctx.stroke();
       ctx.restore();
     }
   }
 
   function scene(){
     backdrop();
-    legs();
     belt();
-    cleats();
     drawOres();
+    drawShards();
   }
 
   function frame(now){
@@ -1984,6 +2072,7 @@ var Belt = (function(){
     }
 
     shift = (shift + SPEED * S * dt) % total;
+    stepShards(dt);
     scene();
     drawn = true;
     requestAnimationFrame(frame);
@@ -1995,13 +2084,70 @@ var Belt = (function(){
     return !!(el && el.closest && el.closest(".chain-inner, .footer"));
   }
 
+  function setCursor(c){
+    if (c === cursor) return;
+    cursor = c;
+    document.body.style.cursor = c;
+  }
+
+  /* index du point de controle le plus proche, si le curseur est bien
+     sur le tapis ; -1 sinon. */
+  function grabIndex(px, py){
+    var best = -1, bd = BW * 1.15 * S, i, dx, dy, d;
+    bd = bd * bd;
+    for (i = 0; i < path.length; i++){
+      dx = path[i][0] - px; dy = path[i][1] - py;
+      d = dx * dx + dy * dy;
+      if (d < bd){ bd = d; best = i; }
+    }
+    if (best < 0) return -1;
+
+    var hx = path[best][0], hy = path[best][1], bn = -1, bnd = 1e12;
+    for (i = 1; i < nodes.length - 1; i++){          /* les deux points hors cadre restent fixes */
+      dx = nodes[i].x - hx; dy = nodes[i].y - hy;
+      d = dx * dx + dy * dy;
+      if (d < bnd){ bnd = d; bn = i; }
+    }
+    return bn;
+  }
+
+  /* le point saisi suit le curseur, ses voisins l'accompagnent a peine :
+     la ligne se deforme sans se casser. */
+  function dragTo(py){
+    var d = py - grabPY, i;
+    for (i = -1; i <= 1; i++){
+      var n = nodes[grabbed + i];
+      if (!n) continue;
+      var w = i === 0 ? 1 : .34;
+      var base = i === 0 ? grabNY : n.y0;
+      var lim = LIMIT * S * w;
+      n.y = clamp(clamp(base + d * w, n.y0 - lim, n.y0 + lim), n.lo, n.hi);
+    }
+    resample();
+  }
+
+  /* effleurer un minerai le brise */
+  function touchOres(px, py){
+    for (var i = ores.length - 1; i >= 0; i--){
+      var o = ores[i];
+      var dx = o.sx - px, dy = o.sy - py, t = o.r + 11 * S;
+      if (dx * dx + dy * dy < t * t) shatter(o);
+    }
+  }
+
   function setActive(v){
     if (v === active) return;
     active = v;
     last = performance.now();
-    hover = false;
-    document.body.style.cursor = "";
+    grabbed = -1;
+    setCursor("");
     if (v && REDUCED){ scene(); drawn = true; }
+  }
+
+  /* la nav tactile ne doit pas confondre un glissement du tapis
+     avec un balayage de page */
+  function busy(){
+    return grabbed >= 0 || (performance.now() - released) < 400;
   }
 
   function init(){
@@ -2011,26 +2157,33 @@ var Belt = (function(){
     if (REDUCED) return;
 
     window.addEventListener("pointermove", function(e){
-      if (!active){
-        if (hover){ hover = false; document.body.style.cursor = ""; }
-        return;
-      }
-      var over = !inUI(e.target);
-      if (over !== hover){
-        hover = over;
-        document.body.style.cursor = over ? "crosshair" : "";
-      }
+      if (!active){ setCursor(""); return; }
+      if (grabbed >= 0){ dragTo(e.clientY); return; }
+      if (inUI(e.target)){ setCursor(""); return; }
+      touchOres(e.clientX, e.clientY);
+      setCursor(grabIndex(e.clientX, e.clientY) >= 0 ? "ns-resize" : "");
     }, { passive: true });
 
     window.addEventListener("pointerdown", function(e){
       if (!active || inUI(e.target)) return;
-      build();                             /* une autre ligne, au hasard */
+      var i = grabIndex(e.clientX, e.clientY);
+      if (i < 0) return;
+      grabbed = i; grabPY = e.clientY; grabNY = nodes[i].y;
+      setCursor("ns-resize");
     });
+
+    function release(){
+      if (grabbed < 0) return;
+      grabbed = -1; released = performance.now();
+      setCursor("");
+    }
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
 
     requestAnimationFrame(frame);
   }
 
-  return { init: init, setActive: setActive };
+  return { init: init, setActive: setActive, busy: busy };
 })();
 
 Belt.init();
@@ -2117,6 +2270,7 @@ Belt.init();
   window.addEventListener("touchstart", function(e){ ty = e.touches[0].clientY; }, { passive: true });
   window.addEventListener("touchend", function(e){
     if (busy) return;
+    if (Belt.busy()) return;             /* on etait en train de deplacer le tapis */
     var dy = ty - (e.changedTouches[0] ? e.changedTouches[0].clientY : ty);
     if (Math.abs(dy) < 70) return;
     var dir = dy > 0 ? 1 : -1;
