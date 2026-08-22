@@ -13,7 +13,8 @@
 /* ============================================================
    VOIDBELT — site vitrine
    Deux pages, transition par glissement croise.
-   Fond : champ d'asteroides dense et interactif (canvas).
+   Page 01 : champ d'asteroides dense et interactif (canvas).
+   Page 02 : page fixe sur deux colonnes, fond ferroviaire anime.
    ============================================================ */
 
 @property --spot{ syntax:'<number>'; inherits:true; initial-value:0 }
@@ -71,6 +72,15 @@ body{
   position:fixed; inset:0; z-index:1; pointer-events:none;
   width:100%; height:100%;
 }
+
+/* fond de la page 02 : voie ferree, convoi et fumee.
+   Opaque, il recouvre le champ d'asteroides des qu'il apparait. */
+#trainbg{
+  position:fixed; inset:0; z-index:2; pointer-events:none;
+  width:100%; height:100%;
+  opacity:0; transition:opacity .55s ease;
+}
+body.on-brief #trainbg{ opacity:1 }
 
 .grid-overlay{
   position:fixed; inset:0; z-index:0; pointer-events:none;
@@ -177,8 +187,8 @@ body{
   display:flex; flex-direction:column; align-items:center;
   justify-content:center;
   justify-content:safe center;
-  gap:clamp(16px,2.4vmin,42px);
-  padding:clamp(24px,4vmin,70px) clamp(16px,6vmin,120px);
+  gap:clamp(30px,5.4vmin,96px);
+  padding:clamp(34px,5vmin,90px) clamp(18px,6vmin,120px);
 }
 
 .eyebrow{
@@ -254,7 +264,7 @@ body{
 
 .transmission{
   position:relative;
-  width:min(92vw, calc(var(--fs-md) * 62));
+  width:min(88vw, calc(var(--fs-md) * 50));
   border:var(--edge) solid var(--bone);
   background:linear-gradient(180deg, rgba(20,20,22,.94), rgba(10,10,11,.94));
   animation:cardglow 6s ease-in-out infinite;
@@ -275,9 +285,9 @@ body{
 
 .tr-head{
   display:flex; align-items:center; justify-content:space-between; gap:1.2em;
-  padding:.75em 1.3em;
+  padding:.6em 1.1em;
   background:var(--bone); color:var(--black);
-  font-size:var(--fs-xs); letter-spacing:.22em; text-transform:uppercase; font-weight:700;
+  font-size:calc(var(--fs-xs) * .94); letter-spacing:.22em; text-transform:uppercase; font-weight:700;
   position:relative; overflow:hidden;
 }
 .tr-head .ref{ font-weight:400; color:rgba(10,10,11,.7) }
@@ -288,13 +298,13 @@ body{
 }
 @keyframes headpass{ 0%{transform:translateX(-120%)} 60%,100%{transform:translateX(360%)} }
 
-.tr-body{ padding:clamp(22px,3.2vmin,54px) clamp(20px,3vmin,50px) clamp(18px,2.4vmin,40px);
+.tr-body{ padding:clamp(16px,2.2vmin,34px) clamp(16px,2.2vmin,34px) clamp(13px,1.8vmin,26px);
           position:relative; overflow:hidden; cursor:text }
 .tr-body::before{
   content:"\201C";
   position:absolute; left:.1em; top:0;
   font-family:'Archivo Black','Arial Black',sans-serif;
-  font-size:7em; line-height:1; color:rgba(237,231,218,.07);
+  font-size:5em; line-height:1; color:rgba(237,231,218,.07);
 }
 .tr-body::after{
   content:""; position:absolute; left:0; right:0; height:1px; top:0;
@@ -311,16 +321,16 @@ body{
 
 #quote{
   font-family:'Archivo Black','Arial Black',sans-serif;
-  font-size:clamp(18px, min(4.2vw, 3.6vmin), 46px);
-  line-height:1.2;
+  font-size:clamp(14px, min(2.9vw, 2.5vmin), 29px);
+  line-height:1.24;
   text-transform:uppercase;
   color:#F6F2EA;
   position:relative;
   min-height:1.2em;
 }
 #quote-vo{
-  margin-top:1.2em;
-  font-size:var(--fs-sm); line-height:1.6; color:var(--txt-2);
+  margin-top:.95em;
+  font-size:calc(var(--fs-xs) * 1.06); line-height:1.55; color:var(--txt-2);
   border-left:2px solid var(--orange); padding-left:.9em;
   max-width:64ch;
 }
@@ -330,13 +340,13 @@ body{
 }
 
 .tr-meta{ display:flex; flex-wrap:wrap; border-top:1px solid var(--line) }
-.tr-meta > div{ flex:1 1 14em; padding:1em 1.3em; border-right:1px solid var(--line) }
+.tr-meta > div{ flex:1 1 11em; padding:.7em 1.1em; border-right:1px solid var(--line) }
 .tr-meta > div:last-child{ border-right:0 }
 .tr-meta dt{
-  font-size:var(--fs-xs); letter-spacing:.26em; text-transform:uppercase;
-  color:var(--txt-3); margin-bottom:.5em;
+  font-size:calc(var(--fs-xs) * .92); letter-spacing:.24em; text-transform:uppercase;
+  color:var(--txt-3); margin-bottom:.35em;
 }
-.tr-meta dd{ font-size:var(--fs-md); letter-spacing:.06em; text-transform:uppercase; color:var(--txt) }
+.tr-meta dd{ font-size:var(--fs-sm); letter-spacing:.06em; text-transform:uppercase; color:var(--txt) }
 .tr-meta dd.hl{ color:var(--orange) }
 .tr-meta dd.cy{ color:var(--cyan) }
 
@@ -359,72 +369,97 @@ body{
 .cue s{ text-decoration:none; font-size:1.4em; color:var(--orange); animation:bob 1.8s ease-in-out infinite }
 @keyframes bob{ 0%,100%{transform:translateY(0);opacity:.5} 50%{transform:translateY(.35em);opacity:1} }
 
-/* ---------- page 02 : le jeu ---------- */
+/* ---------- page 02 : le jeu — page fixe, deux colonnes ---------- */
+
+/* aucun defilement interne : tout doit tenir dans la fenetre.
+   L'echelle typographique suit la hauteur (vh) pour s'y adapter. */
+.page.brief{ overflow:hidden }
 
 .brief{
-  min-height:100%;
-  padding:clamp(28px,5vmin,90px) clamp(18px,7vmin,150px) clamp(40px,6vmin,110px);
+  height:100%;
+  padding:clamp(14px,2.4vmin,34px) clamp(26px,5vmin,90px) 28vh;
   display:flex; flex-direction:column; align-items:center;
 }
 .brief-inner{
-  width:min(94vw, calc(var(--fs-md) * 66));
+  width:min(96vw, 1560px);
+  flex:1 1 auto; min-height:0;
+  display:flex; flex-direction:column;
+  font-size:clamp(9.5px, 1.62vh, 17px);
   user-select:text; -webkit-user-select:text;
 }
 
+.brief-head{ flex:none; margin-bottom:1.3em }
+
 .brief h2{
   font-family:'Archivo Black','Arial Black',sans-serif;
-  font-size:clamp(30px, min(8vw, 7vmin), 96px);
-  line-height:.9; letter-spacing:-.03em; text-transform:uppercase;
-  color:#F6F2EA; margin-bottom:.35em;
+  font-size:3.5em; line-height:.9; letter-spacing:-.03em; text-transform:uppercase;
+  color:#F6F2EA; margin-bottom:.3em;
 }
 .brief h2 span{ color:var(--orange) }
 
 .brief .lede{
-  font-size:calc(var(--fs-md) * 1.15); line-height:1.65; color:var(--txt);
-  border-left:3px solid var(--orange); padding-left:1em; margin-bottom:2.6em;
-  max-width:70ch;
+  font-size:1.05em; line-height:1.6; color:var(--txt);
+  border-left:3px solid var(--orange); padding-left:.9em;
+  max-width:96ch;
 }
 
-.brief section{ margin-bottom:2.8em; max-width:76ch }
+/* les deux colonnes de texte */
+.brief-cols{
+  flex:1 1 auto; min-height:0;
+  column-count:2; column-gap:clamp(26px,3.8vmin,68px);
+  column-rule:1px solid var(--line);
+}
+.brief-cols > *{ break-inside:avoid; page-break-inside:avoid }
+
+.brief section{ margin:0 0 1.4em }
 .brief h3{
   display:flex; align-items:center; gap:1em;
-  font-size:var(--fs-sm); letter-spacing:.3em; text-transform:uppercase;
-  color:var(--orange); font-weight:400; margin-bottom:1em;
+  font-size:.9em; letter-spacing:.26em; text-transform:uppercase;
+  color:var(--orange); font-weight:400; margin-bottom:.65em;
 }
 .brief h3::after{ content:""; flex:1; height:1px; background:var(--line) }
 .brief h3 b{ font-weight:400; color:var(--txt-3) }
 
-.brief p{ color:var(--txt-2); line-height:1.75; margin-bottom:1em }
+.brief p{ font-size:1em; color:var(--txt-2); line-height:1.6; margin-bottom:.65em }
+.brief p:last-child{ margin-bottom:0 }
 .brief p strong{ color:var(--txt); font-weight:400; background:rgba(255,77,0,.14) }
+
+/* signature + verbes sur une seule ligne : les colonnes gardent la hauteur */
+.brief-foot{
+  flex:none; margin-top:1em;
+  display:flex; flex-wrap:wrap; align-items:center; gap:.8em 1.4em;
+}
 
 .welcome{
   font-family:'Archivo Black','Arial Black',sans-serif;
-  font-size:clamp(22px, min(5.5vw, 4.4vmin), 58px);
-  line-height:1.05; letter-spacing:-.02em; text-transform:uppercase;
-  color:#F6F2EA; margin:.4em 0 1.2em;
+  font-size:1.55em; line-height:1.05; letter-spacing:-.02em; text-transform:uppercase;
+  color:#F6F2EA; white-space:nowrap;
 }
 .welcome span{ color:var(--orange) }
 
 .verbs{
+  flex:1 1 24em;
   display:flex; flex-wrap:wrap;
   border:var(--edge) solid var(--bone);
   background:rgba(20,20,22,.72);
-  margin-bottom:2.4em;
 }
 .verbs span{
-  flex:1 1 8em; padding:1em .9em;
+  flex:1 1 5em; padding:.55em .35em;
   border-right:1px solid var(--line);
   font-family:'Archivo Black','Arial Black',sans-serif;
-  font-size:var(--fs-sm); letter-spacing:.04em; text-transform:uppercase;
+  font-size:.8em; letter-spacing:.04em; text-transform:uppercase;
   text-align:center; color:var(--txt);
 }
 .verbs span:last-child{ border-right:0 }
 .verbs span:nth-child(2n){ color:var(--orange) }
 
 .endnote{
-  border-top:1px solid var(--line); padding-top:1.6em;
-  font-size:var(--fs-xs); letter-spacing:.24em; text-transform:uppercase; color:var(--txt-3);
+  flex:none;
+  border-top:1px solid var(--line); padding-top:.8em; margin-top:.8em;
+  font-size:.78em; letter-spacing:.22em; text-transform:uppercase; color:var(--txt-3);
+  display:flex; flex-wrap:wrap; gap:.5em 1.4em;
 }
+.endnote s{ text-decoration:none; color:var(--orange) }
 
 /* ============================================================
    BAS DE PAGE
@@ -490,11 +525,28 @@ body{
   .footer .cell:first-child{ display:none }
   .verbs span{ flex:1 1 33% }
 }
+
+/* ecrans etroits ou trop bas pour la mise en page fixe : une seule
+   colonne et on redonne le defilement, sinon le texte serait coupe.
+   Il faut aussi rendre les hauteurs libres : un bloc multi-colonnes de
+   hauteur imposee refragmente son contenu en colonnes hors cadre. */
+@media (max-width:820px), (max-height:620px){
+  .page.brief{ overflow-y:auto }
+  .brief{ height:auto; min-height:100%; padding-bottom:34vh }
+  .brief-inner{ flex:none; font-size:clamp(11px, 1.9vh, 15px) }
+  .brief-cols{ flex:none; column-count:1; column-rule:0 }
+}
+
+/* meme repli, pose par le script quand la reduction de l'echelle ne suffit pas */
+.brief.cramped{ overflow-y:auto; height:auto; min-height:100%; padding-bottom:34vh }
+.brief.cramped .brief-inner{ flex:none }
+.brief.cramped .brief-cols{ flex:none; column-count:1; column-rule:0 }
 </style>
 </head>
 <body>
 
 <canvas id="space" aria-hidden="true"></canvas>
+<canvas id="trainbg" aria-hidden="true"></canvas>
 <div class="grid-overlay"></div>
 <div class="halo"></div>
 <div class="dots"></div>
@@ -561,68 +613,77 @@ body{
   <div class="page brief" id="p1">
     <div class="brief-inner">
 
-      <h2 class="rise d1">LE <span>JEU</span></h2>
+      <header class="brief-head">
+        <h2 class="rise d1">LE <span>JEU</span></h2>
 
-      <p class="lede rise d2">
-        Vous êtes un <strong>Vanguard</strong>, une unité spéciale envoyée aux confins de
-        l'espace pour coloniser une planète désertique inconnue. Votre mission est simple :
-        survivre, vous développer et transformer ce bout de caillou en une véritable
-        puissance industrielle.
-      </p>
-
-      <section class="rise d3">
-        <h3>01 <b>—</b> Partir de presque rien</h3>
-        <p>
-          Commencez avec presque rien. Minez les ressources de la planète, construisez vos
-          premières machines, automatisez votre production et développez progressivement
-          votre technologie. Au fil de vos recherches, votre colonie grandit : convois,
-          camions, trains, réseaux logistiques, usines toujours plus avancées et immenses
-          systèmes de défense viennent peu à peu transformer votre petit avant-poste en
-          forteresse industrielle.
+        <p class="lede rise d2">
+          Vous êtes un <strong>Vanguard</strong>, une unité spéciale envoyée aux confins de
+          l'espace pour coloniser une planète désertique inconnue. Votre mission est simple :
+          survivre, vous développer et transformer ce bout de caillou en une véritable
+          puissance industrielle.
         </p>
-      </section>
+      </header>
 
-      <section class="rise d3">
-        <h3>02 <b>—</b> Au-delà de la première planète</h3>
-        <p>
-          Mais votre première planète ne sera pas votre seule source de richesse. Explorez
-          l'espace, colonisez des astéroïdes et exploitez leurs ressources uniques pour
-          accélérer votre développement.
-        </p>
-      </section>
+      <div class="brief-cols rise d3">
 
-      <section class="rise d3">
-        <h3>03 <b>—</b> Le conflit entre joueurs</h3>
-        <p>
-          Puis vient le moment où vos recherches vous permettent enfin de franchir une
-          nouvelle frontière : <strong>le conflit entre joueurs.</strong> À partir de là,
-          vous pouvez attaquer, défendre, conquérir et coloniser les territoires ennemis.
-        </p>
-        <p>
-          Mais détruire une colonie ne signifie pas tout perdre. Vos infrastructures
-          principales sont protégées : même après une attaque, votre empire peut se relever.
-          En revanche, chaque assaut peut endommager vos défenses et affaiblir votre
-          capacité à protéger votre production.
-        </p>
-      </section>
+        <section>
+          <h3>01 <b>—</b> Partir de presque rien</h3>
+          <p>
+            Commencez avec presque rien. Minez les ressources de la planète, construisez vos
+            premières machines, automatisez votre production et développez progressivement
+            votre technologie. Au fil de vos recherches, votre colonie grandit : convois,
+            camions, trains, réseaux logistiques, usines toujours plus avancées et immenses
+            systèmes de défense viennent peu à peu transformer votre petit avant-poste en
+            forteresse industrielle.
+          </p>
+        </section>
 
-      <section class="rise d3">
-        <h3>04 <b>—</b> Construisez en conséquence</h3>
-        <p>
-          Alors construisez intelligemment, automatisez tout ce qui peut l'être, renforcez
-          vos défenses et préparez-vous à voir débarquer quelqu'un qui pense que
-          <strong>vos ressources seraient mieux chez lui.</strong>
-        </p>
-      </section>
+        <section>
+          <h3>02 <b>—</b> Au-delà de la première planète</h3>
+          <p>
+            Mais votre première planète ne sera pas votre seule source de richesse. Explorez
+            l'espace, colonisez des astéroïdes et exploitez leurs ressources uniques pour
+            accélérer votre développement.
+          </p>
+        </section>
 
-      <div class="welcome rise d3">Bienvenue dans <span>VoidBelt</span>.</div>
+        <section>
+          <h3>03 <b>—</b> Le conflit entre joueurs</h3>
+          <p>
+            Puis vient le moment où vos recherches vous permettent enfin de franchir une
+            nouvelle frontière : <strong>le conflit entre joueurs.</strong> À partir de là,
+            vous pouvez attaquer, défendre, conquérir et coloniser les territoires ennemis.
+          </p>
+          <p>
+            Mais détruire une colonie ne signifie pas tout perdre. Vos infrastructures
+            principales sont protégées : même après une attaque, votre empire peut se relever.
+            En revanche, chaque assaut peut endommager vos défenses et affaiblir votre
+            capacité à protéger votre production.
+          </p>
+        </section>
 
-      <div class="verbs rise d4">
-        <span>Mine</span><span>Construis</span><span>Automatise</span><span>Colonise</span><span>Défends</span><span>Attaque</span>
+        <section>
+          <h3>04 <b>—</b> Construisez en conséquence</h3>
+          <p>
+            Alors construisez intelligemment, automatisez tout ce qui peut l'être, renforcez
+            vos défenses et préparez-vous à voir débarquer quelqu'un qui pense que
+            <strong>vos ressources seraient mieux chez lui.</strong>
+          </p>
+        </section>
+
+      </div>
+
+      <div class="brief-foot rise d4">
+        <div class="welcome">Bienvenue dans <span>VoidBelt</span>.</div>
+        <div class="verbs">
+          <span>Mine</span><span>Construis</span><span>Automatise</span><span>Colonise</span><span>Défends</span><span>Attaque</span>
+        </div>
       </div>
 
       <div class="endnote rise d4">
-        Remontez pour revenir au terminal d'accueil
+        <span>Remontez pour revenir au terminal d'accueil</span>
+        <s>//</s>
+        <span>Cliquez sur le convoi pour l'arrêter</span>
       </div>
 
     </div>
@@ -862,7 +923,7 @@ var Field = (function(){
   }
 
   function makeRock(x, y){
-    var r = rand(7, 44);
+    var r = rand(7, 38);
     return {
       x: x, y: y,
       vx: rand(-0.20, 0.20), vy: rand(-0.16, 0.16),
@@ -882,7 +943,8 @@ var Field = (function(){
   }
 
   function build(){
-    var n = Math.max(40, Math.min(120, Math.round((W * H) / 13000)));
+    /* champ dense : on vise 100 rochers des que la fenetre est assez grande */
+    var n = Math.max(55, Math.min(100, Math.round((W * H) / 8000)));
     rocks = [];
     for (var i = 0; i < n; i++) rocks.push(makeRock(rand(0, W), rand(0, H)));
     stars = [];
@@ -920,7 +982,10 @@ var Field = (function(){
     for (var i = rocks.length - 1; i >= 0; i--){
       var rk = rocks[i];
       var dx = cx - (rk.x + px * rk.depth), dy = cy - (rk.y + py * rk.depth);
-      if (dx * dx + dy * dy < rk.r * rk.r * 1.25) return i;
+      /* marge fixe autour du rocher : viser devient nettement plus facile,
+         y compris sur les petits fragments. */
+      var tol = rk.r + 15;
+      if (dx * dx + dy * dy < tol * tol) return i;
     }
     return -1;
   }
@@ -967,10 +1032,12 @@ var Field = (function(){
     for (i = 0; i < rocks.length; i++){
       var rk = rocks[i];
 
+      /* le curseur ne fait plus qu'effleurer le champ : rayon court et
+         poussee faible, pour que les rochers restent faciles a viser. */
       var ddx = rk.x - mx, ddy = rk.y - my;
       var d2 = ddx * ddx + ddy * ddy;
-      if (d2 < 32400 && d2 > 1){
-        var d = Math.sqrt(d2), f = (1 - d / 180) * 0.55;
+      if (d2 < 6400 && d2 > 1){
+        var d = Math.sqrt(d2), f = (1 - d / 80) * 0.13;
         rk.vx += (ddx / d) * f; rk.vy += (ddy / d) * f;
       }
 
@@ -1031,6 +1098,7 @@ var Field = (function(){
     }
 
     window.addEventListener("pointermove", function(e){
+      if (asleep()) { mx = my = -9999; return; }
       mx = e.clientX; my = e.clientY;
       tpx = (e.clientX / W - 0.5) * 34;
       tpy = (e.clientY / H - 0.5) * 34;
@@ -1044,6 +1112,7 @@ var Field = (function(){
     window.addEventListener("pointerleave", function(){ mx = my = -9999; });
 
     window.addEventListener("pointerdown", function(e){
+      if (asleep()) return;              /* page 02 : le fond est ferroviaire */
       if (inText(e.target)) return;      /* on laisse selectionner le texte */
       var i = hit(e.clientX, e.clientY);
       if (i < 0) return;
@@ -1055,6 +1124,11 @@ var Field = (function(){
     requestAnimationFrame(frame);
   }
 
+  /* la page 02 possede son propre fond : le champ n'y ecoute plus rien */
+  function asleep(){
+    return document.body.classList.contains("on-brief");
+  }
+
   /* zones ou le clic sert a selectionner du texte, pas a casser un rocher */
   function inText(el){
     return !!(el && el.closest && el.closest(".transmission, .brief-inner, .footer"));
@@ -1064,6 +1138,446 @@ var Field = (function(){
 })();
 
 Field.init();
+
+/* ============================================================
+   2 bis — LE CONVOI : fond de la page 02
+   Une voie ferree qui defile a pleine vitesse, une locomotive
+   qui fume, et un clic dessus qui la stoppe (puis la relance).
+   ============================================================ */
+
+var Train = (function(){
+  var cvs = document.getElementById("trainbg");
+  var ctx = cvs.getContext("2d");
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var W = 0, H = 0, S = 1, railY = 0, noseX = 0;
+
+  var active = false, drawn = false, hover = false;
+  var running = true;                    /* le convoi roule-t-il ? */
+  var speed = 0;                         /* 0 a 1, lisse */
+  var scroll = 0, wheelA = 0, last = 0, emit = 0, sparkAcc = 0;
+  var puffs = [], sparks = [], streaks = [];
+
+  var SPD = 1750;                        /* pixels/seconde a pleine vitesse */
+  var MAXPUFF = 420;
+
+  function rand(a, b){ return a + Math.random() * (b - a); }
+
+  /* --- sprites de fumee : bien plus rapides qu'un degrade par bouffee --- */
+  function sprite(rgb){
+    var c = document.createElement("canvas");
+    c.width = c.height = 64;
+    var g = c.getContext("2d");
+    var rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0,   "rgba(" + rgb + ",1)");
+    rg.addColorStop(.42, "rgba(" + rgb + ",.5)");
+    rg.addColorStop(1,   "rgba(" + rgb + ",0)");
+    g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+    return c;
+  }
+  var SMOKE = sprite("226,220,208"), SOOT = sprite("32,30,34");
+
+  function resize(){
+    W = cvs.clientWidth; H = cvs.clientHeight;
+    cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    S = Math.max(.40, Math.min(1.15, Math.min(H / 950, W / 1700)));
+    railY = H * .855;
+    noseX = W * .68;
+    streaks = [];
+    for (var i = 0; i < 26; i++){
+      streaks.push({ x: rand(0, W), y: rand(railY - 210 * S, railY - 8),
+                     l: rand(60, 260), a: rand(.05, .16), v: rand(1.1, 2.1) });
+    }
+    drawn = false;
+  }
+
+  /* ---------------- decor ---------------- */
+
+  function sky(){
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0,   "#05060B");
+    g.addColorStop(.42, "#0A0A13");
+    g.addColorStop(.70, "#1B1018");
+    g.addColorStop(.86, "#331608");
+    g.addColorStop(1,   "#0B0A0A");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    var r = ctx.createRadialGradient(W * .80, railY, 0, W * .80, railY, H * .62);
+    r.addColorStop(0, "rgba(255,77,0,.26)");
+    r.addColorStop(1, "rgba(255,77,0,0)");
+    ctx.fillStyle = r; ctx.fillRect(0, 0, W, H);
+  }
+
+  /* crete lointaine : profil deterministe, defilement en parallaxe */
+  function ridge(base, amp, wl, par, fill){
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (var x = 0; x <= W + 10; x += 10){
+      var u = (x + scroll * par) / wl;
+      var y = base - (Math.sin(u) * .58 + Math.sin(u * 2.3 + 1.7) * .28 +
+                      Math.sin(u * 5.1 + .4) * .14) * amp;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W, H); ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill();
+  }
+
+  function rails(){
+    var y = railY;
+
+    /* remblai */
+    ctx.fillStyle = "#08080A";
+    ctx.fillRect(0, y + 6 * S, W, H - y);
+
+    /* traverses */
+    var step = 52 * S, off = scroll % step;
+    ctx.fillStyle = "rgba(237,231,218,.13)";
+    for (var x = -step; x < W + step; x += step){
+      ctx.fillRect(x - off, y + 5 * S, 15 * S, 20 * S);
+    }
+
+    /* les deux files de rail */
+    ctx.fillStyle = "rgba(237,231,218,.55)";
+    ctx.fillRect(0, y - 1, W, 3.2 * S + 1);
+    ctx.fillStyle = "rgba(255,77,0,.16)";
+    ctx.fillRect(0, y + 3.2 * S, W, 1.4 * S);
+    ctx.fillStyle = "rgba(237,231,218,.20)";
+    ctx.fillRect(0, y + 24 * S, W, 2.4 * S);
+
+    /* ballast en premier plan : defile plus vite, d'ou l'impression de vitesse */
+    var st2 = 34 * S, o2 = (scroll * 1.35) % st2;
+    ctx.fillStyle = "rgba(237,231,218,.07)";
+    for (var x2 = -st2; x2 < W + st2; x2 += st2){
+      ctx.fillRect(x2 - o2, y + 34 * S, 18 * S + speed * 40, 3 * S);
+    }
+  }
+
+  function speedLines(){
+    if (speed < .12) return;
+    ctx.lineCap = "round";
+    for (var i = 0; i < streaks.length; i++){
+      var s2 = streaks[i];
+      var x = ((s2.x - scroll * s2.v) % (W + 400) + (W + 400)) % (W + 400) - 200;
+      ctx.strokeStyle = "rgba(237,231,218," + (s2.a * speed).toFixed(3) + ")";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(x, s2.y);
+      ctx.lineTo(x + s2.l * speed, s2.y);
+      ctx.stroke();
+    }
+  }
+
+  /* ---------------- le convoi ---------------- */
+
+  function wheel(x, r, spokes){
+    ctx.save();
+    ctx.translate(x, -r);
+    ctx.rotate(wheelA);
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, 6.2832);
+    ctx.fillStyle = "#101014"; ctx.fill();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = "rgba(237,231,218,.55)"; ctx.stroke();
+    ctx.lineWidth = 1.4; ctx.strokeStyle = "rgba(237,231,218,.30)";
+    for (var i = 0; i < spokes; i++){
+      var a = (i / spokes) * 6.2832;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r * .18, Math.sin(a) * r * .18);
+      ctx.lineTo(Math.cos(a) * r * .82, Math.sin(a) * r * .82);
+      ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, r * .17, 0, 6.2832);
+    ctx.fillStyle = "rgba(255,77,0,.85)"; ctx.fill();
+    ctx.restore();
+  }
+
+  function box(x0, y0, x1, y1, fill, line){
+    ctx.beginPath();
+    ctx.rect(x0, y0, x1 - x0, y1 - y0);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = line; ctx.stroke();
+  }
+
+  function loco(){
+    var STEEL = "#15151A", EDGE = "rgba(237,231,218,.62)", DIM = "rgba(237,231,218,.26)";
+    var x0, x1, i;
+
+    /* wagons de minerai, attelage vers l'arriere */
+    for (var w = 0; w < 3; w++){
+      x1 = -300 - w * 212; x0 = x1 - 190;
+      box(x0, -138, x1, -60, STEEL, DIM);
+      ctx.fillStyle = "rgba(255,77,0,.20)";
+      ctx.fillRect(x0 + 8, -134, (x1 - x0) - 16, 16);
+      ctx.fillStyle = "rgba(237,231,218,.07)";
+      ctx.fillRect(x0 + 6, -104, (x1 - x0) - 12, 3);
+      box(x0 + 26, -58, x1 - 26, -50, STEEL, DIM);
+      wheel(x0 + 44, 17, 6); wheel(x1 - 44, 17, 6);
+      ctx.fillStyle = DIM; ctx.fillRect(x1, -78, 22, 5);
+    }
+
+    /* chassis */
+    box(-286, -70, -14, -56, STEEL, DIM);
+
+    /* chaudiere */
+    ctx.beginPath();
+    ctx.moveTo(-190, -122); ctx.lineTo(-46, -122);
+    ctx.quadraticCurveTo(-26, -122, -26, -104);
+    ctx.lineTo(-26, -74);
+    ctx.quadraticCurveTo(-26, -60, -46, -60);
+    ctx.lineTo(-190, -60); ctx.closePath();
+    ctx.fillStyle = "#17171C"; ctx.fill();
+    ctx.lineWidth = 2.4; ctx.strokeStyle = EDGE; ctx.stroke();
+
+    /* cerclages */
+    ctx.lineWidth = 1.4; ctx.strokeStyle = DIM;
+    for (i = 0; i < 3; i++){
+      ctx.beginPath(); ctx.moveTo(-170 + i * 44, -121); ctx.lineTo(-170 + i * 44, -61); ctx.stroke();
+    }
+
+    /* dome de vapeur */
+    ctx.beginPath();
+    ctx.moveTo(-142, -122);
+    ctx.quadraticCurveTo(-126, -146, -110, -122);
+    ctx.closePath();
+    ctx.fillStyle = "#1C1C22"; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = EDGE; ctx.stroke();
+
+    /* cheminee */
+    box(-84, -152, -54, -122, "#1C1C22", EDGE);
+    ctx.beginPath();
+    ctx.moveTo(-92, -168); ctx.lineTo(-46, -168);
+    ctx.lineTo(-54, -150); ctx.lineTo(-84, -150); ctx.closePath();
+    ctx.fillStyle = "#101015"; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = EDGE; ctx.stroke();
+
+    /* phare et son cone */
+    ctx.beginPath(); ctx.arc(-34, -112, 9, 0, 6.2832);
+    ctx.fillStyle = "rgba(255,214,140,.95)"; ctx.fill();
+    var lg = ctx.createLinearGradient(-26, -112, 210, -112);
+    lg.addColorStop(0, "rgba(255,196,110,.22)");
+    lg.addColorStop(1, "rgba(255,196,110,0)");
+    ctx.beginPath();
+    ctx.moveTo(-26, -118); ctx.lineTo(220, -190); ctx.lineTo(220, -30); ctx.lineTo(-26, -104);
+    ctx.closePath(); ctx.fillStyle = lg; ctx.fill();
+
+    /* chasse-pierres */
+    ctx.beginPath();
+    ctx.moveTo(-14, -70); ctx.lineTo(16, -6); ctx.lineTo(-14, -6); ctx.closePath();
+    ctx.fillStyle = "#1A1A20"; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = EDGE; ctx.stroke();
+
+    /* cabine */
+    box(-286, -172, -190, -60, "#15151A", EDGE);
+    box(-294, -182, -182, -170, "#0C0C10", EDGE);
+    ctx.fillStyle = "rgba(95,235,247,.30)";
+    ctx.fillRect(-272, -160, 40, 34);
+    ctx.lineWidth = 1.4; ctx.strokeStyle = DIM;
+    ctx.strokeRect(-272, -160, 40, 34);
+    var fire = .55 + .45 * Math.abs(Math.sin(scroll * .02));
+    ctx.fillStyle = "rgba(255,77,0," + (.22 * fire).toFixed(3) + ")";
+    ctx.fillRect(-230, -104, 34, 40);
+
+    /* roues motrices et bielle d'accouplement */
+    wheel(-72, 30, 8); wheel(-140, 30, 8); wheel(-208, 30, 8);
+    wheel(-26, 15, 6);
+    var cy = -30 + Math.sin(wheelA) * 19, cx = Math.cos(wheelA) * 19;
+    ctx.lineWidth = 4; ctx.strokeStyle = "rgba(237,231,218,.45)";
+    ctx.beginPath();
+    ctx.moveTo(-208 + cx, cy); ctx.lineTo(-72 + cx, cy); ctx.stroke();
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-72 + cx, cy); ctx.lineTo(-10, -46); ctx.stroke();
+  }
+
+  /* ---------------- fumee et etincelles ---------------- */
+
+  function emitSmoke(dt){
+    var rate = running ? (46 + 74 * speed) : 20;
+    emit += rate * dt;
+    while (emit >= 1){
+      emit -= 1;
+      /* a l'arret la fumee monte droit ; lancee, elle est rabattue vers
+         l'arriere par la vitesse du convoi. */
+      var back = running ? -speed * SPD * .40 : 0;
+      puffs.push({
+        x: noseX + (-69 + rand(-4, 4)) * S,
+        y: railY + (-168 + rand(-6, 2)) * S,
+        vx: back + rand(-26, 26),
+        vy: -(running ? 150 + 70 * speed : 52) + rand(-18, 18),
+        r: (running ? rand(7, 13) : rand(11, 18)) * S,
+        g: (running ? rand(26, 40) : rand(34, 52)) * S,
+        a: running ? rand(.20, .36) : rand(.24, .40),
+        f: running ? rand(.26, .38) : rand(.17, .25),
+        dark: Math.random() < .34
+      });
+      if (puffs.length > MAXPUFF) puffs.shift();
+    }
+  }
+
+  function stepSmoke(dt){
+    for (var i = puffs.length - 1; i >= 0; i--){
+      var p = puffs[i];
+      p.vy -= 16 * dt;                       /* la fumee chaude continue de monter */
+      p.vx *= (1 - 1.05 * dt);
+      p.vy *= (1 - .55 * dt);
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.r += p.g * dt;
+      /* en montant vers le texte, le panache se dissipe plus vite :
+         la page doit rester lisible sous la fumee. */
+      p.a -= p.f * (p.y < H * .58 ? 2.1 : 1) * dt;
+      if (p.a <= .004) puffs.splice(i, 1);
+    }
+  }
+
+  function drawSmoke(){
+    for (var i = 0; i < puffs.length; i++){
+      var p = puffs[i];
+      ctx.globalAlpha = p.a;
+      ctx.drawImage(p.dark ? SOOT : SMOKE, p.x - p.r, p.y - p.r, p.r * 2, p.r * 2);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* gerbe d'etincelles pendant le freinage */
+  function stepSparks(dt){
+    if (!running && speed > .05){
+      sparkAcc += 150 * speed * dt;
+      while (sparkAcc >= 1){
+        sparkAcc -= 1;
+        var wx = noseX + (-72 - Math.floor(rand(0, 3)) * 68) * S;
+        sparks.push({ x: wx, y: railY, vx: rand(120, 420), vy: rand(-190, -40), l: 1 });
+      }
+    } else {
+      sparkAcc = 0;
+    }
+
+    for (var i = sparks.length - 1; i >= 0; i--){
+      var k = sparks[i];
+      k.vy += 900 * dt;
+      k.x += k.vx * dt; k.y += k.vy * dt;
+      k.l -= 1.9 * dt;
+      if (k.l <= 0 || k.y > railY + 26 * S) sparks.splice(i, 1);
+    }
+  }
+
+  function drawSparks(){
+    ctx.lineWidth = 1.6; ctx.lineCap = "round";
+    for (var i = 0; i < sparks.length; i++){
+      var k = sparks[i];
+      ctx.strokeStyle = "rgba(255,150,40," + Math.max(0, k.l).toFixed(3) + ")";
+      ctx.beginPath();
+      ctx.moveTo(k.x, k.y);
+      ctx.lineTo(k.x - k.vx * .018, k.y - k.vy * .018);
+      ctx.stroke();
+    }
+  }
+
+  function label(){
+    var txt = running ? "▸ CONVOI EN MARCHE — CLIQUEZ DESSUS POUR L'ARRÊTER"
+                      : "■ CONVOI À L'ARRÊT — CLIQUEZ DESSUS POUR REPARTIR";
+    ctx.font = "700 " + Math.max(9, Math.round(11 * Math.max(.85, S))) + "px Space Mono, monospace";
+    ctx.fillStyle = running ? "rgba(237,231,218,.42)" : "rgba(255,77,0,.85)";
+    ctx.fillText(txt, 26, railY + 52 * S);
+  }
+
+  /* ---------------- boucle ---------------- */
+
+  function scene(){
+    sky();
+    ridge(railY - 96 * S, 74 * S, 210, .06, "#0B0C14");
+    ridge(railY - 46 * S, 44 * S, 130, .16, "#0A0A10");
+    ridge(railY - 12 * S, 22 * S,  78, .34, "#08080C");
+    rails();
+    speedLines();
+
+    ctx.save();
+    ctx.translate(noseX, railY);
+    ctx.scale(S, S);
+    loco();
+    ctx.restore();
+
+    drawSmoke();
+    drawSparks();
+    label();
+  }
+
+  function frame(now){
+    var dt = (now - last) / 1000;
+    last = now;
+    if (!(dt > 0) || dt > .066) dt = .0166;
+
+    if (!active){
+      if (drawn){ ctx.clearRect(0, 0, W, H); drawn = false; }
+      requestAnimationFrame(frame);
+      return;
+    }
+
+    /* relance progressive, freinage plus franc */
+    var target = running ? 1 : 0;
+    speed += (target - speed) * (running ? .55 : 1.15) * dt;
+    if (!running && speed < .003) speed = 0;
+
+    scroll += speed * SPD * dt;
+    wheelA += (speed * SPD * dt) / (30 * S);
+
+    emitSmoke(dt);
+    stepSmoke(dt);
+    stepSparks(dt);
+
+    scene();
+    drawn = true;
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------------- interaction ---------------- */
+
+  function overTrain(x, y){
+    return x > noseX - 960 * S && x < noseX + 26 * S &&
+           y > railY - 200 * S && y < railY + 30 * S;
+  }
+
+  /* le texte de la page et le bas de page gardent la main sur le clic */
+  function inUI(el){
+    return !!(el && el.closest && el.closest(".brief-inner, .footer"));
+  }
+
+  function setActive(v){
+    if (v === active) return;
+    active = v;
+    last = performance.now();
+    hover = false;
+    document.body.style.cursor = "";     /* le champ d'asteroides a pu le changer */
+    if (v && REDUCED){ speed = 0; scene(); drawn = true; }
+  }
+
+  function init(){
+    resize();
+    window.addEventListener("resize", resize);
+    if (REDUCED){ running = false; return; }
+
+    window.addEventListener("pointermove", function(e){
+      if (!active){
+        if (hover){ hover = false; document.body.style.cursor = ""; }
+        return;
+      }
+      var over = overTrain(e.clientX, e.clientY) && !inUI(e.target);
+      if (over !== hover){
+        hover = over;
+        document.body.style.cursor = over ? "pointer" : "";
+      }
+    }, { passive: true });
+
+    window.addEventListener("pointerdown", function(e){
+      if (!active || inUI(e.target)) return;
+      if (!overTrain(e.clientX, e.clientY)) return;
+      running = !running;                  /* on stoppe, puis on relance */
+    });
+
+    requestAnimationFrame(frame);
+  }
+
+  return { init: init, setActive: setActive };
+})();
+
+Train.init();
 
 /* ============================================================
    3 — NAVIGATION : glissement croise des deux pages
@@ -1103,6 +1617,10 @@ Field.init();
     }
 
     cur = target;
+    /* le fond ferroviaire ne vit que sur la page 02 */
+    document.body.classList.toggle("on-brief", cur === 1);
+    Train.setActive(cur === 1);
+
     seq.textContent = pad(cur + 1) + "/" + pad(pages.length);
     setTimeout(function(){ busy = false; }, REDUCED ? 0 : DUR);
   }
@@ -1177,6 +1695,43 @@ Field.init();
     wm.style.setProperty("--rx", "0deg");
     wm.style.setProperty("--ry", "0deg");
   });
+})();
+
+/* ============================================================
+   5 bis — PAGE 02 : ajustement a la fenetre
+   La page ne defile pas. Si les deux colonnes debordent (fenetre
+   basse ou etroite), on reduit l'echelle du texte ; en dernier
+   recours seulement, on repasse en une colonne defilante.
+   ============================================================ */
+
+(function(){
+  var page  = document.getElementById("p1");
+  var inner = page && page.querySelector(".brief-inner");
+  var cols  = page && page.querySelector(".brief-cols");
+  if (!page || !inner || !cols) return;
+
+  /* un bloc multi-colonnes de hauteur imposee fabrique des colonnes
+     supplementaires hors cadre : c'est ce debordement que l'on mesure. */
+  function overflows(){ return cols.scrollWidth > cols.clientWidth + 1; }
+
+  function fit(){
+    page.classList.remove("cramped");
+    inner.style.fontSize = "";
+    if (!overflows()) return;
+
+    var base = parseFloat(window.getComputedStyle(inner).fontSize) || 13;
+    for (var f = .96; f >= .66; f -= .04){
+      inner.style.fontSize = (base * f).toFixed(2) + "px";
+      if (!overflows()) return;
+    }
+    inner.style.fontSize = "";
+    page.classList.add("cramped");
+  }
+
+  fit();
+  window.addEventListener("resize", fit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  setTimeout(fit, 700);                  /* filet : polices arrivees en retard */
 })();
 
 /* ============================================================
