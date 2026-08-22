@@ -15,6 +15,7 @@
    Deux pages, transition par glissement croise.
    Page 01 : champ d'asteroides dense et interactif (canvas).
    Page 02 : page fixe sur deux colonnes, fond ferroviaire anime.
+   Page 03 : convoyeur charge de minerais sur une courbe aleatoire.
    ============================================================ */
 
 @property --spot{ syntax:'<number>'; inherits:true; initial-value:0 }
@@ -81,6 +82,14 @@ body{
   opacity:0; transition:opacity .55s ease;
 }
 body.on-brief #trainbg{ opacity:1 }
+
+/* fond de la page 03 : le convoyeur et son chargement */
+#beltbg{
+  position:fixed; inset:0; z-index:2; pointer-events:none;
+  width:100%; height:100%;
+  opacity:0; transition:opacity .55s ease;
+}
+body.on-chain #beltbg{ opacity:1 }
 
 .grid-overlay{
   position:fixed; inset:0; z-index:0; pointer-events:none;
@@ -461,6 +470,62 @@ body.on-brief #trainbg{ opacity:1 }
 }
 .endnote s{ text-decoration:none; color:var(--orange) }
 
+/* ---------- page 03 : la chaine — page fixe posee sur le convoyeur ---------- */
+
+.page.chain{ overflow:hidden }
+
+.chain{
+  height:100%;
+  padding:clamp(14px,2.4vmin,34px) clamp(26px,5vmin,90px) clamp(16px,2.6vmin,40px);
+  display:flex; flex-direction:column; align-items:center;
+}
+.chain-inner{
+  width:min(96vw, 1560px);
+  flex:1 1 auto; min-height:0;
+  display:flex; flex-direction:column; justify-content:space-between; gap:1.2em;
+  font-size:clamp(9.5px, 1.62vh, 17px);
+  user-select:text; -webkit-user-select:text;
+}
+
+/* les blocs de texte sont opaques : le tapis passe derriere, pas dessous */
+.chain-head{
+  flex:none; align-self:flex-start; max-width:58ch;
+  background:rgba(10,10,11,.86);
+  border-left:3px solid var(--orange);
+  padding:1.1em 1.3em;
+}
+.chain h2{
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:3.1em; line-height:.9; letter-spacing:-.03em; text-transform:uppercase;
+  color:#F6F2EA;
+}
+.chain h2 span{ color:var(--orange) }
+.chain .lede{
+  font-size:1.02em; line-height:1.6; color:var(--txt-2); margin-top:.6em;
+}
+.chain .lede strong{ color:var(--txt); font-weight:400; background:rgba(255,77,0,.14) }
+
+.chain-foot{ flex:none; display:flex; flex-direction:column }
+
+.ores{ display:flex; flex-wrap:wrap; gap:.7em }
+.ore{
+  flex:1 1 13em;
+  border:var(--edge) solid var(--bone);
+  background:rgba(10,10,11,.88);
+  padding:.8em 1em;
+}
+.ore b{
+  display:flex; align-items:center; gap:.6em;
+  font-family:'Archivo Black','Arial Black',sans-serif; font-weight:400;
+  font-size:1.02em; letter-spacing:.02em; text-transform:uppercase; color:#F6F2EA;
+}
+.ore b::before{
+  content:""; flex:none; width:.7em; height:.7em;
+  background:var(--c); transform:rotate(45deg);
+}
+.ore span{ display:block; margin-top:.5em; font-size:.86em; line-height:1.5; color:var(--txt-3) }
+.ore i{ font-style:normal; color:var(--c) }
+
 /* ============================================================
    BAS DE PAGE
    ============================================================ */
@@ -531,7 +596,9 @@ body.on-brief #trainbg{ opacity:1 }
    Il faut aussi rendre les hauteurs libres : un bloc multi-colonnes de
    hauteur imposee refragmente son contenu en colonnes hors cadre. */
 @media (max-width:820px), (max-height:620px){
-  .page.brief{ overflow-y:auto }
+  .page.brief, .page.chain{ overflow-y:auto }
+  .chain{ height:auto; min-height:100%; padding-bottom:12vh }
+  .chain-inner{ flex:none; gap:2em; font-size:clamp(11px, 1.9vh, 15px) }
   .brief{ height:auto; min-height:100%; padding-bottom:34vh }
   .brief-inner{ flex:none; font-size:clamp(11px, 1.9vh, 15px) }
   .brief-cols{ flex:none; column-count:1; column-rule:0 }
@@ -547,6 +614,7 @@ body.on-brief #trainbg{ opacity:1 }
 
 <canvas id="space" aria-hidden="true"></canvas>
 <canvas id="trainbg" aria-hidden="true"></canvas>
+<canvas id="beltbg" aria-hidden="true"></canvas>
 <div class="grid-overlay"></div>
 <div class="halo"></div>
 <div class="dots"></div>
@@ -681,9 +749,54 @@ body.on-brief #trainbg{ opacity:1 }
       </div>
 
       <div class="endnote rise d4">
-        <span>Remontez pour revenir au terminal d'accueil</span>
+        <span>Remontez vers le terminal</span>
+        <s>//</s>
+        <span>Descendez vers la chaîne</span>
         <s>//</s>
         <span>Cliquez sur le convoi pour l'arrêter</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ---------- PAGE 03 ---------- -->
+  <div class="page chain" id="p2">
+    <div class="chain-inner">
+
+      <header class="chain-head rise d1">
+        <h2>LA <span>CHAÎNE</span></h2>
+        <p class="lede">
+          Rien ne se déplace tout seul. Chaque foreuse, chaque fonderie et chaque tourelle
+          se trouve au bout d'une ligne, et <strong>cette ligne, c'est vous qui la tracez.</strong>
+          Posez le tapis, laissez-le tourner : la colonie s'occupe du reste.
+        </p>
+      </header>
+
+      <div class="chain-foot">
+        <div class="ores rise d3">
+          <div class="ore" style="--c:#FF4D00">
+            <b>Hématite</b>
+            <span>Fer brut, extrait par bennes entières. <i>Rails, structures, blindage</i> — la colonne vertébrale de votre industrie.</span>
+          </div>
+          <div class="ore" style="--c:#5FEBF7">
+            <b>Silice</b>
+            <span>Sable vitrifié des plaines froides. <i>Circuits et capteurs</i> : tout ce qui doit penser à votre place.</span>
+          </div>
+          <div class="ore" style="--c:#EDE7DA">
+            <b>Régolithe</b>
+            <span>Poussière compactée, sans noblesse. <i>Béton et remblais</i> : les murs qui encaissent à votre place.</span>
+          </div>
+          <div class="ore" style="--c:#FFC66B">
+            <b>Iridium</b>
+            <span>Rare, dense et têtu. <i>Réservé aux modules</i> qui n'ont pas le droit de tomber en panne.</span>
+          </div>
+        </div>
+
+        <div class="endnote rise d4">
+          <span>Remontez vers le dossier</span>
+          <s>//</s>
+          <span>Cliquez sur le fond pour retracer la ligne</span>
+        </div>
       </div>
 
     </div>
@@ -698,7 +811,7 @@ body.on-brief #trainbg{ opacity:1 }
   <div class="ticker"><div class="ticker-track" id="tick"></div></div>
   <div class="cell">
     <span>DÉBRIS <b id="kills">00</b></span>
-    <span>SÉQ <b id="seq">01/02</b></span>
+    <span>SÉQ <b id="seq">01/03</b></span>
   </div>
 </footer>
 
@@ -1124,9 +1237,10 @@ var Field = (function(){
     requestAnimationFrame(frame);
   }
 
-  /* la page 02 possede son propre fond : le champ n'y ecoute plus rien */
+  /* les pages 02 et 03 ont leur propre fond : le champ n'y ecoute plus rien */
   function asleep(){
-    return document.body.classList.contains("on-brief");
+    var c = document.body.classList;
+    return c.contains("on-brief") || c.contains("on-chain");
   }
 
   /* zones ou le clic sert a selectionner du texte, pas a casser un rocher */
@@ -1580,14 +1694,360 @@ var Train = (function(){
 Train.init();
 
 /* ============================================================
-   3 — NAVIGATION : glissement croise des deux pages
+   2 ter — LA CHAINE : fond de la page 03
+   Un convoyeur qui zigzague sur toute la page en suivant une
+   courbe tiree au hasard, charge de minerais qui defilent.
+   Un clic retrace une nouvelle ligne.
+   ============================================================ */
+
+var Belt = (function(){
+  var cvs = document.getElementById("beltbg");
+  var ctx = cvs.getContext("2d");
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var W = 0, H = 0, S = 1;
+
+  var active = false, drawn = false, hover = false, last = 0;
+  var path = [], cum = [], total = 0, ores = [], shift = 0;
+
+  var BW = 26;                           /* largeur du tapis, avant echelle */
+  var SPEED = 132;                       /* pixels/seconde */
+
+  /* les quatre minerais transportes, dans l'ordre des fiches de la page */
+  var KINDS = [
+    "255,77,0",                          /* hematite */
+    "95,235,247",                        /* silice */
+    "237,231,218",                       /* regolithe */
+    "255,198,107"                        /* iridium */
+  ];
+  var GLOW = [];
+
+  function rand(a, b){ return a + Math.random() * (b - a); }
+  function dist(a, b){ var dx = b[0] - a[0], dy = b[1] - a[1]; return Math.sqrt(dx * dx + dy * dy); }
+  function mix(a, b, t){ return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+
+  function glowSprite(rgb){
+    var c = document.createElement("canvas");
+    c.width = c.height = 64;
+    var g = c.getContext("2d");
+    var rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0, "rgba(" + rgb + ",.55)");
+    rg.addColorStop(.45, "rgba(" + rgb + ",.16)");
+    rg.addColorStop(1, "rgba(" + rgb + ",0)");
+    g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+    return c;
+  }
+
+  function silhouette(r, n){
+    var pts = [], i, a, rr;
+    for (i = 0; i < n; i++){
+      a = (i / n) * Math.PI * 2;
+      rr = r * rand(.62, 1.14);
+      pts.push([Math.cos(a) * rr, Math.sin(a) * rr]);
+    }
+    return pts;
+  }
+
+  function drawShape(pts){
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+  }
+
+  /* ---------------- la courbe ---------------- */
+
+  /* Serpentin : des rangees parcourues alternativement de gauche a droite
+     puis de droite a gauche, chaque point etant ecarte au hasard de sa
+     rangee. La ligne couvre ainsi toute la page tout en zigzaguant. */
+  function waypoints(){
+    var rows = Math.max(3, Math.min(6, Math.round(H / 200)));
+    var padX = Math.max(46, W * .07);
+    var padY = Math.max(52, H * .13);
+    var gapY = (H - padY * 2) / (rows - 1);
+    var wp = [], i, j;
+
+    /* amplitude du zigzag : la plus large possible, en gardant toujours
+       un couloir libre entre deux rangees voisines. */
+    var amp = Math.max(gapY * .12, Math.min(gapY * .42, (gapY - 52 * S) / 2));
+
+    for (i = 0; i < rows; i++){
+      var y = padY + gapY * i + rand(-gapY * .05, gapY * .05);
+      var k = 4 + Math.floor(rand(0, 3));          /* 4 a 6 points par rangee */
+      var row = [];
+      for (j = 0; j < k; j++){
+        var f = j / (k - 1);
+        var x = padX + (W - padX * 2) * f;
+        var off = (j % 2 ? -1 : 1) * rand(amp * .45, amp);
+        if (j === 0 || j === k - 1) off *= .18;    /* virages francs mais propres */
+        row.push([x, y + off]);
+      }
+      if (i % 2) row.reverse();                    /* une rangee sur deux a l'envers */
+      wp = wp.concat(row);
+    }
+
+    /* la ligne entre et ressort du cadre : elle ne s'arrete pas en l'air */
+    var first = wp[0], lastp = wp[wp.length - 1];
+    wp.unshift([first[0] - W * .2, first[1] - amp * .3]);
+    wp.push([lastp[0] + (lastp[0] > W * .5 ? 1 : -1) * W * .2, lastp[1] + amp * .3]);
+    return wp;
+  }
+
+  /* Catmull-Rom centripete : passe par tous les points sans boucler
+     dans les virages serres. */
+  function spline(p0, p1, p2, p3, t){
+    var t0 = 0,
+        t1 = t0 + Math.pow(dist(p0, p1), .5),
+        t2 = t1 + Math.pow(dist(p1, p2), .5),
+        t3 = t2 + Math.pow(dist(p2, p3), .5);
+    if (t1 - t0 < 1e-4) t1 = t0 + 1e-4;
+    if (t2 - t1 < 1e-4) t2 = t1 + 1e-4;
+    if (t3 - t2 < 1e-4) t3 = t2 + 1e-4;
+    var tt = t1 + (t2 - t1) * t;
+    var a1 = mix(p0, p1, (tt - t0) / (t1 - t0));
+    var a2 = mix(p1, p2, (tt - t1) / (t2 - t1));
+    var a3 = mix(p2, p3, (tt - t2) / (t3 - t2));
+    var b1 = mix(a1, a2, (tt - t0) / (t2 - t0));
+    var b2 = mix(a2, a3, (tt - t1) / (t3 - t1));
+    return mix(b1, b2, (tt - t1) / (t2 - t1));
+  }
+
+  function sample(wp){
+    var ext = [wp[0]].concat(wp, [wp[wp.length - 1]]);
+    var out = [], i, s, steps;
+    for (i = 0; i + 3 < ext.length; i++){
+      steps = Math.max(6, Math.round(dist(ext[i + 1], ext[i + 2]) / 12));
+      for (s = 0; s < steps; s++) out.push(spline(ext[i], ext[i + 1], ext[i + 2], ext[i + 3], s / steps));
+    }
+    out.push(wp[wp.length - 1].slice());
+    return out;
+  }
+
+  function measure(){
+    cum = [0];
+    for (var i = 1; i < path.length; i++) cum[i] = cum[i - 1] + dist(path[i - 1], path[i]);
+    total = cum[cum.length - 1];
+  }
+
+  /* position et tangente a l'abscisse curviligne s */
+  function at(s){
+    if (s < 0) s = 0; else if (s >= total) s = s % total;
+    var lo = 0, hi = cum.length - 1, mid;
+    while (lo < hi - 1){
+      mid = (lo + hi) >> 1;
+      if (cum[mid] <= s) lo = mid; else hi = mid;
+    }
+    var a = path[lo], b = path[hi];
+    var seg = cum[hi] - cum[lo] || 1;
+    var f = (s - cum[lo]) / seg;
+    var tx = (b[0] - a[0]) / seg, ty = (b[1] - a[1]) / seg;
+    return { x: a[0] + (b[0] - a[0]) * f, y: a[1] + (b[1] - a[1]) * f, tx: tx, ty: ty };
+  }
+
+  function loadOres(){
+    var n = Math.max(8, Math.min(48, Math.round(total / 175)));
+    var gap = total / n;
+    ores = [];
+    for (var i = 0; i < n; i++){
+      var r = rand(7, 13) * S;
+      ores.push({
+        off: i * gap + rand(-gap * .22, gap * .22),
+        k: Math.floor(rand(0, KINDS.length)),
+        r: r,
+        pts: silhouette(r, Math.floor(rand(6, 9))),
+        rot: rand(0, 6.28)
+      });
+    }
+  }
+
+  function build(){
+    path = sample(waypoints());
+    measure();
+    loadOres();
+  }
+
+  function resize(){
+    W = cvs.clientWidth; H = cvs.clientHeight;
+    cvs.width = Math.round(W * DPR); cvs.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    S = Math.max(.62, Math.min(1.25, Math.min(W / 1500, H / 850)));
+    build();
+    drawn = false;
+  }
+
+  /* ---------------- rendu ---------------- */
+
+  function backdrop(){
+    var g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0,  "#0A0B10");
+    g.addColorStop(.5, "#0C0D13");
+    g.addColorStop(1,  "#08080B");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    var step = 46 * S;
+    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(95,235,247,.045)";
+    ctx.beginPath();
+    for (var x = step; x < W; x += step){ ctx.moveTo(Math.round(x) + .5, 0); ctx.lineTo(Math.round(x) + .5, H); }
+    for (var y = step; y < H; y += step){ ctx.moveTo(0, Math.round(y) + .5); ctx.lineTo(W, Math.round(y) + .5); }
+    ctx.stroke();
+
+    var r = ctx.createRadialGradient(W * .5, H * .5, 0, W * .5, H * .5, Math.max(W, H) * .62);
+    r.addColorStop(0, "rgba(95,235,247,.055)");
+    r.addColorStop(1, "rgba(0,0,0,.55)");
+    ctx.fillStyle = r; ctx.fillRect(0, 0, W, H);
+  }
+
+  function tracePath(){
+    ctx.beginPath();
+    ctx.moveTo(path[0][0], path[0][1]);
+    for (var i = 1; i < path.length; i++) ctx.lineTo(path[i][0], path[i][1]);
+  }
+
+  /* pieds de support, sous le tapis */
+  function legs(){
+    var step = 150 * S, h = 20 * S, w = 11 * S;
+    ctx.lineWidth = 2 * S; ctx.strokeStyle = "rgba(237,231,218,.16)";
+    ctx.beginPath();
+    for (var s = step * .5; s < total; s += step){
+      var p = at(s);
+      ctx.moveTo(p.x, p.y); ctx.lineTo(p.x, p.y + h);
+      ctx.moveTo(p.x - w, p.y + h); ctx.lineTo(p.x + w, p.y + h);
+    }
+    ctx.stroke();
+  }
+
+  function belt(){
+    var w = BW * S;
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+
+    tracePath();
+    ctx.lineWidth = w + 9 * S; ctx.strokeStyle = "rgba(0,0,0,.55)"; ctx.stroke();
+    ctx.lineWidth = w;         ctx.strokeStyle = "rgba(237,231,218,.30)"; ctx.stroke();
+    ctx.lineWidth = w - 5 * S; ctx.strokeStyle = "#101015"; ctx.stroke();
+  }
+
+  /* taquets du tapis : c'est eux qui donnent le mouvement */
+  function cleats(){
+    var step = 30 * S, half = (BW - 9) * S * .5;
+    ctx.lineWidth = 2 * S; ctx.strokeStyle = "rgba(237,231,218,.14)";
+    ctx.beginPath();
+    for (var s = step - (shift % step); s < total; s += step){
+      var p = at(s);
+      ctx.moveTo(p.x + p.ty * half, p.y - p.tx * half);
+      ctx.lineTo(p.x - p.ty * half, p.y + p.tx * half);
+    }
+    ctx.stroke();
+  }
+
+  function drawOres(){
+    var lift = BW * .5 * S;
+    for (var i = 0; i < ores.length; i++){
+      var o = ores[i];
+      var p = at((o.off + shift) % total);
+      /* la normale doit toujours pointer vers le haut de l'ecran :
+         le minerai se pose sur le tapis, il ne pend pas dessous. */
+      var nx = -p.ty, ny = p.tx;
+      if (ny > 0){ nx = -nx; ny = -ny; }
+      var x = p.x + nx * (lift + o.r * .68);
+      var y = p.y + ny * (lift + o.r * .68);
+
+      ctx.globalAlpha = .8;
+      ctx.drawImage(GLOW[o.k], x - o.r * 2.1, y - o.r * 2.1, o.r * 4.2, o.r * 4.2);
+      ctx.globalAlpha = 1;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(o.rot);
+      drawShape(o.pts);
+      ctx.fillStyle = "rgba(" + KINDS[o.k] + ",.16)"; ctx.fill();
+      ctx.lineWidth = 1.6; ctx.strokeStyle = "rgba(" + KINDS[o.k] + ",.9)"; ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function scene(){
+    backdrop();
+    legs();
+    belt();
+    cleats();
+    drawOres();
+  }
+
+  function frame(now){
+    var dt = (now - last) / 1000;
+    last = now;
+    if (!(dt > 0) || dt > .066) dt = .0166;
+
+    if (!active){
+      if (drawn){ ctx.clearRect(0, 0, W, H); drawn = false; }
+      requestAnimationFrame(frame);
+      return;
+    }
+
+    shift = (shift + SPEED * S * dt) % total;
+    scene();
+    drawn = true;
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------------- interaction ---------------- */
+
+  function inUI(el){
+    return !!(el && el.closest && el.closest(".chain-inner, .footer"));
+  }
+
+  function setActive(v){
+    if (v === active) return;
+    active = v;
+    last = performance.now();
+    hover = false;
+    document.body.style.cursor = "";
+    if (v && REDUCED){ scene(); drawn = true; }
+  }
+
+  function init(){
+    for (var i = 0; i < KINDS.length; i++) GLOW.push(glowSprite(KINDS[i]));
+    resize();
+    window.addEventListener("resize", resize);
+    if (REDUCED) return;
+
+    window.addEventListener("pointermove", function(e){
+      if (!active){
+        if (hover){ hover = false; document.body.style.cursor = ""; }
+        return;
+      }
+      var over = !inUI(e.target);
+      if (over !== hover){
+        hover = over;
+        document.body.style.cursor = over ? "crosshair" : "";
+      }
+    }, { passive: true });
+
+    window.addEventListener("pointerdown", function(e){
+      if (!active || inUI(e.target)) return;
+      build();                             /* une autre ligne, au hasard */
+    });
+
+    requestAnimationFrame(frame);
+  }
+
+  return { init: init, setActive: setActive };
+})();
+
+Belt.init();
+
+/* ============================================================
+   3 — NAVIGATION : glissement croise des pages
    ============================================================ */
 
 (function(){
-  var pages = [document.getElementById("p0"), document.getElementById("p1")];
+  var pages = [document.getElementById("p0"),
+               document.getElementById("p1"),
+               document.getElementById("p2")];
   var seq = document.getElementById("seq");
   var cur = 0, busy = false, acc = 0, accAt = 0;
   var DUR = 560;
+
+  seq.textContent = pad(cur + 1) + "/" + pad(pages.length);
 
   function atEdge(el, dir){
     if (dir > 0) return el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
@@ -1617,9 +2077,11 @@ Train.init();
     }
 
     cur = target;
-    /* le fond ferroviaire ne vit que sur la page 02 */
+    /* chaque page profonde a son propre fond anime */
     document.body.classList.toggle("on-brief", cur === 1);
+    document.body.classList.toggle("on-chain", cur === 2);
     Train.setActive(cur === 1);
+    Belt.setActive(cur === 2);
 
     seq.textContent = pad(cur + 1) + "/" + pad(pages.length);
     setTimeout(function(){ busy = false; }, REDUCED ? 0 : DUR);
