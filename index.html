@@ -387,6 +387,16 @@ body.on-arena #gamebg{ opacity:1 }
 .cue s{ text-decoration:none; font-size:1.4em; color:var(--orange); animation:bob 1.8s ease-in-out infinite }
 @keyframes bob{ 0%,100%{transform:translateY(0);opacity:.5} 50%{transform:translateY(.35em);opacity:1} }
 
+/* la carte accuse le coup a chaque nouvelle transmission (touche Espace).
+   L'animation porte sur le contenu, pas sur le cadre : celui-ci garde sa
+   propre lueur, que les petits ecrans coupent deja. */
+.transmission.swap > *{ animation:swapin .34s cubic-bezier(.16,.84,.24,1) both }
+@keyframes swapin{
+  0%  { transform:translateY(.5em) scale(.988); opacity:.25 }
+  100%{ transform:none; opacity:1 }
+}
+.hint .kbd{ margin:0 .3em; vertical-align:middle }
+
 /* ---------- page 02 : le jeu — page fixe, deux colonnes ---------- */
 
 /* aucun defilement interne : tout doit tenir dans la fenetre.
@@ -603,6 +613,30 @@ body.on-arena #gamebg{ opacity:1 }
   display:flex; gap:.35em; pointer-events:none; opacity:.75;
 }
 .keys .wide{ letter-spacing:.2em }
+
+/* --- invite de verrouillage de la souris --- */
+
+/* Tant que le pointeur n'est pas capturé, la partie attend : le voile
+   couvre l'arene, absorbe le clic et rappelle les commandes. */
+.lockcue{
+  position:absolute; inset:0; z-index:5;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:1.1em; padding:2em; text-align:center; cursor:pointer;
+  background:rgba(6,6,8,.66);
+  backdrop-filter:blur(1.5px); -webkit-backdrop-filter:blur(1.5px);
+  font-size:var(--fs-xs); letter-spacing:.24em; text-transform:uppercase; color:var(--txt-2);
+  animation:gfade .2s ease both;
+}
+.lockcue[hidden]{ display:none }
+.lockcue b{
+  font-size:clamp(15px,2.6vmin,28px); letter-spacing:.16em; color:var(--bone);
+  border:var(--edge) solid var(--orange); padding:.55em 1.1em;
+  background:rgba(10,10,11,.9);
+  box-shadow:.35em .35em 0 rgba(255,77,0,.9);
+}
+.lockcue em{ font-style:normal; color:var(--cyan) }
+.lockcue s{ text-decoration:none; color:var(--orange); margin:0 .7em }
+.lockcue .kbd{ margin:0 .3em }
 
 /* --- fenetres de jeu --- */
 
@@ -891,7 +925,7 @@ body.on-arena #gamebg{ opacity:1 }
   <!-- ---------- PAGE 01 ---------- -->
   <div class="page home on" id="p0">
 
-    <div class="eyebrow rise d1"><i></i>ORBITE BASSE<u>//</u>ACCÈS AUTORISÉ<i></i></div>
+    <div class="eyebrow rise d1"><i></i>ORBITE BASSE<u>//</u>ACCÈS AUTORISÉ<u>//</u>ARÈNE &#9650;<i></i></div>
 
     <h1 class="wordmark rise d2" id="wordmark"><span class="w w-void">VOID</span><span class="w w-belt">BELT</span></h1>
 
@@ -922,7 +956,7 @@ body.on-arena #gamebg{ opacity:1 }
       </dl>
     </section>
 
-    <div class="hint rise d4"><i></i>Actualisez la page pour intercepter une autre transmission</div>
+    <div class="hint rise d4"><i></i><span>Appuyez sur <span class="kbd">Espace</span> pour intercepter une autre transmission</span></div>
 
     <div class="cue rise d4"><span>Défilez</span><s>&#9660;</s></div>
 
@@ -1070,9 +1104,17 @@ body.on-arena #gamebg{ opacity:1 }
     </div>
 
     <div class="keys" aria-hidden="true">
-      <span class="kbd">Z</span><span class="kbd">Q</span><span class="kbd">S</span><span class="kbd">D</span>
-      <span class="kbd wide">ESPACE</span>
+      <span class="kbd wide">SOURIS</span>
+      <span class="kbd wide">TIR AUTO</span>
       <span class="kbd">E</span>
+      <span class="kbd wide">ÉCHAP</span>
+    </div>
+
+    <!-- invite de capture du pointeur : la partie ne demarre qu'au clic -->
+    <div class="lockcue" id="a-lock" hidden>
+      <b>CLIQUEZ POUR PILOTER</b>
+      <span>La souris dirige le vaisseau <s>//</s> le tir est <em>automatique</em></span>
+      <span><span class="kbd">E</span> atelier <s>//</s> <span class="kbd">ÉCHAP</span> libère la souris</span>
     </div>
 
     <!-- choix de module a chaque niveau -->
@@ -1124,6 +1166,9 @@ body.on-arena #gamebg{ opacity:1 }
 </footer>
 
 <div class="scan"></div>
+
+<!-- bande-son de l'arene -->
+<audio id="ko" src="KO.mp3" loop preload="none"></audio>
 
 <script>
 (function(){
@@ -1305,8 +1350,12 @@ function decode(el, text, duration){
   requestAnimationFrame(step);
 }
 
-(function loadArchive(){
-  var i = pickIndex(), it = ARCHIVE[i];
+var archiveAt = -1, archiveT = 0;
+
+function showArchive(i){
+  var it = ARCHIVE[i];
+  archiveAt = i;
+  try { localStorage.setItem("voidbelt.lastArchive", String(i)); } catch (e) {}
   document.getElementById("ref").textContent = "ARC " + pad(i + 1) + "/" + pad(ARCHIVE.length);
   document.getElementById("vo").textContent = "« " + it.vo + " »";
   document.getElementById("m-title").textContent = it.t;
@@ -1314,7 +1363,25 @@ function decode(el, text, duration){
   document.getElementById("m-year").textContent = it.y;
   document.getElementById("m-type").textContent = it.k;
   decode(document.getElementById("quote"), it.fr, 900);
-})();
+}
+
+/* Espace : transmission suivante. On evite de retomber sur celle qui est
+   affichee, et on ignore les appels trop rapproches pour qu'une touche
+   maintenue ne fasse pas defiler l'archive en bouillie. */
+function nextArchive(){
+  var now = performance.now();
+  if (now - archiveT < 280) return;
+  archiveT = now;
+  var i = archiveAt;
+  if (ARCHIVE.length > 1){
+    do { i = Math.floor(Math.random() * ARCHIVE.length); } while (i === archiveAt);
+  }
+  showArchive(i);
+  var tr = document.querySelector(".transmission");
+  if (tr && !REDUCED){ tr.classList.remove("swap"); void tr.offsetWidth; tr.classList.add("swap"); }
+}
+
+showArchive(pickIndex());
 
 /* ============================================================
    2 — CHAMP D'ASTEROIDES
@@ -2491,6 +2558,48 @@ var Belt = (function(){
 Belt.init();
 
 /* ============================================================
+   2 quater bis — BANDE-SON
+   KO.mp3 tourne en boucle tant que l'arene est ouverte. Un
+   navigateur refuse de jouer un son avant le premier geste de
+   l'utilisateur : si la lecture est rejetee, on la reprend au
+   premier clic ou a la premiere touche qui suit.
+   ============================================================ */
+
+var Music = (function(){
+  var a = document.getElementById("ko");
+  var want = false, armed = false;
+
+  function attempt(){
+    if (!a || !want) return;
+    var p;
+    try { p = a.play(); } catch (e) { arm(); return; }
+    if (p && p["catch"]) p["catch"](arm);
+  }
+
+  function arm(){
+    if (armed || !want) return;
+    armed = true;
+    var go = function(){
+      window.removeEventListener("pointerdown", go, true);
+      window.removeEventListener("keydown", go, true);
+      armed = false;
+      attempt();
+    };
+    window.addEventListener("pointerdown", go, true);
+    window.addEventListener("keydown", go, true);
+  }
+
+  function set(v){
+    if (!a || v === want) return;
+    want = v;
+    if (v){ a.volume = .42; attempt(); }
+    else { a.pause(); }
+  }
+
+  return { set: set };
+})();
+
+/* ============================================================
    2 quater — L'ARENE : page 04, sans un mot de texte
    Un vaisseau a inertie (ZQSD ou fleches, tir a l'espace), des
    asteroides qui tombent de plus en plus vite, des ressources a
@@ -2507,6 +2616,13 @@ var Arena = (function(){
   var active = false, drawn = false, last = 0, paused = false, over = false;
   var stars = [], rocks = [], bolts = [], bits = [], drops = [], foes = [], boss = null;
   var keys = {}, shake = 0, flash = 0;
+  /* pilotage souris : le pointeur est capture par la page, ses deplacements
+     poussent une cible virtuelle que le vaisseau suit. kbd repasse au
+     clavier pour qui prefere, et leve alors l'attente du verrou. */
+  var locked = false, kbd = false, aim = { x: 0, y: 0 };
+  /* le tactile et les navigateurs anciens ignorent le verrou : la partie
+     ne doit alors pas rester en attente derriere l'invite de clic. */
+  var CAN_LOCK = !!(window.Element && Element.prototype.requestPointerLock);
 
   var ship, hull = 0, shield = 0, shieldT = 0, stats = null;
   var shipModel = 0, owned = { 0: true };
@@ -2611,7 +2727,7 @@ var Arena = (function(){
       shots: 1 + m.shots + cd("salvo") + lv("triple"),
       pierce: lv("pierce"),
       armor: Math.min(.6, .12 * lv("plate")),
-      magnet: 95 * (1 + .4 * cd("magnet")) * (1 + .5 * lv("magnet")),
+      magnet: 195 * (1 + .4 * cd("magnet")) * (1 + .5 * lv("magnet")),
       shieldMax: lv("shield")
     };
     stats = s;
@@ -2631,8 +2747,11 @@ var Arena = (function(){
     hull = stats.hullMax; shield = stats.shieldMax; shieldT = 0;
     ship = { x: W * .5, y: FLOOR - 90 * S, vx: 0, vy: 0, tilt: 0, inv: 0 };
     over = false; paused = false; spawnT = .6; fireT = 0; shake = 0; flash = 0;
+    aim.x = ship.x; aim.y = ship.y;
     closeAll();
     hud();
+    if (active) requestLock();
+    lockCue();
   }
 
   function starfield(){
@@ -2654,6 +2773,8 @@ var Arena = (function(){
     if (!ship) reset(); else {
       ship.x = clamp(ship.x, 30 * S, W - 30 * S);
       ship.y = clamp(ship.y, 90 * S, FLOOR - 20 * S);
+      aim.x = clamp(aim.x, 26 * S, W - 26 * S);
+      aim.y = clamp(aim.y, 92 * S, FLOOR - 18 * S);
     }
     drawn = false;
   }
@@ -2707,7 +2828,7 @@ var Arena = (function(){
   function dropRes(x, y, k, n){
     for (var i = 0; i < n; i++){
       drops.push({ x: x + rand(-12, 12), y: y + rand(-12, 12),
-                   vx: rand(-30, 30) * S, vy: rand(20, 70) * S, k: k, r: 7 * S, life: 14 });
+                   vx: rand(-30, 30) * S, vy: rand(20, 70) * S, k: k, r: 7 * S, life: 20 });
     }
   }
 
@@ -2717,7 +2838,7 @@ var Arena = (function(){
     splitRock(rk);
     addXp(3 + rk.tier * 4);
     /* une part des asteroides livre de la matiere */
-    var luck = .34 + .05 * lv("magnet");
+    var luck = .52 + .05 * lv("magnet");
     if (Math.random() < luck){
       var k = Math.random() < .12 ? 3 : Math.floor(rand(0, 3));
       dropRes(rk.x, rk.y, k, 1 + Math.floor(rand(0, 1 + rk.tier)));
@@ -2777,6 +2898,8 @@ var Arena = (function(){
     el("a-lvlnum").textContent = level < 10 ? "0" + level : "" + level;
     el("a-cards").hidden = false;
     paused = true;
+    /* une fenetre s'ouvre : la souris redevient un curseur ordinaire */
+    releaseLock(); lockCue();
   }
 
   function takeCard(k){
@@ -2785,6 +2908,10 @@ var Arena = (function(){
     el("a-cards").hidden = true;
     paused = !!(el("a-shop") && !el("a-shop").hidden);
     hud();
+    /* on reprend le verrou dans la foulee du clic : le geste est encore
+       valide aux yeux du navigateur. */
+    if (!modalOpen()) requestLock();
+    lockCue();
   }
 
   function cost(it){
@@ -2886,12 +3013,16 @@ var Arena = (function(){
   function toggleShop(){
     var p = el("a-shop");
     if (!p || over) return;
-    if (p.hidden){ p.hidden = false; paintShop(); paused = true; }
-    else {
+    if (p.hidden){
+      p.hidden = false; paintShop(); paused = true;
+      releaseLock();
+    } else {
       p.hidden = true;
       var c = el("a-cards");
       paused = !!(c && !c.hidden);       /* on ne reste en pause que pour les cartes */
+      if (!modalOpen()) requestLock();
     }
+    lockCue();
   }
 
   /* ---------------- boss ---------------- */
@@ -2934,6 +3065,7 @@ var Arena = (function(){
       burst(ship.x, ship.y, 70, "255,77,0", 380 * S);
       var o = el("a-over");
       if (o){ o.hidden = false; el("a-score").textContent = (level < 10 ? "0" : "") + level; }
+      releaseLock(); lockCue();
     }
     hud();
   }
@@ -2943,34 +3075,43 @@ var Arena = (function(){
   function step(dt){
     var i, k, r, b, d, dx, dy;
 
-    /* --- vaisseau : poussee, inertie, inclinaison --- */
-    var ax = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
-    var ay = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
-    ship.vx += ax * stats.acc * S * dt;
-    ship.vy += ay * stats.acc * .82 * S * dt;
-    var damp = Math.exp(-stats.damp * dt);
-    if (!ax) ship.vx *= damp;
-    if (!ay) ship.vy *= damp;
+    /* --- vaisseau : souris sous verrou, clavier a inertie sinon --- */
     var lim = stats.spd * S;
-    ship.vx = clamp(ship.vx, -lim, lim); ship.vy = clamp(ship.vy, -lim, lim);
+    if (locked){
+      /* le vaisseau rattrape la cible poussee par le pointeur. La vitesse
+         reste plafonnee : les modules de propulsion gardent leur interet. */
+      var cap = lim * 4.5;
+      ship.vx = clamp((aim.x - ship.x) * 22, -cap, cap);
+      ship.vy = clamp((aim.y - ship.y) * 22, -cap, cap);
+    } else {
+      var ax = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+      var ay = (keys.down ? 1 : 0) - (keys.up ? 1 : 0);
+      ship.vx += ax * stats.acc * S * dt;
+      ship.vy += ay * stats.acc * .82 * S * dt;
+      var damp = Math.exp(-stats.damp * dt);
+      if (!ax) ship.vx *= damp;
+      if (!ay) ship.vy *= damp;
+      ship.vx = clamp(ship.vx, -lim, lim); ship.vy = clamp(ship.vy, -lim, lim);
+    }
     ship.x += ship.vx * dt; ship.y += ship.vy * dt;
-    if (ship.x < 26 * S){ ship.x = 26 * S; ship.vx *= -.3; }
-    if (ship.x > W - 26 * S){ ship.x = W - 26 * S; ship.vx *= -.3; }
+    /* sous verrou la cible est deja bornee : pas de rebond sur les bords */
+    if (ship.x < 26 * S){ ship.x = 26 * S; if (!locked) ship.vx *= -.3; }
+    if (ship.x > W - 26 * S){ ship.x = W - 26 * S; if (!locked) ship.vx *= -.3; }
     ship.y = clamp(ship.y, 92 * S, FLOOR - 18 * S);
-    if (ship.y <= 92 * S || ship.y >= FLOOR - 18 * S) ship.vy *= .5;
-    /* l'inclinaison suit la vitesse laterale */
-    ship.tilt += ((ship.vx / lim) * .42 - ship.tilt) * Math.min(1, dt * 9);
+    if (!locked && (ship.y <= 92 * S || ship.y >= FLOOR - 18 * S)) ship.vy *= .5;
+    /* l'inclinaison suit la vitesse laterale, bornee pour rester lisible */
+    ship.tilt += (clamp(ship.vx / lim, -1, 1) * .42 - ship.tilt) * Math.min(1, dt * 9);
     if (ship.inv > 0) ship.inv -= dt;
 
-    /* --- tir --- */
+    /* --- tir automatique : il n'y a plus rien a maintenir --- */
     fireT -= dt;
-    if (keys.fire && fireT <= 0){
+    if (fireT <= 0){
       fireT = stats.delay;
-      var n = stats.shots;
+      var n = stats.shots, drift = clamp(ship.vx, -lim, lim) * .25;
       for (i = 0; i < n; i++){
         var off = (i - (n - 1) / 2) * 11 * S;
         bolts.push({ x: ship.x + off, y: ship.y - 20 * S,
-                     vx: ship.vx * .25 + off * 1.1, vy: -stats.bspd * S,
+                     vx: drift + off * 1.1, vy: -stats.bspd * S,
                      r: 3.4 * S, dmg: stats.dmg, pierce: stats.pierce });
       }
     }
@@ -3044,19 +3185,24 @@ var Arena = (function(){
       }
     }
 
-    /* --- ressources --- */
+    /* --- ressources ---
+       Dans le rayon, le minerai ne derive plus : il file droit sur la coque
+       et la rejoint en une fraction de seconde. Hors rayon, il retombe. */
     for (i = drops.length - 1; i >= 0; i--){
       d = drops[i];
       d.life -= dt;
       dx = ship.x - d.x; dy = ship.y - d.y;
       var dd = Math.sqrt(dx * dx + dy * dy) || 1;
       if (dd < stats.magnet * S){
-        var pull = (1 - dd / (stats.magnet * S)) * 900 * S;
-        d.vx += (dx / dd) * pull * dt; d.vy += (dy / dd) * pull * dt;
-      } else { d.vy += 40 * S * dt; }
-      d.vx *= Math.exp(-1.4 * dt); d.vy *= Math.exp(-1.4 * dt);
-      d.x += d.vx * dt; d.y += d.vy * dt;
-      if (dd < 20 * S){
+        var grab = 1 - Math.exp(-13 * dt);
+        d.x += dx * grab; d.y += dy * grab;
+        d.vx *= .35; d.vy *= .35;
+      } else {
+        d.vy += 40 * S * dt;
+        d.vx *= Math.exp(-1.4 * dt); d.vy *= Math.exp(-1.4 * dt);
+        d.x += d.vx * dt; d.y += d.vy * dt;
+      }
+      if (dd < 34 * S){
         res[d.k]++; drops.splice(i, 1); hud();
         burst(d.x, d.y, 5, RES[d.k], 130 * S);
         continue;
@@ -3257,7 +3403,7 @@ var Arena = (function(){
       requestAnimationFrame(frame);
       return;
     }
-    if (!paused && !over) step(dt);
+    if (!paused && !over && !held()) step(dt);
     else if (over) { for (var i = bits.length - 1; i >= 0; i--){ var t = bits[i]; t.x += t.vx*dt; t.y += t.vy*dt; t.life -= t.fade*dt; if (t.life<=0) bits.splice(i,1);} }
     draw();
     drawn = true;
@@ -3295,17 +3441,53 @@ var Arena = (function(){
     var m = MAP[k];
     if (!m) return;
     e.preventDefault();                 /* pas de defilement, pas de saut de page */
+    /* une touche de pilotage leve l'attente du verrou : le clavier reste
+       jouable pour qui ne veut pas de la souris. */
+    if (down && !locked && !kbd){ kbd = true; lockCue(); }
     keys[m] = down;
+  }
+
+  /* ---------------- verrou du pointeur ---------------- */
+
+  function modalOpen(){
+    var a = el("a-cards"), b = el("a-shop"), c = el("a-over");
+    return !!((a && !a.hidden) || (b && !b.hidden) || (c && !c.hidden));
+  }
+
+  /* la partie attend tant que la souris n'est pas capturee. Sans verrou
+     disponible, il n'y a rien a attendre. */
+  function held(){ return active && CAN_LOCK && !locked && !kbd && !modalOpen(); }
+
+  function lockCue(){
+    var c = el("a-lock");
+    if (c) c.hidden = !held();
+  }
+
+  function requestLock(){
+    var p = el("p3");
+    if (!p || !active || locked || modalOpen() || !CAN_LOCK) return;
+    /* le mouvement brut evite l'acceleration du systeme : la visee reste
+       previsible d'un poste a l'autre. */
+    try {
+      var r = p.requestPointerLock({ unadjustedMovement: true });
+      if (r && r["catch"]) r["catch"](function(){ try { p.requestPointerLock(); } catch (e2) {} });
+    } catch (e){ try { p.requestPointerLock(); } catch (e2) {} }
+  }
+
+  function releaseLock(){
+    if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock();
   }
 
   function setActive(v){
     if (v === active) return;
     active = v;
     last = performance.now();
-    keys = {};
-    if (!v) closeAll();
+    keys = {}; kbd = false;
+    if (!v){ closeAll(); releaseLock(); }
     if (v && !ship) reset();
     if (v) hud();
+    Music.set(v);
+    lockCue();
   }
 
   function init(){
@@ -3316,6 +3498,38 @@ var Arena = (function(){
     window.addEventListener("keydown", function(e){ onKey(e, true); });
     window.addEventListener("keyup",   function(e){ onKey(e, false); });
     window.addEventListener("blur", function(){ keys = {}; });
+
+    /* --- souris : capture, puis pilotage aux deplacements bruts --- */
+
+    var pg = el("p3");
+    if (pg) pg.addEventListener("mousedown", function(e){
+      if (!active || locked || modalOpen()) return;
+      if (e.target.closest && e.target.closest(".gmodal")) return;
+      e.preventDefault();
+      kbd = false;
+      requestLock();
+    });
+
+    document.addEventListener("pointerlockchange", function(){
+      locked = (document.pointerLockElement === el("p3"));
+      if (locked){
+        kbd = false;
+        keys = {};
+        aim.x = ship ? ship.x : W * .5;
+        aim.y = ship ? ship.y : FLOOR - 90 * S;
+        last = performance.now();       /* pas de bond de simulation a la reprise */
+      }
+      lockCue();
+    });
+
+    document.addEventListener("pointerlockerror", function(){ locked = false; lockCue(); });
+
+    document.addEventListener("mousemove", function(e){
+      if (!locked || !active) return;
+      aim.x = clamp(aim.x + (e.movementX || 0), 26 * S, W - 26 * S);
+      aim.y = clamp(aim.y + (e.movementY || 0), 92 * S, FLOOR - 18 * S);
+    });
+
 
     var row = el("a-cardrow");
     if (row) row.addEventListener("click", function(e){
@@ -3350,7 +3564,9 @@ var Arena = (function(){
     requestAnimationFrame(frame);
   }
 
-  return { init: init, setActive: setActive, playing: function(){ return active; } };
+  return { init: init, setActive: setActive,
+           playing: function(){ return active; },
+           locked:  function(){ return locked; } };
 })();
 
 Arena.init();
@@ -3360,12 +3576,17 @@ Arena.init();
    ============================================================ */
 
 (function(){
-  var pages = [document.getElementById("p0"),
+  /* Ordre de la scene, de haut en bas :
+       00 l'arene   01 l'accueil   02 le jeu (le convoi)   03 la chaine
+     Les identifiants du balisage ne bougent pas : seule la suite change.
+     L'accueil reste la page d'arrivee, on demarre donc a l'index 1. */
+  var pages = [document.getElementById("p3"),
+               document.getElementById("p0"),
                document.getElementById("p1"),
-               document.getElementById("p2"),
-               document.getElementById("p3")];
+               document.getElementById("p2")];
+  var ARENA = 0, HOME = 1, BRIEF = 2, CHAIN = 3;
   var seq = document.getElementById("seq");
-  var cur = 0, busy = false, acc = 0, accAt = 0;
+  var cur = HOME, busy = false, acc = 0, accAt = 0;
   var DUR = 560;
 
   seq.textContent = pad(cur + 1) + "/" + pad(pages.length);
@@ -3399,12 +3620,12 @@ Arena.init();
 
     cur = target;
     /* chaque page profonde a son propre fond anime */
-    document.body.classList.toggle("on-brief", cur === 1);
-    document.body.classList.toggle("on-chain", cur === 2);
-    document.body.classList.toggle("on-arena", cur === 3);
-    Train.setActive(cur === 1);
-    Belt.setActive(cur === 2);
-    Arena.setActive(cur === 3);
+    document.body.classList.toggle("on-brief", cur === BRIEF);
+    document.body.classList.toggle("on-chain", cur === CHAIN);
+    document.body.classList.toggle("on-arena", cur === ARENA);
+    Train.setActive(cur === BRIEF);
+    Belt.setActive(cur === CHAIN);
+    Arena.setActive(cur === ARENA);
 
     seq.textContent = pad(cur + 1) + "/" + pad(pages.length);
     setTimeout(function(){ busy = false; }, REDUCED ? 0 : DUR);
@@ -3412,6 +3633,9 @@ Arena.init();
 
   window.addEventListener("wheel", function(e){
     if (busy) return;
+    /* souris captive : la molette appartient a la partie, pas a la page.
+       On sort par ECHAP, qui rend le pointeur et rouvre la navigation. */
+    if (Arena.locked()) return;
     var dir = e.deltaY > 0 ? 1 : -1;
     if (!atEdge(pages[cur], dir)){ acc = 0; return; }
     var target = cur + dir;
@@ -3424,11 +3648,18 @@ Arena.init();
   }, { passive: true });
 
   window.addEventListener("keydown", function(e){
-    if (busy) return;
-    /* dans l'arene, les fleches et l'espace pilotent le vaisseau */
+    /* dans l'arene, le clavier appartient au vaisseau */
     if (document.body.classList.contains("on-arena")) return;
+    /* sur l'accueil, l'espace appelle la transmission suivante :
+       il ne fait donc plus tourner la page. */
+    if (e.key === " " && cur === HOME){
+      e.preventDefault();
+      nextArchive();
+      return;
+    }
+    if (busy) return;
     var dir = 0;
-    if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ") dir = 1;
+    if (e.key === "ArrowDown" || e.key === "PageDown") dir = 1;
     else if (e.key === "ArrowUp" || e.key === "PageUp") dir = -1;
     else return;
     if (!atEdge(pages[cur], dir)) return;
