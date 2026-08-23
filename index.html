@@ -638,6 +638,34 @@ body.on-arena #gamebg{ opacity:1 }
 .lockcue s{ text-decoration:none; color:var(--orange); margin:0 .7em }
 .lockcue .kbd{ margin:0 .3em }
 
+/* reglage du volume : le bloc ne capture pas le pointeur, on peut donc
+   tirer le curseur sans relancer la partie. */
+.lockvol{
+  display:flex; align-items:center; gap:1.1em;
+  padding:.7em 1.2em; cursor:default;
+  border:1px solid var(--line); background:rgba(10,10,11,.9);
+}
+.lockvol label{ letter-spacing:.24em; color:var(--txt-3) }
+.lockvol output{ min-width:3ch; text-align:right; color:var(--orange) }
+.lockvol input[type=range]{
+  -webkit-appearance:none; appearance:none;
+  width:clamp(110px,22vmin,240px); height:1.2em;
+  background:none; cursor:pointer;
+}
+.lockvol input[type=range]:focus{ outline:none }
+.lockvol input[type=range]::-webkit-slider-runnable-track{ height:3px; background:var(--line) }
+.lockvol input[type=range]::-moz-range-track{ height:3px; background:var(--line) }
+.lockvol input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none; border:0; border-radius:0;
+  width:.7em; height:1.2em; margin-top:-.55em; background:var(--orange);
+}
+.lockvol input[type=range]::-moz-range-thumb{
+  border:0; border-radius:0;
+  width:.7em; height:1.2em; background:var(--orange);
+}
+.lockvol input[type=range]:focus-visible::-webkit-slider-thumb{ box-shadow:0 0 0 2px var(--cyan) }
+.lockvol input[type=range]:focus-visible::-moz-range-thumb{ box-shadow:0 0 0 2px var(--cyan) }
+
 /* --- fenetres de jeu --- */
 
 .gmodal{
@@ -1106,7 +1134,7 @@ body.on-arena #gamebg{ opacity:1 }
     <div class="keys" aria-hidden="true">
       <span class="kbd wide">SOURIS</span>
       <span class="kbd wide">TIR AUTO</span>
-      <span class="kbd">E</span>
+      <span class="kbd wide">CLIC DROIT</span>
       <span class="kbd wide">ÉCHAP</span>
     </div>
 
@@ -1114,7 +1142,15 @@ body.on-arena #gamebg{ opacity:1 }
     <div class="lockcue" id="a-lock" hidden>
       <b>CLIQUEZ POUR PILOTER</b>
       <span>La souris dirige le vaisseau <s>//</s> le tir est <em>automatique</em></span>
-      <span><span class="kbd">E</span> atelier <s>//</s> <span class="kbd">ÉCHAP</span> libère la souris</span>
+
+      <div class="lockvol" id="a-vol">
+        <label for="a-volr">Volume</label>
+        <input type="range" id="a-volr" min="0" max="100" step="1" value="30"
+               aria-label="Volume de la musique">
+        <output id="a-volv" for="a-volr">30</output>
+      </div>
+
+      <span><span class="kbd">Clic droit</span> atelier <s>//</s> <span class="kbd">ÉCHAP</span> réglages</span>
     </div>
 
     <!-- choix de module a chaque niveau -->
@@ -2569,6 +2605,25 @@ var Music = (function(){
   var a = document.getElementById("ko");
   var want = false, armed = false;
 
+  /* Le morceau lui-meme plafonne a 80 : le curseur 0-100 se lit par-dessus,
+     et se souvient d'une visite a l'autre. */
+  var MASTER = .8, level = 30;
+  try {
+    var saved = parseInt(localStorage.getItem("voidbelt.volume"), 10);
+    if (saved >= 0 && saved <= 100) level = saved;
+  } catch (e) {}
+
+  function apply(){ if (a) a.volume = MASTER * (level / 100); }
+  apply();
+
+  function setLevel(v){
+    v = Math.round(v);
+    level = v < 0 ? 0 : (v > 100 ? 100 : v);
+    apply();
+    try { localStorage.setItem("voidbelt.volume", String(level)); } catch (e2) {}
+    return level;
+  }
+
   function attempt(){
     if (!a || !want) return;
     var p;
@@ -2592,11 +2647,11 @@ var Music = (function(){
   function set(v){
     if (!a || v === want) return;
     want = v;
-    if (v){ a.volume = .42; attempt(); }
+    if (v){ apply(); attempt(); }
     else { a.pause(); }
   }
 
-  return { set: set };
+  return { set: set, level: function(){ return level; }, setLevel: setLevel };
 })();
 
 /* ============================================================
@@ -3422,11 +3477,17 @@ var Arena = (function(){
 
   function onKey(e, down){
     if (!active) return;
+    /* le curseur de volume garde ses propres fleches */
+    var t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) return;
     var k = (e.key || "").toLowerCase();
-    if (down && k === "e" && !over){ e.preventDefault(); toggleShop(); return; }
     if (down && k === "escape"){
       var sp = el("a-shop");
-      if (sp && !sp.hidden){ e.preventDefault(); toggleShop(); }
+      if (sp && !sp.hidden){ e.preventDefault(); toggleShop(); return; }
+      /* sinon ECHAP rend la souris et ouvre les reglages. Sous verrou, le
+         navigateur avale la touche : c'est pointerlockchange qui prend le
+         relais, et le voile s'affiche de la meme facon. */
+      if (!over && !modalOpen()){ e.preventDefault(); kbd = false; releaseLock(); lockCue(); }
       return;
     }
     if (down && over && (k === "r" || k === "enter")){ e.preventDefault(); reset(); return; }
@@ -3503,11 +3564,30 @@ var Arena = (function(){
 
     var pg = el("p3");
     if (pg) pg.addEventListener("mousedown", function(e){
-      if (!active || locked || modalOpen()) return;
-      if (e.target.closest && e.target.closest(".gmodal")) return;
+      if (!active) return;
+
+      /* clic droit : atelier. On l'ecoute ici et pas sur contextmenu, qui
+         n'est pas garanti sous verrou de pointeur. */
+      if (e.button === 2){
+        e.preventDefault();
+        if (over) return;
+        var c = el("a-cards");
+        if (c && !c.hidden) return;     /* un module attend d'etre choisi */
+        toggleShop();
+        return;
+      }
+
+      /* clic gauche : capture du pointeur */
+      if (e.button !== 0 || locked || modalOpen()) return;
+      if (e.target.closest && e.target.closest(".gmodal, .lockvol")) return;
       e.preventDefault();
       kbd = false;
       requestLock();
+    });
+
+    /* le menu du navigateur n'a rien a faire dans l'arene */
+    if (pg) pg.addEventListener("contextmenu", function(e){
+      if (active) e.preventDefault();
     });
 
     document.addEventListener("pointerlockchange", function(){
@@ -3515,6 +3595,8 @@ var Arena = (function(){
       if (locked){
         kbd = false;
         keys = {};
+        /* si le curseur de volume avait le focus, il garderait les fleches */
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
         aim.x = ship ? ship.x : W * .5;
         aim.y = ship ? ship.y : FLOOR - 90 * S;
         last = performance.now();       /* pas de bond de simulation a la reprise */
@@ -3530,6 +3612,16 @@ var Arena = (function(){
       aim.y = clamp(aim.y + (e.movementY || 0), 92 * S, FLOOR - 18 * S);
     });
 
+
+    var vr = el("a-volr"), vo = el("a-volv");
+    if (vr){
+      vr.value = Music.level();
+      if (vo) vo.value = Music.level();
+      vr.addEventListener("input", function(){
+        var lvl = Music.setLevel(parseInt(vr.value, 10) || 0);
+        if (vo) vo.value = lvl;
+      });
+    }
 
     var row = el("a-cardrow");
     if (row) row.addEventListener("click", function(e){
