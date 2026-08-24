@@ -1,0 +1,323 @@
+/* ============================================================
+   VOIDBELT — page d'accueil
+   Champ d'asteroides interactif, logo reactif au curseur,
+   archive de repliques, et acces vers l'Arene et le Ring.
+   ============================================================ */
+
+@property --spot{ syntax:'<number>'; inherits:true; initial-value:0 }
+@property --tx  { syntax:'<number>'; inherits:true; initial-value:1 }
+
+/* ---------- couches de fond ---------- */
+
+#space{
+  position:fixed; inset:0; z-index:1; pointer-events:none;
+  width:100%; height:100%;
+}
+
+.bg-parallax{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  transition:transform .25s cubic-bezier(.2,.6,.2,1);
+  will-change:transform;
+}
+
+.grid-overlay{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(237,231,218,.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(237,231,218,.10) 1px, transparent 1px);
+  background-size:clamp(48px,6vmin,110px) clamp(48px,6vmin,110px);
+  mask-image:radial-gradient(ellipse 80% 75% at 50% 45%, #000 20%, transparent 100%);
+  -webkit-mask-image:radial-gradient(ellipse 80% 75% at 50% 45%, #000 20%, transparent 100%);
+}
+
+.halo{
+  position:fixed; z-index:0; pointer-events:none;
+  width:min(150vmin,140vw); aspect-ratio:1; left:50%; top:48%;
+  transform:translate(-50%,-50%);
+  background:radial-gradient(circle, rgba(255,77,0,.20) 0%, rgba(255,77,0,.06) 38%, transparent 66%);
+  animation:breathe 11s ease-in-out infinite;
+}
+@keyframes breathe{
+  0%,100%{ opacity:.75; transform:translate(-50%,-50%) scale(1) }
+  50%    { opacity:1;   transform:translate(-50%,-50%) scale(1.06) }
+}
+
+.dots{
+  position:fixed; z-index:0; pointer-events:none;
+  right:-4vmin; bottom:-6vmin; width:52vmin; height:44vmin;
+  background-image:radial-gradient(var(--orange) 1.7px, transparent 1.8px);
+  background-size:clamp(12px,1.5vmin,26px) clamp(12px,1.5vmin,26px);
+  opacity:.45;
+  mask-image:linear-gradient(300deg, #000 10%, transparent 70%);
+  -webkit-mask-image:linear-gradient(300deg, #000 10%, transparent 70%);
+}
+
+.ghost-num{
+  position:fixed; z-index:0; pointer-events:none;
+  left:-.06em; bottom:-.24em;
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:min(46vmin,34vw);
+  line-height:.8;
+  color:transparent;
+  -webkit-text-stroke:2px rgba(237,231,218,.08);
+  letter-spacing:-.04em;
+}
+
+/* ---------- page ---------- */
+
+.home{
+  min-height:100%;
+  display:flex; flex-direction:column; align-items:center;
+  justify-content:center;
+  justify-content:safe center;
+  gap:clamp(30px,5.4vmin,96px);
+  padding:clamp(34px,5vmin,90px) clamp(18px,6vmin,120px);
+}
+
+.eyebrow{
+  display:flex; align-items:center; gap:1.2em; flex-wrap:wrap;
+  font-size:var(--fs-xs); letter-spacing:.34em; text-transform:uppercase;
+  color:var(--txt-2); text-align:center; justify-content:center;
+}
+.eyebrow i{ display:block; width:4em; height:1px; background:var(--orange); font-style:normal }
+.eyebrow u{ text-decoration:none; color:var(--orange) }
+.eyebrow a{
+  color:var(--orange); text-decoration:none;
+  border-bottom:1px solid transparent; padding-bottom:.1em;
+  transition:color .12s, border-color .12s;
+}
+.eyebrow a:hover, .eyebrow a:focus-visible{ color:var(--bone); border-color:var(--orange) }
+
+/* ---------- LOGO : lumiere animee + reaction au curseur ---------- */
+
+.wordmark{
+  --mx:50%; --my:50%; --spot:0; --tx:1; --rx:0deg; --ry:0deg;
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:clamp(40px, min(13.5vw, 16vmin), 240px);
+  line-height:.82;
+  letter-spacing:-.035em;
+  text-transform:uppercase;
+  display:block; text-align:center;
+  transform:perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));
+  transition:transform .35s cubic-bezier(.2,.7,.2,1), --spot .3s linear, --tx .3s linear;
+  /* deux animations sur la meme propriete raccourcie s'excluraient l'une
+     l'autre (la derniere declaree l'emporterait entierement) : l'entree
+     et la lueur permanente doivent donc cohabiter dans une seule liste.
+     On utilise un fondu simple (pas glissant, comme .rise) pour ne pas
+     verrouiller "transform", que l'inclinaison au curseur doit garder. */
+  animation: fadein .65s cubic-bezier(.2,.7,.2,1) .10s both,
+             logoglow 6s ease-in-out infinite;
+}
+@keyframes fadein{ from{ opacity:0 } to{ opacity:1 } }
+@keyframes logoglow{
+  0%,100%{ filter:drop-shadow(0 0 .35em rgba(255,77,0,.14)) }
+  50%    { filter:drop-shadow(0 0 .9em  rgba(255,77,0,.30)) }
+}
+
+.wordmark .w{
+  display:inline-block;
+  color:var(--base);                 /* repli si le decoupage sur texte echoue */
+  background-image:
+    radial-gradient(circle at var(--mx) var(--my),
+      rgba(255,255,255,calc(.95 * var(--spot))) 0%,
+      rgba(255,255,255,0) 30%),
+    linear-gradient(100deg,
+      transparent 38%,
+      rgba(255,255,255,.60) 47%,
+      rgba(255,255,255,.15) 52%,
+      transparent 60%),
+    linear-gradient(var(--base), var(--base));
+  background-size:100% 100%, 320% 100%, 100% 100%;
+  background-repeat:no-repeat;
+  background-position:0 0, 160% 0, 0 0;
+  -webkit-background-clip:text; background-clip:text;
+  color:transparent;
+  /* NB : un text-shadow se peindrait PAR-DESSUS le fond decoupe et masquerait
+     la couleur des lettres. Les drop-shadow, eux, restent derriere. */
+  filter:
+    drop-shadow(calc(var(--tx) *  .028em) 0 0 rgba(255,77,0,.85))
+    drop-shadow(calc(var(--tx) * -.028em) 0 0 rgba(95,235,247,.55));
+  animation:sweep 7s linear infinite;
+}
+.wordmark .w-void{ --base:#F6F2EA }
+.wordmark .w-belt{ --base:#FF4D00; animation-delay:-3.5s }
+@keyframes sweep{
+  0%  { background-position:0 0, 170% 0, 0 0 }
+  55% { background-position:0 0, -70% 0, 0 0 }
+  100%{ background-position:0 0, -70% 0, 0 0 }
+}
+.wordmark:hover .w{ animation-duration:2.4s }
+
+.tagline{
+  display:flex; flex-wrap:wrap; justify-content:center; gap:.7em 1.4em;
+  font-size:var(--fs-sm); letter-spacing:.26em; text-transform:uppercase;
+  color:var(--txt-2); text-align:center;
+}
+.tagline b{ color:var(--txt); font-weight:400 }
+.tagline s{ text-decoration:none; color:var(--orange) }
+
+/* ---------- la petite interface ---------- */
+
+.transmission{
+  position:relative;
+  width:min(88vw, calc(var(--fs-md) * 50));
+  border:var(--edge) solid var(--bone);
+  background:linear-gradient(180deg, rgba(20,20,22,.94), rgba(10,10,11,.94));
+  /* meme remarque que pour .wordmark : l'entree et la lueur permanente
+     doivent partager une seule liste d'animations. */
+  animation: rise .65s cubic-bezier(.2,.7,.2,1) .20s both,
+             cardglow 6s ease-in-out infinite;
+  /* le texte de l'interface doit rester selectionnable et copiable */
+  user-select:text; -webkit-user-select:text;
+}
+@keyframes cardglow{
+  0%,100%{ box-shadow:.55em .55em 0 rgba(255,77,0,.92), 0 0 0    rgba(255,77,0,0) }
+  50%    { box-shadow:.55em .55em 0 rgba(255,77,0,.92), 0 0 2.4em rgba(255,77,0,.16) }
+}
+.transmission::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(115deg, transparent 42%, rgba(255,255,255,.06) 50%, transparent 58%);
+  background-size:280% 100%;
+  animation:sheen 9s linear infinite;
+}
+@keyframes sheen{ from{background-position:170% 0} to{background-position:-70% 0} }
+
+.tr-head{
+  display:flex; align-items:center; justify-content:space-between; gap:1.2em;
+  padding:.6em 1.1em;
+  background:var(--bone); color:var(--black);
+  font-size:calc(var(--fs-xs) * .94); letter-spacing:.22em; text-transform:uppercase; font-weight:700;
+  position:relative; overflow:hidden;
+}
+.tr-head .ref{ font-weight:400; color:rgba(10,10,11,.7) }
+.tr-head::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(90deg, transparent, rgba(255,77,0,.28), transparent);
+  width:38%; animation:headpass 5.5s ease-in-out infinite;
+}
+@keyframes headpass{ 0%{transform:translateX(-120%)} 60%,100%{transform:translateX(360%)} }
+
+.tr-body{ padding:clamp(16px,2.2vmin,34px) clamp(16px,2.2vmin,34px) clamp(13px,1.8vmin,26px);
+          position:relative; overflow:hidden; cursor:text }
+.tr-body::before{
+  content:"\201C";
+  position:absolute; left:.1em; top:0;
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:5em; line-height:1; color:rgba(237,231,218,.07);
+}
+.tr-body::after{
+  content:""; position:absolute; left:0; right:0; height:1px; top:0;
+  background:linear-gradient(90deg, transparent, rgba(95,235,247,.5), transparent);
+  pointer-events:none;
+  animation:scanline 8s cubic-bezier(.5,0,.5,1) infinite;
+}
+@keyframes scanline{
+  0%  { top:0;    opacity:0 }
+  6%  { opacity:.9 }
+  48% { top:100%; opacity:0 }
+  100%{ top:100%; opacity:0 }
+}
+
+#quote{
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:clamp(14px, min(2.9vw, 2.5vmin), 29px);
+  line-height:1.24;
+  text-transform:uppercase;
+  color:#F6F2EA;
+  position:relative;
+  min-height:1.2em;
+}
+#quote-vo{
+  margin-top:.95em;
+  font-size:calc(var(--fs-xs) * 1.06); line-height:1.55; color:var(--txt-2);
+  border-left:2px solid var(--orange); padding-left:.9em;
+  max-width:64ch;
+}
+#quote-vo b{
+  display:block; font-weight:400; font-size:.82em; letter-spacing:.24em;
+  text-transform:uppercase; color:var(--orange); margin-bottom:.35em;
+}
+
+.tr-meta{ display:flex; flex-wrap:wrap; border-top:1px solid var(--line) }
+.tr-meta > div{ flex:1 1 11em; padding:.7em 1.1em; border-right:1px solid var(--line) }
+.tr-meta > div:last-child{ border-right:0 }
+.tr-meta dt{
+  font-size:calc(var(--fs-xs) * .92); letter-spacing:.24em; text-transform:uppercase;
+  color:var(--txt-3); margin-bottom:.35em;
+}
+.tr-meta dd{ font-size:var(--fs-sm); letter-spacing:.06em; text-transform:uppercase; color:var(--txt) }
+.tr-meta dd.hl{ color:var(--orange) }
+.tr-meta dd.cy{ color:var(--cyan) }
+
+/* la carte accuse le coup a chaque nouvelle transmission (touche Espace).
+   L'animation porte sur le contenu, pas sur le cadre : celui-ci garde sa
+   propre lueur, que les petits ecrans coupent deja. */
+.transmission.swap > *{ animation:swapin .34s cubic-bezier(.16,.84,.24,1) both }
+@keyframes swapin{
+  0%  { transform:translateY(.5em) scale(.988); opacity:.25 }
+  100%{ transform:none; opacity:1 }
+}
+
+.hint{
+  font-size:var(--fs-xs); letter-spacing:.24em; text-transform:uppercase;
+  color:var(--txt-2);
+  display:flex; align-items:center; justify-content:center; flex-wrap:wrap;
+  gap:.9em; text-align:center;
+}
+.hint i{
+  display:block; width:.6em; height:.6em; background:var(--cyan); font-style:normal;
+  animation:blink 2.4s steps(1) infinite; flex:none;
+}
+@keyframes blink{ 0%,70%{opacity:1} 71%,100%{opacity:.15} }
+.hint .kbd{ margin:0 .3em; vertical-align:middle }
+
+/* ---------- acces vers l'Arene et le Ring ---------- */
+
+.access{
+  display:flex; flex-wrap:wrap; justify-content:center; gap:1em;
+  width:min(88vw, calc(var(--fs-md) * 50));
+}
+.access-card{
+  flex:1 1 16em; position:relative; overflow:hidden;
+  display:flex; flex-direction:column; gap:.5em;
+  border:1px solid var(--line); background:rgba(20,20,22,.72);
+  padding:1.1em 1.3em;
+  text-decoration:none; color:var(--txt);
+  transition:border-color .15s, background .15s, transform .15s;
+}
+.access-card::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(115deg, transparent 40%, rgba(255,255,255,.07) 50%, transparent 60%);
+  background-size:280% 100%; background-position:170% 0;
+  transition:background-position .6s ease;
+}
+.access-card:hover, .access-card:focus-visible{
+  border-color:var(--orange); background:rgba(255,77,0,.10);
+  transform:translateY(-3px); outline:0;
+}
+.access-card:hover::after, .access-card:focus-visible::after{ background-position:-70% 0 }
+.access-k{
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:.78em; letter-spacing:.3em; color:var(--orange);
+}
+.access-t{
+  font-family:'Archivo Black','Arial Black',sans-serif;
+  font-size:1.5em; letter-spacing:-.01em; text-transform:uppercase; color:#F6F2EA;
+}
+.access-d{ font-size:.84em; line-height:1.5; color:var(--txt-3) }
+.access-go{
+  margin-top:.3em;
+  font-size:.78em; letter-spacing:.22em; text-transform:uppercase; color:var(--txt-2);
+  transition:color .15s, transform .15s;
+}
+.access-card:hover .access-go, .access-card:focus-visible .access-go{
+  color:var(--orange); transform:translateX(.3em);
+}
+
+@media (max-width:860px){
+  .transmission{ animation:none; box-shadow:.35em .35em 0 rgba(255,77,0,.92) }
+}
+
+@media (prefers-reduced-motion: reduce){
+  .bg-parallax{ transition:none !important }
+}

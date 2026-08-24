@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VOIDBELT // Le Ring</title>
+<meta name="description" content="VOIDBELT — le Ring : tenez l'échoppe, entraînez le corps, montez sur le ring.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23FF4D00' stroke-width='3'/%3E%3Crect y='14' width='32' height='4' fill='%23EDE7DA'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/css/base.css">
+<link rel="stylesheet" href="/shared/css/game-ui.css">
+<link rel="stylesheet" href="ring.css">
+</head>
+<body>
+
+<canvas id="boxbg" aria-hidden="true"></canvas>
+
+<aside class="rail rail-l" aria-hidden="true">
+  <div class="sq fill"></div>
+  <div class="vert">RING 00 / QUARTIER DES DOCKS</div>
+  <div class="bar"></div>
+  <div class="sq"></div>
+</aside>
+
+<aside class="rail rail-r" aria-hidden="true">
+  <div class="sq"></div>
+  <div class="bar"></div>
+  <div class="vert">PROTOCOLE DE COLONISATION — V.0.9.4</div>
+  <div class="sq fill"></div>
+</aside>
+
+<div class="stage">
+  <div class="view ring on">
+
+    <header class="rhead">
+      <div class="rid">
+        <div class="rface"><canvas id="r-face"></canvas></div>
+        <div class="rid-t">
+          <b id="r-name">RŌNIN</b>
+          <span>RANG <em id="r-rank">D</em> <u>//</u> <b id="r-rec">0V-0D</b> <u>//</u> ELO <em id="r-elo">1000</em></span>
+        </div>
+      </div>
+
+      <div class="rvit">
+        <div class="rgauge">
+          <div class="rgauge-t"><span>ÉNERGIE</span><b id="r-env">100</b></div>
+          <div class="rbar" id="r-enb" style="--c:#8BE86B"><i id="r-en"></i></div>
+        </div>
+        <div class="rgauge">
+          <div class="rgauge-t"><span>SATIÉTÉ</span><b id="r-fdv">100</b></div>
+          <div class="rbar" id="r-fdb" style="--c:#FFC66B"><i id="r-fd"></i></div>
+        </div>
+        <div class="rgauge">
+          <div class="rgauge-t"><span>FORME</span><b id="r-fov">40</b></div>
+          <div class="rbar" style="--c:#5FEBF7"><i id="r-fo"></i></div>
+        </div>
+        <div class="rgauge">
+          <div class="rgauge-t"><span>BLESSURES</span><b id="r-inv">0</b></div>
+          <div class="rbar" style="--c:#FF4D00"><i id="r-in"></i></div>
+        </div>
+      </div>
+
+      <div class="rcash"><i></i><b id="r-cash">0</b><span>CR</span></div>
+
+      <div class="rvol">
+        <button class="rvol-b" id="r-mute" type="button" aria-pressed="false"
+                aria-label="Couper la musique"><i></i><span>SON</span></button>
+        <input class="rvol-r" type="range" id="r-volr" min="0" max="100" step="1" value="35"
+               aria-label="Volume de la musique">
+        <output class="rvol-o" id="r-volv" for="r-volr">35</output>
+      </div>
+
+      <div class="ract">
+        <button class="rbtn" id="r-bfight" type="button"><b>COMBAT</b><small id="r-bfights">PRÊT</small></button>
+        <button class="rbtn alt" id="r-bup" type="button"><b>AMÉLIORER</b><small id="r-bups">0 PT</small></button>
+      </div>
+    </header>
+
+    <div class="rmain">
+
+      <!-- le vagabond -->
+      <section class="rcol c1">
+        <div class="rcol-h"><span>LE VAGABOND</span><em id="r-lvl">NIV 01</em></div>
+        <div class="rfig"><canvas id="r-body"></canvas><span class="rfig-tag" id="r-exotag">EXO — AUCUN</span></div>
+        <div class="rcol-b">
+          <div class="rattr" id="r-attrs"></div>
+          <div class="rslots" id="r-gear"></div>
+        </div>
+      </section>
+
+      <!-- la boutique -->
+      <section class="rcol c2">
+        <div class="rcol-h">
+          <span>BOUTIQUE <em>//</em> VOID GYM SUPPLY</span>
+          <span class="rshop-h">
+            <span class="rtagchip">RENOM <em id="r-rep">10</em></span>
+            <span class="rtagchip">STOCK <em id="r-stock">0</em></span>
+            <span class="rtagchip" id="r-clock">J01 08:00</span>
+          </span>
+        </div>
+        <div class="rcol-b"><div class="rgoods" id="r-goods"></div></div>
+        <div class="rcounter">
+          <canvas id="r-street"></canvas>
+          <span class="rcounter-t">PASSAGE <b id="r-clients">0</b> CLIENTS AUJOURD'HUI</span>
+        </div>
+      </section>
+
+      <!-- le registre -->
+      <section class="rcol c3">
+        <div class="rcol-h"><span>REGISTRE</span><em id="r-day">JOUR 01</em></div>
+        <div class="rcoach none" id="r-coachbox">
+          <div class="rcoach-f" id="r-coachf">—</div>
+          <div class="rcoach-t"><b id="r-coachn">AUCUN COACH</b><span id="r-coachd">Personne dans ton coin. Le ring est long, seul.</span></div>
+        </div>
+        <div class="rledger" id="r-ledger"></div>
+        <div class="rcol-b"><div class="rlog" id="r-log"></div></div>
+      </section>
+
+    </div>
+
+    <!-- ---- interface de combat (le tableau d'affichage est peint sur le fond) ---- -->
+    <div class="rfight" id="r-hud" hidden>
+      <div class="rf-top">
+        <div class="rf-side a">
+          <div class="rf-name"><b id="r-p1n">RŌNIN</b><em id="r-p1t"></em></div>
+          <div class="rf-hp"><i id="r-p1hp"></i></div>
+          <div class="rf-st"><i id="r-p1st"></i></div>
+          <div class="rf-dn" id="r-p1dn"></div>
+        </div>
+        <div class="rf-side b">
+          <div class="rf-name"><b id="r-p2n">—</b><em id="r-p2t"></em></div>
+          <div class="rf-hp"><i id="r-p2hp"></i></div>
+          <div class="rf-st"><i id="r-p2st"></i></div>
+          <div class="rf-dn" id="r-p2dn"></div>
+        </div>
+      </div>
+
+      <div class="rf-cue" id="r-cue" hidden><b id="r-cuet">ROUND 1</b><span id="r-cues"></span></div>
+
+      <div class="rf-bot">
+        <div class="rf-keys" aria-hidden="true">
+          <span class="kbd wide">Q D — PIEDS</span>
+          <span class="kbd wide">A — JAB</span>
+          <span class="kbd wide">E — DIRECT</span>
+          <span class="kbd wide">R — CROCHET</span>
+          <span class="kbd wide">S — GARDE</span>
+          <span class="kbd wide">Z — ESQUIVE</span>
+        </div>
+        <div class="rvol">
+          <button class="rvol-b" id="r-mute2" type="button" aria-pressed="false"
+                  aria-label="Couper la musique"><i></i><span>SON</span></button>
+          <input class="rvol-r" type="range" id="r-volr2" min="0" max="100" step="1" value="35"
+                 aria-label="Volume de la musique">
+          <output class="rvol-o" id="r-volv2" for="r-volr2">35</output>
+        </div>
+
+        <button class="rf-quit" id="r-quit" type="button">JETER L'ÉPONGE <s>//</s> ÉCHAP</button>
+      </div>
+    </div>
+
+    <!-- ---- amelioration du personnage ---- -->
+    <div class="gmodal" id="r-mup" hidden>
+      <div class="gpanel rpanel">
+        <div class="ghead">
+          <span>ATELIER DU CORPS</span>
+          <span class="resmini"><span><i style="--c:#FFC66B"></i><b id="r-upcash">0</b> CR</span><span><i style="--c:#FF4D00"></i><b id="r-uppts">0</b> PTS</span></span>
+          <button class="gx" id="r-mupx" type="button" aria-label="Fermer">&#10005;</button>
+        </div>
+        <div class="gbody">
+          <nav class="gtabs" id="r-tabs"></nav>
+          <div class="gmain"><div class="rtabbody" id="r-tabbody"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- carte des combats ---- -->
+    <div class="gmodal" id="r-mop" hidden>
+      <div class="gpanel rpanel">
+        <div class="ghead">
+          <span>CARTE DES COMBATS</span>
+          <span class="resmini"><span>ELO <b id="r-opelo">1000</b></span></span>
+          <button class="gx" id="r-mopx" type="button" aria-label="Fermer">&#10005;</button>
+        </div>
+        <div class="rtabbody" id="r-opbody"></div>
+      </div>
+    </div>
+
+    <!-- ---- decision ---- -->
+    <div class="gmodal" id="r-mend" hidden>
+      <div class="gpanel rend">
+        <div class="ghead"><span>DÉCISION</span><span id="r-endcard">—</span></div>
+        <div class="rend-b" id="r-endb"></div>
+        <button class="gbtn" id="r-endok" type="button">RETOUR À LA BOUTIQUE</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="stripes"></div>
+<footer class="footer">
+  <div class="cell">
+    <span>© 2026 VOIDBELT</span>
+    <nav class="sitenav" aria-label="Navigation du site">
+      <a href="/">ACCUEIL</a><s>//</s><a href="/arena/">ARÈNE</a>
+    </nav>
+  </div>
+  <div class="ticker"><div class="ticker-track" id="tick"></div></div>
+  <div class="cell">
+    <span class="rvol bare">
+      <button class="rvol-b" id="f-mute" type="button" aria-pressed="false"
+              aria-label="Couper la musique"><i></i><span>SON</span></button>
+      <input class="rvol-r" type="range" id="f-volr" min="0" max="100" step="1" value="35"
+             aria-label="Volume de la musique">
+      <output class="rvol-o" id="f-volv" for="f-volr">35</output>
+    </span>
+  </div>
+</footer>
+
+<div class="scan"></div>
+
+<!-- bande-son du ring -->
+<audio id="ringtrack" src="/shared/audio/loading.mp3" loop preload="none"></audio>
+
+<script src="/shared/js/util.js"></script>
+<script src="/shared/js/audio.js"></script>
+<script src="ring.js"></script>
+<script src="/shared/js/ticker.js"></script>
+</body>
+</html>
