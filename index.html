@@ -384,7 +384,8 @@ body.in-bout .ring{ padding:0 }
 .hint{
   font-size:var(--fs-xs); letter-spacing:.24em; text-transform:uppercase;
   color:var(--txt-2);
-  display:flex; align-items:center; gap:.9em; text-align:center;
+  display:flex; align-items:center; justify-content:center; flex-wrap:wrap;
+  gap:.9em; text-align:center;
 }
 .hint i{
   display:block; width:.6em; height:.6em; background:var(--cyan); font-style:normal;
@@ -1031,6 +1032,11 @@ body.in-bout .ring{ padding:0 }
 /* le voile de combat ne capte pas le pointeur : le reglage, lui, doit le faire */
 .rfight .rvol{ pointer-events:auto; background:rgba(10,10,11,.88) }
 
+/* variante nue, pour le pied de page qui a deja ses propres separateurs */
+.rvol.bare{ border:0; background:none; padding:0; gap:.7em }
+.footer .rvol-b, .footer .rvol-o{ font-size:1em; letter-spacing:.2em }
+.footer .rvol-r{ width:clamp(44px, 6vmin, 90px) }
+
 .ract{ display:flex; gap:.45em; flex:none; align-items:stretch }
 .rbtn{
   position:relative; min-width:8.6em;
@@ -1416,7 +1422,16 @@ body.in-bout .ring{ padding:0 }
       </dl>
     </section>
 
-    <div class="hint rise d4"><i></i><span>Appuyez sur <span class="kbd">Espace</span> pour intercepter une autre transmission</span></div>
+    <div class="hint rise d4">
+      <i></i><span>Appuyez sur <span class="kbd">Espace</span> pour intercepter une autre transmission</span>
+      <div class="rvol">
+        <button class="rvol-b" id="h-mute" type="button" aria-pressed="false"
+                aria-label="Couper la musique"><i></i><span>SON</span></button>
+        <input class="rvol-r" type="range" id="h-volr" min="0" max="100" step="1" value="25"
+               aria-label="Volume de la musique">
+        <output class="rvol-o" id="h-volv" for="h-volr">25</output>
+      </div>
+    </div>
 
     <div class="cue rise d4"><span>Défilez</span><s>&#9660;</s></div>
 
@@ -1795,6 +1810,13 @@ body.in-bout .ring{ padding:0 }
   <div class="cell">© 2026 VOIDBELT</div>
   <div class="ticker"><div class="ticker-track" id="tick"></div></div>
   <div class="cell">
+    <span class="rvol bare">
+      <button class="rvol-b" id="f-mute" type="button" aria-pressed="false"
+              aria-label="Couper la musique"><i></i><span>SON</span></button>
+      <input class="rvol-r" type="range" id="f-volr" min="0" max="100" step="1" value="25"
+             aria-label="Volume de la musique">
+      <output class="rvol-o" id="f-volv" for="f-volr">25</output>
+    </span>
     <span>DÉBRIS <b id="kills">00</b></span>
     <span>SÉQ <b id="seq">01/04</b></span>
   </div>
@@ -1807,6 +1829,9 @@ body.in-bout .ring{ padding:0 }
 
 <!-- bande-son du ring -->
 <audio id="ringtrack" src="loading.mp3" loop preload="none"></audio>
+
+<!-- bande-son des pages de presentation (accueil, convoi, chaine) -->
+<audio id="hometrack" src="loading.mp3" loop preload="none"></audio>
 
 <script>
 (function(){
@@ -3266,8 +3291,47 @@ function Track(id, key, def){
            setLevel: setLevel, toggle: toggle };
 }
 
+/* Une piste peut avoir plusieurs commandes a l'ecran (le bandeau et le
+   ring, le pied de page et l'accueil). Elles montrent toutes le meme
+   niveau et se remettent a jour ensemble. */
+function VolumeUI(track){
+  var ctl = [];
+
+  function sync(){
+    var lv = track.level(), i, c;
+    for (i = 0; i < ctl.length; i++){
+      c = ctl[i];
+      /* on ne repousse pas la valeur dans le curseur que l'on tire */
+      if (document.activeElement !== c.r) c.r.value = lv;
+      c.o.value = lv;
+      c.b.classList.toggle("off", lv === 0);
+      c.b.setAttribute("aria-pressed", lv === 0 ? "true" : "false");
+    }
+  }
+
+  function add(bId, rId, oId){
+    var b = document.getElementById(bId),
+        r = document.getElementById(rId),
+        o = document.getElementById(oId);
+    if (!b || !r || !o) return;
+    ctl.push({ b:b, r:r, o:o });
+    r.addEventListener("input", function(){
+      track.setLevel(parseInt(r.value, 10) || 0);
+      sync();
+    });
+    b.addEventListener("click", function(){ track.toggle(); sync(); });
+    sync();
+  }
+
+  return { add: add, sync: sync };
+}
+
 var Music     = Track("ko",        "voidbelt.volume",      30);
 var RingMusic = Track("ringtrack", "voidbelt.ring.volume", 35);
+var HomeMusic = Track("hometrack", "voidbelt.home.volume", 25);
+var HomeVol   = VolumeUI(HomeMusic);
+HomeVol.add("h-mute", "h-volr", "h-volv");
+HomeVol.add("f-mute", "f-volr", "f-volv");
 
 /* ============================================================
    2 quater — L'ARENE : page 04, sans un mot de texte
@@ -6531,39 +6595,15 @@ var Ring = (function(){
       F.a.rise++;
   }
 
-  /* --- bande-son : deux commandes (bandeau et ring), un seul niveau --- */
-
-  var volCtl = [];
-
-  function syncVol(){
-    var lv = RingMusic.level(), i, c;
-    for (i = 0; i < volCtl.length; i++){
-      c = volCtl[i];
-      /* on ne repousse pas la valeur dans le curseur que l'on tire */
-      if (document.activeElement !== c.r) c.r.value = lv;
-      c.o.value = lv;
-      c.b.classList.toggle("off", lv === 0);
-      c.b.setAttribute("aria-pressed", lv === 0 ? "true" : "false");
-    }
-  }
-
-  function wireVol(bId, rId, oId){
-    var b = el(bId), r = el(rId), o = el(oId);
-    if (!b || !r || !o) return;
-    volCtl.push({ b:b, r:r, o:o });
-    r.addEventListener("input", function(){
-      RingMusic.setLevel(parseInt(r.value, 10) || 0);
-      syncVol();
-    });
-    b.addEventListener("click", function(){ RingMusic.toggle(); syncVol(); });
-  }
+  /* la piste du ring et ses deux commandes : le bandeau de la boutique
+     disparait pendant le combat, celle du ring prend le relais. */
+  var ringVol = VolumeUI(RingMusic);
 
   /* --- souris --- */
 
   function wire(){
-    wireVol("r-mute",  "r-volr",  "r-volv");
-    wireVol("r-mute2", "r-volr2", "r-volv2");
-    syncVol();
+    ringVol.add("r-mute",  "r-volr",  "r-volv");
+    ringVol.add("r-mute2", "r-volr2", "r-volv2");
 
     el("r-bfight").addEventListener("click", function(){
       if (!ready()) return;
@@ -6649,7 +6689,7 @@ var Ring = (function(){
     RingMusic.set(v);
     if (v){
       last = performance.now();
-      syncVol();
+      ringVol.sync();
       sizeMinis();
       paintHead(); paintGoods();
       if (!raf) raf = requestAnimationFrame(loop);
@@ -6700,6 +6740,7 @@ Ring.init();
   var DUR = 560;
 
   seq.textContent = pad(cur + 1) + "/" + pad(pages.length);
+  HomeMusic.set(true);
 
   function atEdge(el, dir){
     if (dir > 0) return el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
@@ -6738,6 +6779,10 @@ Ring.init();
     Belt.setActive(cur === CHAIN);
     Arena.setActive(cur === ARENA);
     Ring.setActive(cur === RING);
+    /* la piste de presentation couvre les trois pages sans jeu : on ne
+       coupe le son qu'en entrant dans une arene ou sur le ring, qui ont
+       chacun le leur. */
+    HomeMusic.set(cur !== ARENA && cur !== RING);
 
     seq.textContent = pad(cur + 1) + "/" + pad(pages.length);
     setTimeout(function(){ busy = false; }, REDUCED ? 0 : DUR);
