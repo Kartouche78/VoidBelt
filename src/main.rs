@@ -40,7 +40,7 @@ async fn main() {
         .route("/api/transmissions", get(transmissions::list))
         .merge(shared)
         .nest_service("/arena", ServeDir::new("public/arena"))
-        .fallback_service(ServeDir::new("public/home"))
+        .fallback_service(ServeDir::new("public"))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http());
 
