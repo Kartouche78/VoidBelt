@@ -123,8 +123,8 @@ body{
 @keyframes slide{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
 
 /* ---------- reglage de la bande-son : bouton, curseur, valeur ----------
-   Present dans le pied de page des trois pages, dans l'encart de
-   l'accueil, et repris par le ring pour son propre bandeau. */
+   Present dans le pied de page des deux pages, et dans l'encart de
+   l'accueil. */
 
 .rvol{
   display:flex; align-items:center; gap:.5em; flex:none;

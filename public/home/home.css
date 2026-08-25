@@ -1,7 +1,7 @@
 /* ============================================================
    VOIDBELT — page d'accueil
    Champ d'asteroides interactif, logo reactif au curseur,
-   archive de repliques, et acces vers l'Arene et le Ring.
+   archive de repliques, et acces vers l'Arene.
    ============================================================ */
 
 @property --spot{ syntax:'<number>'; inherits:true; initial-value:0 }
@@ -271,7 +271,7 @@
 @keyframes blink{ 0%,70%{opacity:1} 71%,100%{opacity:.15} }
 .hint .kbd{ margin:0 .3em; vertical-align:middle }
 
-/* ---------- acces vers l'Arene et le Ring ---------- */
+/* ---------- acces vers l'Arene ---------- */
 
 .access{
   display:flex; flex-wrap:wrap; justify-content:center; gap:1em;
@@ -285,6 +285,9 @@
   text-decoration:none; color:var(--txt);
   transition:border-color .15s, background .15s, transform .15s;
 }
+/* une seule zone ouverte : la carte garde une largeur lisible plutot
+   que de s'etirer sur toute la rangee. */
+.access-card:only-child{ flex:0 1 30em }
 .access-card::after{
   content:""; position:absolute; inset:0; pointer-events:none;
   background:linear-gradient(115deg, transparent 40%, rgba(255,255,255,.07) 50%, transparent 60%);

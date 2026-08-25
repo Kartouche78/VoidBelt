@@ -235,7 +235,7 @@ var Field = (function(){
   }
 
   /* impulsion donnee au champ — au clic sur un rocher proche, et
-     juste avant de quitter la page vers l'Arene ou le Ring. */
+     juste avant de quitter la page vers l'Arene. */
   function warp(dir){
     warpT = 1;
     for (var i = 0; i < rocks.length; i++){
@@ -405,8 +405,8 @@ var Field = (function(){
 Field.init();
 
 /* ============================================================
-   3 — ACCES : depart en vitesse de distorsion vers l'Arene et
-   le Ring. Le champ d'asteroides souffle, puis la page change.
+   3 — ACCES : depart en vitesse de distorsion vers l'Arene.
+   Le champ d'asteroides souffle, puis la page change.
    ============================================================ */
 
 (function(){

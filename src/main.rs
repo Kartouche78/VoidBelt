@@ -1,6 +1,6 @@
 //! VOIDBELT — serveur du site.
 //!
-//! Sert les trois pages (accueil, arène, ring) et leurs ressources
+//! Sert les deux pages (accueil, arène) et leurs ressources
 //! partagées comme des fichiers statiques, et expose une petite API
 //! JSON pour le contenu qui n'a pas sa place dans le JavaScript — pour
 //! l'instant, l'archive de répliques affichée sur l'accueil.
@@ -40,7 +40,6 @@ async fn main() {
         .route("/api/transmissions", get(transmissions::list))
         .merge(shared)
         .nest_service("/arena", ServeDir::new("public/arena"))
-        .nest_service("/ring", ServeDir::new("public/ring"))
         .fallback_service(ServeDir::new("public/home"))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http());
