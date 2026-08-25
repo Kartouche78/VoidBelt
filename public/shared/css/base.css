@@ -45,7 +45,12 @@ body{
   position:relative;
   /* seuls les elements de contenu et de liens sont selectionnables */
   user-select:none;
+  transition:opacity .22s ease, transform .22s ease;
 }
+
+body.page-leaving{ opacity:0; pointer-events:none }
+body.page-leaving-next{ transform:translateY(-18px) }
+body.page-leaving-previous{ transform:translateY(18px) }
 
 .stage, .stripes, .footer{ min-width:0; max-width:100% }
 
@@ -187,6 +192,7 @@ body{
 @media (prefers-reduced-motion: reduce){
   *{ animation:none !important; transition:none !important }
   .rise{ opacity:1 !important; transform:none !important }
+  body.page-leaving{ transform:none !important }
 }
 
 /* ============================================================
