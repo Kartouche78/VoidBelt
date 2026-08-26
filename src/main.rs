@@ -1,17 +1,23 @@
 //! VOIDBELT — serveur du site.
 //!
-//! Sert les deux pages (accueil, arène) et leurs ressources
-//! partagées comme des fichiers statiques, et expose une petite API
-//! JSON pour le contenu qui n'a pas sa place dans le JavaScript — pour
-//! l'instant, l'archive de répliques affichée sur l'accueil.
+//! Sert les trois pages — accueil, arène, Velocity — et leurs
+//! ressources partagées comme des fichiers statiques, et expose une
+//! petite API JSON pour le contenu qui n'a pas sa place dans le
+//! JavaScript : l'archive de répliques de l'accueil et le classement
+//! de Velocity.
+//!
+//! Chaque page a son dossier sous `public/` (`home/`, `arena/`,
+//! `velocity/`) ; seul `public/index.html` reste à la racine, parce que
+//! c'est lui que sert `/`.
 
+mod leaderboard;
 mod transmissions;
 
-use axum::{http::HeaderValue, routing::get, Json, Router};
+use axum::{Json, Router, http::HeaderValue, routing::get};
 use std::net::SocketAddr;
 use tower_http::{
-    compression::CompressionLayer, services::ServeDir,
-    set_header::SetResponseHeaderLayer, trace::TraceLayer,
+    compression::CompressionLayer, services::ServeDir, set_header::SetResponseHeaderLayer,
+    trace::TraceLayer,
 };
 
 #[tokio::main]
@@ -38,8 +44,14 @@ async fn main() {
     let app = Router::new()
         .route("/api/health", get(health))
         .route("/api/transmissions", get(transmissions::list))
+        .route(
+            "/api/velocity/leaderboard",
+            get(leaderboard::list).post(leaderboard::submit),
+        )
         .merge(shared)
+        .nest_service("/home", ServeDir::new("public/home"))
         .nest_service("/arena", ServeDir::new("public/arena"))
+        .nest_service("/velocity", ServeDir::new("public/velocity"))
         .fallback_service(ServeDir::new("public"))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http());

@@ -67,6 +67,7 @@
       </div>
 
       <span><span class="kbd">Clic droit</span> atelier <s>//</s> <span class="kbd">ÉCHAP</span> réglages</span>
+      <span class="lockcue-nav"><i>&#9660;</i> Défilez vers le bas pour revenir à l'accueil</span>
     </div>
 
     <!-- choix de module a chaque niveau -->
@@ -111,6 +112,8 @@
     <span>© 2026 VOIDBELT</span>
     <nav class="sitenav" aria-label="Navigation du site">
       <a href="/">ACCUEIL</a>
+      <s>/</s>
+      <a href="/velocity/">VELOCITY</a>
     </nav>
   </div>
   <div class="ticker"><div class="ticker-track" id="tick"></div></div>
@@ -122,6 +125,7 @@
              aria-label="Volume de la musique">
       <output class="rvol-o" id="f-volv" for="f-volr">30</output>
     </span>
+    <span class="updown"><i>&#9660;</i> <b>ACCUEIL</b></span>
   </div>
 </footer>
 
@@ -134,6 +138,7 @@
 <script src="/shared/js/audio.js"></script>
 <script src="arena.js"></script>
 <script src="/shared/js/ticker.js"></script>
-<script src="/shared/js/page-scroll.js" data-previous="/"></script>
+<script src="/shared/js/page-scroll.js?v=3"
+        data-down="/" data-down-label="ACCUEIL"></script>
 </body>
 </html>

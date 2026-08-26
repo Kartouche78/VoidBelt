@@ -324,3 +324,17 @@
 @media (prefers-reduced-motion: reduce){
   .bg-parallax{ transition:none !important }
 }
+
+/* ---------- rappel du defilement entre les trois pages ---------- */
+
+.scrollcue{
+  display:flex; align-items:center; gap:1.4em; flex-wrap:wrap; justify-content:center;
+  font-size:var(--fs-xs); letter-spacing:.26em; text-transform:uppercase;
+  color:var(--txt-3); text-align:center;
+}
+.scrollcue span{ display:inline-flex; align-items:center; gap:.7em }
+.scrollcue b{ font-weight:400; color:var(--bone) }
+.scrollcue s{ width:1px; height:1.6em; background:var(--line); text-decoration:none }
+.scrollcue i{ font-style:normal; color:var(--orange); animation:cuebob 2.4s ease-in-out infinite }
+.scrollcue span:last-of-type i{ animation-delay:1.2s }
+@keyframes cuebob{ 0%,100%{ opacity:.45 } 50%{ opacity:1 } }

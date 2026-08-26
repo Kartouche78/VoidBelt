@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared/css/base.css">
-<link rel="stylesheet" href="home.css">
+<link rel="stylesheet" href="/home/home.css">
 </head>
 <body>
 
@@ -88,6 +88,12 @@
     </div>
 
     <nav class="access rise d5" aria-label="Zones de jeu">
+      <a class="access-card" href="/velocity/">
+        <span class="access-k">02</span>
+        <span class="access-t">Velocity</span>
+        <span class="access-d">Prototype de course 3D en cockpit. Maîtrisez la trajectoire, le boost et le chrono sur une planète hostile.</span>
+        <span class="access-go">COURIR &#9656;</span>
+      </a>
       <a class="access-card" href="/arena/">
         <span class="access-k">01</span>
         <span class="access-t">L'Arène</span>
@@ -95,6 +101,13 @@
         <span class="access-go">ENTRER &#9656;</span>
       </a>
     </nav>
+
+    <!-- les trois pages sont empilees : la molette passe de l'une a l'autre -->
+    <div class="scrollcue rise d5" aria-hidden="true">
+      <span><i>&#9650;</i> DÉFILEZ VERS LE HAUT <b>L'ARÈNE</b></span>
+      <s></s>
+      <span><i>&#9660;</i> DÉFILEZ VERS LE BAS <b>VELOCITY</b></span>
+    </div>
 
   </div>
 </div>
@@ -105,6 +118,8 @@
     <span>© 2026 VOIDBELT</span>
     <nav class="sitenav" aria-label="Navigation du site">
       <a href="/arena/">ARÈNE</a>
+      <s>/</s>
+      <a href="/velocity/">VELOCITY</a>
     </nav>
   </div>
   <div class="ticker"><div class="ticker-track" id="tick"></div></div>
@@ -116,6 +131,7 @@
              aria-label="Volume de la musique">
       <output class="rvol-o" id="f-volv" for="f-volr">25</output>
     </span>
+    <span class="updown"><i>&#9650;</i> <b>ARÈNE</b> <s>&#183;</s> <i>&#9660;</i> <b>VELOCITY</b></span>
     <span>DÉBRIS <b id="kills">00</b></span>
   </div>
 </footer>
@@ -126,8 +142,10 @@
 
 <script src="/shared/js/util.js"></script>
 <script src="/shared/js/audio.js"></script>
-<script src="home.js"></script>
+<script src="/home/home.js"></script>
 <script src="/shared/js/ticker.js"></script>
-<script src="/shared/js/page-scroll.js" data-next="/arena/"></script>
+<script src="/shared/js/page-scroll.js?v=3"
+        data-up="/arena/"    data-up-label="L'ARÈNE"
+        data-down="/velocity/" data-down-label="VELOCITY"></script>
 </body>
 </html>
