@@ -1260,7 +1260,7 @@ async function finish(now) {
    CLASSEMENT — le serveur d'abord, le navigateur en secours
    ============================================================ */
 
-const API = "/api/velocity/leaderboard";
+const API = "https://api.voidbelt.com/api/velocity/leaderboard";
 
 function localScores() {
   try { return JSON.parse(localStorage.getItem("velocity.scores") || "[]"); }

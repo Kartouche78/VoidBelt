@@ -13,11 +13,15 @@
 mod leaderboard;
 mod transmissions;
 
-use axum::{Json, Router, http::HeaderValue, routing::get};
+use axum::{
+    Json, Router,
+    http::{HeaderValue, Method, header},
+    routing::get,
+};
 use std::net::SocketAddr;
 use tower_http::{
-    compression::CompressionLayer, services::ServeDir, set_header::SetResponseHeaderLayer,
-    trace::TraceLayer,
+    compression::CompressionLayer, cors::CorsLayer, services::ServeDir,
+    set_header::SetResponseHeaderLayer, trace::TraceLayer,
 };
 
 #[tokio::main]
@@ -41,6 +45,11 @@ async fn main() {
             HeaderValue::from_static("public, max-age=86400"),
         ));
 
+    let cors = CorsLayer::new()
+        .allow_origin(HeaderValue::from_static("https://voidbelt.com"))
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([header::ACCEPT, header::CONTENT_TYPE]);
+
     let app = Router::new()
         .route("/api/health", get(health))
         .route("/api/transmissions", get(transmissions::list))
@@ -53,6 +62,7 @@ async fn main() {
         .nest_service("/arena", ServeDir::new("public/arena"))
         .nest_service("/velocity", ServeDir::new("public/velocity"))
         .fallback_service(ServeDir::new("public"))
+        .layer(cors)
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http());
 

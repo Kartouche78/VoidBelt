@@ -114,7 +114,7 @@ function boot(list){
   bootDecode();
 }
 
-fetch("/api/transmissions").then(function(r){
+fetch("https://api.voidbelt.com/api/transmissions").then(function(r){
   if (!r.ok) throw new Error("status " + r.status);
   return r.json();
 }).then(function(list){
