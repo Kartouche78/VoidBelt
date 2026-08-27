@@ -810,7 +810,7 @@ const BOOST_V = 179;       /* vitesse sous surtension        */
 const STEER_A = 82;        /* autorite de l'inclinaison      */
 const GRIP = 3.55;         /* rappel lateral                 */
 const CENT = .78;         /* part de la force centrifuge    */
-const LAPS = 3;
+const LAPS = 2;
 const WALL = HALF - 2.6;
 
 const drive = {
@@ -978,10 +978,13 @@ function moveCamera(dt) {
     camUp.copy(upv).applyAxisAngle(fwd, drive.roll * .85);
     camera.position.copy(camPos);
   } else {
-    camPos.copy(ship.position)
-      .addScaledVector(upv, 3.9 + push * .9)
-      .addScaledVector(fwd, -(11.4 + push * 3.6));
-    camAim.copy(ship.position).addScaledVector(fwd, 34).addScaledVector(upv, 2.2);
+    /* La poursuite reste ancree sur l'axe du circuit : elle ne recentre
+       plus artificiellement le vaisseau lorsqu'il se decale lateralement. */
+    const track = frameAt(drive.s);
+    camPos.copy(track.p)
+      .addScaledVector(track.u, 3.9 + push * .9)
+      .addScaledVector(track.t, -(11.4 + push * 3.6));
+    camAim.copy(track.p).addScaledVector(track.t, 34).addScaledVector(track.u, 2.2);
     camUp.copy(upv).applyAxisAngle(fwd, drive.roll * .5);
     camera.position.lerp(camPos, camReady ? 1 - Math.exp(-11 * dt) : 1);
   }
