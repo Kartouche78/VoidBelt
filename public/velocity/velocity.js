@@ -808,8 +808,7 @@ ship.add(shipLight);
 const MAX_V = 132;         /* vitesse de croisiere, m/s      */
 const BOOST_V = 179;       /* vitesse sous surtension        */
 const STEER_A = 82;        /* autorite de l'inclinaison      */
-const GRIP = 3.55;         /* rappel lateral                 */
-const CENT = .78;         /* part de la force centrifuge    */
+const GRIP = 3.55;         /* amortissement de la derive     */
 const LAPS = 2;
 const WALL = HALF - 2.6;
 
@@ -824,7 +823,7 @@ let state = "menu";        /* menu | count | race | done */
 let lap = 1, sector = 0;
 let raceStart = 0, lapStart = 0, sectorStart = 0, elapsed = 0;
 let lapTimes = [], bestLap = null, bestLapRef = null, splitRef = null;
-let curSplits = [], pilot = "";
+let curSplits = [], lastSplits = [], pilot = "";
 
 /* --- touches --- */
 const DEFAULTS = { throttle: "KeyW", brake: "KeyS", left: "KeyA", right: "KeyD", boost: "Space" };
@@ -866,10 +865,8 @@ function step(dt) {
   drive.v -= Math.abs(drive.vx) * .16 * dt;        /* penalite de derive */
   drive.v = clamp(drive.v, 0, 205);
 
-  /* ecart lateral : l'inclinaison contre la force centrifuge */
-  const f = frameAt(drive.s);
+  /* ecart lateral : seuls les ordres du pilote le modifient */
   drive.vx += steer * STEER_A * dt;
-  drive.vx += f.k * drive.v * drive.v * CENT * dt;
   drive.vx *= Math.exp(-GRIP * dt);
   drive.x += drive.vx * dt;
 
@@ -1096,6 +1093,7 @@ function progress(before, after) {
     if (bestLap == null || t < bestLap) { bestLap = t; splitRef = curSplits.slice(); }
     $("v-best").textContent = fmt(bestLap);
 
+    lastSplits = curSplits.slice();
     if (lap >= LAPS) { finish(now); return; }
     lap++;
     sector = 0; curSplits = [];
@@ -1126,8 +1124,9 @@ function closeSector(now) {
 function renderSplits() {
   let html = "";
   for (let i = 0; i < SECTORS; i++) {
-    const cls = curSplits[i] != null ? "done" : i === sector ? "on" : "";
-    html += `<div class="${cls}">S${i + 1} <b>${curSplits[i] != null ? fmt(curSplits[i]).slice(3) : "--.---"}</b></div>`;
+    const shown = curSplits[i] != null ? curSplits[i] : lastSplits[i];
+    const cls = curSplits[i] != null ? "done" : i === sector ? "on" : shown != null ? "done" : "";
+    html += `<div class="${cls}">S${i + 1} <b>${shown != null ? fmt(shown).slice(3) : "--.---"}</b></div>`;
   }
   $("v-splits").innerHTML = html;
 }
@@ -1183,7 +1182,7 @@ function reset() {
   clearInterval(countTimer);
   state = "count";
   navLock(true);
-  lap = 1; sector = 0; lapTimes = []; curSplits = [];
+  lap = 1; sector = 0; lapTimes = []; curSplits = []; lastSplits = [];
   bestLap = bestLapRef; splitRef = null;
   drive.s = 0; drive.x = 0; drive.v = 0; drive.vx = 0;
   drive.yaw = 0; drive.roll = 0; drive.pitch = 0;
