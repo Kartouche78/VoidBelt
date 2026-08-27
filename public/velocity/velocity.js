@@ -807,14 +807,14 @@ ship.add(shipLight);
 
 const MAX_V = 132;         /* vitesse de croisiere, m/s      */
 const BOOST_V = 179;       /* vitesse sous surtension        */
-const STEER_A = 82;        /* autorite de l'inclinaison      */
-const GRIP = 3.55;         /* amortissement de la derive     */
+const TURN_RATE = 1.18;    /* rotation commandee, rad/s      */
+const MAX_HEADING = 1.35;  /* garde une progression en piste */
 const LAPS = 2;
 const WALL = HALF - 2.6;
 
 const drive = {
   s: 0, x: 0, v: 0, vx: 0,
-  yaw: 0, roll: 0, pitch: 0,
+  heading: 0, yaw: 0, roll: 0, pitch: 0,
   boost: 100, boosting: false,
   shake: 0, top: 0, hits: 0, hitCool: 0, bob: 0
 };
@@ -843,6 +843,7 @@ try {
 
 const keys = Object.create(null);
 const held = (a) => !!keys[binds[a]] || ALIAS[a].some((c) => keys[c]);
+const motionForward = new THREE.Vector3();
 
 /* --- boucle de simulation --- */
 function step(dt) {
@@ -865,16 +866,24 @@ function step(dt) {
   drive.v -= Math.abs(drive.vx) * .16 * dt;        /* penalite de derive */
   drive.v = clamp(drive.v, 0, 205);
 
-  /* ecart lateral : seuls les ordres du pilote le modifient */
-  drive.vx += steer * STEER_A * dt;
-  drive.vx *= Math.exp(-GRIP * dt);
-  drive.x += drive.vx * dt;
+  /* cap libre : sans input, le vaisseau conserve sa direction dans
+     le monde au lieu d'epouser automatiquement la courbe du circuit. */
+  const track = frameAt(drive.s);
+  drive.heading = clamp(drive.heading + steer * TURN_RATE * dt, -MAX_HEADING, MAX_HEADING);
+  motionForward.copy(track.t).applyAxisAngle(track.u, -drive.heading).normalize();
+
+  const distance = racing ? drive.v * dt : 0;
+  const forwardStep = Math.max(0, motionForward.dot(track.t)) * distance;
+  drive.x += motionForward.dot(track.s) * distance;
+  drive.vx = motionForward.dot(track.s) * drive.v;
 
   /* murs d'energie */
   drive.hitCool = Math.max(0, drive.hitCool - dt);
   if (Math.abs(drive.x) > WALL) {
     drive.x = Math.sign(drive.x) * WALL;
+    drive.heading *= -.28;
     drive.vx *= -.28;
+    motionForward.copy(track.t).applyAxisAngle(track.u, -drive.heading).normalize();
     drive.v *= Math.exp(-1.5 * dt);              /* on rape le long du mur */
     drive.shake = .55;
     /* le choc franc ne coute cher qu'une fois, pas a chaque image */
@@ -897,22 +906,30 @@ function step(dt) {
     }
   }
 
-  /* avance sur le ruban, et passage des portes */
+  /* progression projetee sur la piste, sans guidage de la direction */
   if (racing) {
     const before = drive.s;
-    drive.s += drive.v * dt;
+    drive.s += forwardStep;
     progress(before, drive.s);
     if (drive.s >= LEN) drive.s -= LEN;
+
+    /* Le repere de la piste tourne sous le vaisseau. On recalcule
+       l'angle relatif pour conserver le meme cap dans le monde. */
+    const nextTrack = frameAt(drive.s);
+    drive.heading = clamp(
+      Math.atan2(motionForward.dot(nextTrack.s), motionForward.dot(nextTrack.t)),
+      -MAX_HEADING,
+      MAX_HEADING
+    );
   } else if (state === "count") {
     drive.v = Math.max(0, drive.v - 40 * dt);
   }
 
   drive.top = Math.max(drive.top, drive.v);
 
-  /* assiette visuelle : lacet issu de la derive, roulis du devers */
-  const slip = Math.atan2(drive.vx, Math.max(drive.v, 14));
-  drive.yaw += (clamp(slip * 1.15, -.5, .5) - drive.yaw) * (1 - Math.exp(-7 * dt));
-  const rollT = -steer * .3 - slip * .55;
+  /* assiette visuelle : elle represente le cap commande, sans le corriger */
+  drive.yaw += (drive.heading - drive.yaw) * (1 - Math.exp(-10 * dt));
+  const rollT = -steer * .3 - drive.heading * .18;
   drive.roll += (rollT - drive.roll) * (1 - Math.exp(-5.5 * dt));
   drive.pitch += ((brake ? .06 : throttle ? -.05 : 0) - drive.pitch) * (1 - Math.exp(-4 * dt));
   drive.bob += dt * (2.4 + drive.v * .045);
@@ -980,8 +997,8 @@ function moveCamera(dt) {
     const track = frameAt(drive.s);
     camPos.copy(track.p)
       .addScaledVector(track.u, 3.9 + push * .9)
-      .addScaledVector(track.t, -(11.4 + push * 3.6));
-    camAim.copy(track.p).addScaledVector(track.t, 34).addScaledVector(track.u, 2.2);
+      .addScaledVector(fwd, -(11.4 + push * 3.6));
+    camAim.copy(track.p).addScaledVector(fwd, 34).addScaledVector(track.u, 2.2);
     camUp.copy(upv).applyAxisAngle(fwd, drive.roll * .5);
     camera.position.lerp(camPos, camReady ? 1 - Math.exp(-11 * dt) : 1);
   }
@@ -1185,7 +1202,7 @@ function reset() {
   lap = 1; sector = 0; lapTimes = []; curSplits = []; lastSplits = [];
   bestLap = bestLapRef; splitRef = null;
   drive.s = 0; drive.x = 0; drive.v = 0; drive.vx = 0;
-  drive.yaw = 0; drive.roll = 0; drive.pitch = 0;
+  drive.heading = 0; drive.yaw = 0; drive.roll = 0; drive.pitch = 0;
   drive.boost = 100; drive.top = 0; drive.hits = 0; drive.shake = 0;
   camReady = false;
   PADS.forEach((p) => (p.cool = 0));
