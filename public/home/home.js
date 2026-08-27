@@ -465,7 +465,6 @@ Field.init();
 
 var HomeMusic = Track("hometrack", "voidbelt.home.volume", 25);
 var HomeVol = VolumeUI(HomeMusic);
-HomeVol.add("h-mute", "h-volr", "h-volv");
 HomeVol.add("f-mute", "f-volr", "f-volv");
 HomeMusic.set(true);
 
