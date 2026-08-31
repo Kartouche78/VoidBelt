@@ -61,6 +61,7 @@ async fn main() {
         .nest_service("/home", ServeDir::new("public/home"))
         .nest_service("/arena", ServeDir::new("public/arena"))
         .nest_service("/velocity", ServeDir::new("public/velocity"))
+        .nest_service("/skilltree", ServeDir::new("public/skilltree"))
         .fallback_service(ServeDir::new("public"))
         .layer(cors)
         .layer(CompressionLayer::new())

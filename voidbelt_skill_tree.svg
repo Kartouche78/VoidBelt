@@ -1,0 +1,573 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="1600"
+   height="900"
+   viewBox="0 0 1600 900"
+   fill="none"
+   version="1.1"
+   id="svg216"
+   sodipodi:docname="voidbelt_skill_tree.svg"
+   inkscape:version="1.2.2 (732a01da63, 2022-12-09)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview218"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     showgrid="false"
+     inkscape:zoom="0.799375"
+     inkscape:cx="788.11572"
+     inkscape:cy="450.35184"
+     inkscape:window-width="3072"
+     inkscape:window-height="1657"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg216" />
+  <defs
+     id="defs34">
+    <filter
+       id="softGlow"
+       x="-0.11637931"
+       y="-0.11637931"
+       width="1.2327586"
+       height="1.2327586">
+      <feGaussianBlur
+         stdDeviation="5"
+         result="blur"
+         id="feGaussianBlur2" />
+      <feMerge
+         id="feMerge8">
+        <feMergeNode
+           in="blur"
+           id="feMergeNode4" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode6" />
+      </feMerge>
+    </filter>
+    <filter
+       id="tinyGlow"
+       x="-inf"
+       y="-0.66000001"
+       width="inf"
+       height="2.32">
+      <feGaussianBlur
+         stdDeviation="2.2"
+         result="blur"
+         id="feGaussianBlur11" />
+      <feMerge
+         id="feMerge17">
+        <feMergeNode
+           in="blur"
+           id="feMergeNode13" />
+        <feMergeNode
+           in="SourceGraphic"
+           id="feMergeNode15" />
+      </feMerge>
+    </filter>
+    <linearGradient
+       id="activeStroke"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0%"
+         stop-color="#F2E7D5"
+         id="stop20" />
+      <stop
+         offset="50%"
+         stop-color="#FF7A3D"
+         id="stop22" />
+      <stop
+         offset="100%"
+         stop-color="#E9502C"
+         id="stop24" />
+    </linearGradient>
+    <linearGradient
+       id="nodeFill"
+       x1="0"
+       y1="0"
+       x2="1"
+       y2="1">
+      <stop
+         offset="0%"
+         stop-color="#1A1E20"
+         id="stop27" />
+      <stop
+         offset="100%"
+         stop-color="#0D1011"
+         id="stop29" />
+    </linearGradient>
+    <style
+       id="style32">
+      .arc { stroke:#73797B; stroke-width:1.5; opacity:.22; fill:none; }
+      .arc2 { stroke:#A4AAAC; stroke-width:1; opacity:.12; fill:none; stroke-dasharray:8 10; }
+      .line { stroke:#6F7476; stroke-width:2; opacity:.32; fill:none; }
+      .line-active { stroke:#FF6B3A; stroke-width:3; opacity:.95; fill:none; filter:url(#tinyGlow); }
+      .node-bg { fill:url(#nodeFill); stroke:#5C6264; stroke-width:2; }
+      .node-locked { fill:#111415; stroke:#454A4C; stroke-width:2; opacity:.72; }
+      .node-active { fill:#181A1B; stroke:url(#activeStroke); stroke-width:3; filter:url(#tinyGlow); }
+      .glyph { stroke:#D6D0C3; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; opacity:.9; }
+      .glyph-muted { stroke:#6D7274; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; opacity:.55; }
+      .dot { fill:#FF6B3A; filter:url(#tinyGlow); }
+    </style>
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#activeStroke"
+       id="linearGradient501"
+       x1="-65.930663"
+       y1="-65.930669"
+       x2="65.930669"
+       y2="65.930663"
+       gradientTransform="scale(0.6916357,1.4458479)"
+       gradientUnits="userSpaceOnUse" />
+    <linearGradient
+       inkscape:collect="always"
+       xlink:href="#nodeFill"
+       id="linearGradient503"
+       x1="-37"
+       y1="-37"
+       x2="37"
+       y2="37"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <!-- Transparent canvas: only the skill tree is drawn -->
+  <!-- Large architectural arcs -->
+  <path
+     class="arc"
+     d="M140 760 A660 660 0 0 1 1460 760"
+     id="path36" />
+  <path
+     class="arc"
+     d="M220 760 A580 580 0 0 1 1380 760"
+     id="path38" />
+  <path
+     class="arc2"
+     d="M300 760 A500 500 0 0 1 1300 760"
+     id="path40" />
+  <path
+     class="arc2"
+     d="M390 760 A410 410 0 0 1 1210 760"
+     id="path42" />
+  <!-- Main branches -->
+  <path
+     class="line-active"
+     d="M800 740 C800 675 800 620 800 555"
+     id="path44" />
+  <path
+     class="line"
+     d="M800 555 C880 520 945 480 1000 420"
+     id="path48" />
+  <path
+     class="line"
+     d="m 798.59918,566.6267 c -79.9999,-35 -144.99994,-75 -199.99994,-135"
+     id="path48-3"
+     style="opacity:0.32;fill:none;stroke:#6f7476;stroke-width:2" />
+  <!-- Left branch -->
+  <path
+     class="line"
+     d="M600 420 C520 430 445 455 370 500"
+     id="path52" />
+  <path
+     class="line"
+     d="M420 245 C365 220 320 205 275 195"
+     id="path54" />
+  <path
+     class="line"
+     d="M420 245 C450 185 490 145 540 120"
+     id="path56" />
+  <path
+     class="line"
+     d="M370 500 C300 520 245 555 205 610"
+     id="path58" />
+  <!-- Center branch -->
+  <path
+     class="line"
+     d="M800 310 C735 260 690 215 660 155"
+     id="path62" />
+  <path
+     class="line"
+     d="M800 310 C865 260 910 215 940 155"
+     id="path64" />
+  <path
+     class="line"
+     d="M800 310 C800 230 800 165 800 105"
+     id="path66" />
+  <!-- Right branch -->
+  <path
+     class="line"
+     d="M1000 420 C1080 370 1145 310 1180 245"
+     id="path68" />
+  <path
+     class="line"
+     d="m 616.97,436.33573 c -80,-50 -145,-110 -180,-175"
+     id="path68-0"
+     style="opacity:0.32;fill:none;stroke:#6f7476;stroke-width:2" />
+  <path
+     class="line"
+     d="M1000 420 C1080 430 1155 455 1230 500"
+     id="path70" />
+  <path
+     class="line"
+     d="M1180 245 C1235 220 1280 205 1325 195"
+     id="path72" />
+  <path
+     class="line"
+     d="M1180 245 C1150 185 1110 145 1060 120"
+     id="path74" />
+  <path
+     class="line"
+     d="M1230 500 C1300 520 1355 555 1395 610"
+     id="path76" />
+  <!-- Secondary inner links -->
+  <path
+     class="line"
+     d="M600 420 C650 360 720 335 800 310"
+     id="path78" />
+  <path
+     class="line"
+     d="M1000 420 C950 360 880 335 800 310"
+     id="path80" />
+  <path
+     class="line"
+     d="M420 245 C500 280 545 335 600 420"
+     id="path82" />
+  <path
+     class="line"
+     d="M1180 245 C1100 280 1055 335 1000 420"
+     id="path84" />
+  <!-- CENTRAL HUB -->
+  <g
+     transform="translate(800 750)"
+     id="g96">
+    <circle
+       r="74"
+       fill="#101314"
+       stroke="#6A7072"
+       stroke-width="2"
+       id="circle86" />
+    <circle
+       r="58"
+       fill="#151819"
+       stroke="#FF6B3A"
+       stroke-width="3"
+       filter="url(#softGlow)"
+       id="circle88" />
+    <path
+       class="glyph"
+       d="M-27 6 L0 -24 L27 6 L0 34 Z"
+       id="path90" />
+    <path
+       class="glyph"
+       d="M-14 4 L0 -10 L14 4 L0 18 Z"
+       id="path92" />
+    <circle
+       cx="0"
+       cy="4"
+       r="4"
+       class="dot"
+       id="circle94" />
+  </g>
+  <!-- Node helper: left -->
+  <g
+     transform="translate(600 420)"
+     id="g102">
+    <rect
+       x="-36"
+       y="-36"
+       width="72"
+       height="72"
+       rx="12"
+       class="node-active"
+       id="rect98" />
+    <path
+       class="glyph"
+       d="M-16 15 L0 -17 L16 15 M-10 5 H10 M0 -17 V20"
+       id="path100" />
+  </g>
+  <g
+     transform="translate(420 245)"
+     id="g108">
+    <rect
+       x="-34"
+       y="-34"
+       width="68"
+       height="68"
+       rx="11"
+       class="node-active"
+       id="rect104" />
+    <path
+       class="glyph"
+       d="M-17 12 L-4 -16 L8 -5 L18 -18 M-3 -3 L14 14"
+       id="path106" />
+  </g>
+  <g
+     transform="translate(370 500)"
+     id="g114">
+    <rect
+       x="-32"
+       y="-32"
+       width="64"
+       height="64"
+       rx="10"
+       class="node-bg"
+       id="rect110" />
+    <path
+       class="glyph-muted"
+       d="M-16 0 H16 M0 -16 V16 M-11 -11 L11 11 M11 -11 L-11 11"
+       id="path112" />
+  </g>
+  <g
+     transform="translate(275 195)"
+     id="g122">
+    <rect
+       x="-31"
+       y="-31"
+       width="62"
+       height="62"
+       rx="10"
+       class="node-locked"
+       id="rect116" />
+    <circle
+       r="15"
+       class="glyph-muted"
+       id="circle118" />
+    <path
+       class="glyph-muted"
+       d="M-9 0 H9"
+       id="path120" />
+  </g>
+  <g
+     transform="translate(540 120)"
+     id="g128">
+    <rect
+       x="-31"
+       y="-31"
+       width="62"
+       height="62"
+       rx="10"
+       class="node-locked"
+       id="rect124" />
+    <path
+       class="glyph-muted"
+       d="M-15 10 L0 -14 L15 10 M-10 10 H10"
+       id="path126" />
+  </g>
+  <g
+     transform="translate(205 610)"
+     id="g134">
+    <rect
+       x="-31"
+       y="-31"
+       width="62"
+       height="62"
+       rx="10"
+       class="node-locked"
+       id="rect130" />
+    <path
+       class="glyph-muted"
+       d="M-15 -8 H15 M-12 0 H12 M-8 8 H8"
+       id="path132" />
+  </g>
+  <!-- Center nodes -->
+  <g
+     transform="translate(805,553)"
+     id="g142">
+    <rect
+       x="-38"
+       y="-38"
+       width="76"
+       height="76"
+       rx="13"
+       class="node-active"
+       id="rect136"
+       style="stroke:url(#linearGradient501)" />
+    <path
+       class="glyph"
+       d="M -18,10 0,-18 18,10 0,20 Z"
+       id="path138" />
+    <circle
+       cx="0"
+       cy="2"
+       r="5"
+       class="dot"
+       id="circle140" />
+  </g>
+  <g
+     transform="translate(800 310)"
+     id="g148">
+    <rect
+       x="-35"
+       y="-35"
+       width="70"
+       height="70"
+       rx="12"
+       class="node-active"
+       id="rect144" />
+    <path
+       class="glyph"
+       d="M-17 13 L0 -16 L17 13 M-12 6 H12"
+       id="path146" />
+  </g>
+  <g
+     transform="translate(660 155)"
+     id="g154">
+    <rect
+       x="-31"
+       y="-31"
+       width="62"
+       height="62"
+       rx="10"
+       class="node-bg"
+       id="rect150" />
+    <path
+       class="glyph-muted"
+       d="M-12 12 L12 -12 M-12 -12 L12 12"
+       id="path152" />
+  </g>
+  <g
+     transform="translate(940 155)"
+     id="g160">
+    <rect
+       x="-31"
+       y="-31"
+       width="62"
+       height="62"
+       rx="10"
+       class="node-locked"
+       id="rect156" />
+    <path
+       class="glyph-muted"
+       d="M-14 8 Q0 -16 14 8 Q0 18 -14 8 Z"
+       id="path158" />
+  </g>
+  <g
+     transform="translate(800 105)"
+     id="g166">
+    <rect
+       x="-32"
+       y="-32"
+       width="64"
+       height="64"
+       rx="10"
+       class="node-locked"
+       id="rect162" />
+    <path
+       class="glyph-muted"
+       d="M0 -16 L13 -5 L8 13 L-8 13 L-13 -5 Z"
+       id="path164" />
+  </g>
+  <!-- Right nodes -->
+  <g
+     transform="translate(1000,414.5)"
+     id="g172">
+    <rect
+       x="-36"
+       y="-36"
+       width="72"
+       height="72"
+       rx="12"
+       class="node-bg"
+       id="rect168"
+       style="fill:url(#linearGradient503)" />
+    <path
+       class="glyph-muted"
+       d="M -16,-11 16,0 -16,11 Z"
+       id="path170" />
+  </g>
+  <g
+     transform="translate(1180 245)"
+     id="g178">
+    <rect
+       x="-34"
+       y="-34"
+       width="68"
+       height="68"
+       rx="11"
+       class="node-bg"
+       id="rect174" />
+    <path
+       class="glyph-muted"
+       d="M-17 0 H17 M8 -10 L17 0 L8 10"
+       id="path176" />
+  </g>
+  <g
+     transform="translate(1230 500)"
+     id="g184">
+    <rect
+       x="-32"
+       y="-32"
+       width="64"
+       height="64"
+       rx="10"
+       class="node-locked"
+       id="rect180" />
+    <path
+       class="glyph-muted"
+       d="M-14 -10 H14 V10 H-14 Z M-7 -16 V16 M7 -16 V16"
+       id="path182" />
+  </g>
+  <g
+     transform="translate(1325 195)"
+     id="g192">
+    <rect
+       x="-31"
+       y="-31"
+       width="62"
+       height="62"
+       rx="10"
+       class="node-locked"
+       id="rect186" />
+    <circle
+       r="15"
+       class="glyph-muted"
+       id="circle188" />
+    <path
+       class="glyph-muted"
+       d="M0 -10 V10 M-10 0 H10"
+       id="path190" />
+  </g>
+  <g
+     transform="translate(1060 120)"
+     id="g198">
+    <rect
+       x="-31"
+       y="-31"
+       width="62"
+       height="62"
+       rx="10"
+       class="node-locked"
+       id="rect194" />
+    <path
+       class="glyph-muted"
+       d="M-13 12 L0 -16 L13 12 Z"
+       id="path196" />
+  </g>
+  <g
+     transform="translate(1395 610)"
+     id="g204">
+    <rect
+       x="-31"
+       y="-31"
+       width="62"
+       height="62"
+       rx="10"
+       class="node-locked"
+       id="rect200" />
+    <path
+       class="glyph-muted"
+       d="M-14 8 Q0 -12 14 8 M-10 10 H10"
+       id="path202" />
+  </g>
+  <!-- Small progression dots -->
+</svg>

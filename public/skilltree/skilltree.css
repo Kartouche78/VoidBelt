@@ -1,0 +1,177 @@
+/* ============================================================
+   VOIDBELT — ARBRE DE COMPETENCES
+   Racine en bas, 20 paliers a debloquer vers le haut.
+   Un palier actif porte un halo orange sur son contour.
+   ============================================================ */
+
+.st{
+  display:flex; flex-direction:column; gap:clamp(6px,1vmin,14px);
+  padding:clamp(10px,1.6vmin,26px) clamp(40px,5vmin,90px) clamp(6px,1vmin,16px);
+  overflow:hidden;
+}
+
+/* ---------- en-tete ---------- */
+
+.st-head{ flex:0 0 auto; display:flex; flex-direction:column; gap:clamp(6px,1vmin,14px) }
+
+.eyebrow{
+  display:flex; align-items:center; gap:.9em;
+  font-size:var(--fs-xs); letter-spacing:.34em; text-transform:uppercase;
+  color:var(--txt-3); white-space:nowrap;
+}
+.eyebrow i{ display:block; width:4em; height:1px; background:var(--orange); font-style:normal }
+.eyebrow u{ text-decoration:none; color:var(--orange) }
+.eyebrow a{
+  color:var(--txt-2); text-decoration:none;
+  border-bottom:1px solid var(--line); padding-bottom:.15em;
+  transition:color .18s ease, border-color .18s ease;
+}
+.eyebrow a:hover, .eyebrow a:focus-visible{ color:var(--bone); border-color:var(--orange) }
+
+.st-bar{
+  display:flex; align-items:center; gap:clamp(12px,2.2vmin,34px);
+  border:1px solid var(--line); border-left:var(--edge) solid var(--orange);
+  padding:clamp(7px,1.1vmin,15px) clamp(12px,1.8vmin,24px);
+  background:rgba(20,20,22,.55);
+}
+
+.st-points{ display:flex; align-items:baseline; gap:.5em; font-size:var(--fs-sm); white-space:nowrap }
+.st-points .lbl{ font-size:var(--fs-xs); letter-spacing:.24em; color:var(--txt-3) }
+.st-points b{
+  font-family:'Archivo Black',system-ui,sans-serif; font-weight:400;
+  font-size:clamp(17px,2.3vmin,34px); line-height:1; color:var(--orange);
+  text-shadow:0 0 14px rgba(255,77,0,.55);
+}
+.st-points s{ text-decoration:none; color:var(--txt-3) }
+.st-points.st-right b{ color:var(--bone); text-shadow:none }
+
+.st-gauge{
+  flex:1 1 0; min-width:60px; height:6px;
+  border:1px solid var(--line); background:rgba(0,0,0,.5); position:relative; overflow:hidden;
+}
+.st-gauge i{
+  position:absolute; inset:0 auto 0 0; width:0%;
+  background:linear-gradient(90deg,#E9502C,#FF7A3D 60%,#F2E7D5);
+  box-shadow:0 0 12px rgba(255,107,58,.75);
+  transition:width .3s cubic-bezier(.2,.8,.2,1);
+}
+
+.st-acts{ display:flex; gap:.6em }
+.st-b{
+  font:inherit; font-size:var(--fs-xs); letter-spacing:.22em; text-transform:uppercase;
+  color:var(--bone); background:transparent; cursor:pointer;
+  border:1px solid var(--line); padding:.6em 1.1em;
+  transition:border-color .18s ease, color .18s ease, background .18s ease;
+}
+.st-b:hover, .st-b:focus-visible{ border-color:var(--orange); color:var(--orange) }
+.st-b.ghost{ color:var(--txt-3) }
+
+/* ---------- scene ---------- */
+
+.st-wrap{
+  flex:1 1 auto; min-height:0; position:relative;
+  display:grid; grid-template-columns:minmax(0,1fr) clamp(220px,22vw,340px);
+  gap:clamp(10px,1.6vmin,26px); align-items:stretch;
+}
+
+#tree{ width:100%; height:100%; display:block; overflow:visible; touch-action:manipulation }
+
+/* liaisons */
+.arc { stroke:#73797B; stroke-width:1.5; opacity:.22; fill:none }
+.arc2{ stroke:#A4AAAC; stroke-width:1; opacity:.12; fill:none; stroke-dasharray:8 10 }
+
+.link{ stroke:#6F7476; stroke-width:2; opacity:.30; fill:none; transition:stroke .25s ease, opacity .25s ease, stroke-width .25s ease }
+.link.reachable{ stroke:#A4AAAC; opacity:.5; stroke-dasharray:7 7; animation:flow 1.1s linear infinite }
+.link.on{ stroke:#FF6B3A; stroke-width:3.2; opacity:.95; filter:url(#tinyGlow) }
+@keyframes flow{ to{ stroke-dashoffset:-28 } }
+
+/* noeuds */
+.node{ cursor:default }
+.node .plate{ fill:#111415; stroke:#454A4C; stroke-width:2; opacity:.75; transition:opacity .2s ease, stroke .2s ease }
+.node .glyph{ stroke:#6D7274; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; fill:none; opacity:.5; transition:stroke .2s ease, opacity .2s ease }
+.node .halo{ opacity:0; pointer-events:none; fill:none;
+  transform-box:fill-box; transform-origin:center center }
+.node .cost{ fill:var(--txt-3); font-family:'Space Mono',monospace; font-size:15px; text-anchor:middle; opacity:0; transition:opacity .2s ease }
+
+/* atteignable : on peut le debloquer */
+.node.reachable{ cursor:pointer }
+.node.reachable .plate{ fill:url(#nodeFill); stroke:#8D9497; opacity:1; stroke-dasharray:6 5; animation:pulse 1.6s ease-in-out infinite }
+.node.reachable .glyph{ stroke:#D6D0C3; opacity:.85 }
+.node.reachable .cost{ opacity:.9 }
+@keyframes pulse{ 50%{ stroke:#FF7A3D } }
+
+/* pas assez de points */
+.node.reachable.broke .plate{ animation:none; stroke:#5C6264 }
+.node.reachable.broke{ cursor:not-allowed }
+
+/* DEBLOQUE : halo orange flashy sur le contour */
+.node.on{ cursor:pointer }
+.node.on .plate{
+  fill:#181A1B; stroke:url(#activeStroke); stroke-width:3.4; opacity:1;
+  stroke-dasharray:none; animation:none; filter:url(#hotGlow);
+}
+.node.on .glyph{ stroke:#F2E7D5; opacity:1 }
+.node.on .halo{ opacity:1; stroke:#FF6B3A; fill:none; stroke-width:2.5; filter:url(#softGlow); animation:breathe 2.4s ease-in-out infinite }
+.node.on .cost{ opacity:0 }
+@keyframes breathe{ 0%,100%{ opacity:.85; stroke-width:2.5 } 50%{ opacity:.35; stroke-width:5 } }
+
+.node.just .halo{ animation:burst .6s cubic-bezier(.2,.8,.2,1) 1, breathe 2.4s ease-in-out .6s infinite }
+@keyframes burst{ from{ opacity:1; stroke-width:10; transform:scale(.82) } to{ opacity:.85; stroke-width:2.5; transform:scale(1) } }
+
+.node:hover .plate, .node.sel .plate{ stroke:#F2E7D5 }
+.node.sel .plate{ stroke-width:3.6 }
+
+/* noeud racine (toujours actif) */
+.node.root .plate{ filter:url(#softGlow) }
+
+/* ---------- panneau d'info ---------- */
+
+.st-info{
+  min-width:0; align-self:start;
+  border:1px solid var(--line); border-top:var(--edge) solid var(--orange);
+  background:rgba(16,19,20,.72); backdrop-filter:blur(2px);
+  padding:clamp(11px,1.6vmin,22px);
+  display:flex; flex-direction:column; gap:.7em;
+}
+.i-top{ display:flex; justify-content:space-between; gap:1em; font-size:var(--fs-xs); letter-spacing:.24em; color:var(--txt-3) }
+.i-state{ color:var(--orange) }
+.i-state.locked{ color:var(--txt-3) }
+.i-state.ready{ color:var(--cyan) }
+.i-name{
+  font-family:'Archivo Black',system-ui,sans-serif; font-weight:400;
+  font-size:clamp(15px,2vmin,28px); line-height:1.15; letter-spacing:.02em; color:var(--bone);
+  text-transform:uppercase;
+}
+.i-desc{ font-size:var(--fs-sm); color:var(--txt-2); line-height:1.6; user-select:text }
+.i-desc b{ color:var(--bone); font-weight:400 }
+.i-req{ font-size:var(--fs-xs); letter-spacing:.14em; color:var(--txt-3); border-top:1px solid var(--line); padding-top:.7em }
+.i-req b{ color:var(--orange); font-weight:400 }
+
+/* ---------- pied de scene ---------- */
+
+.st-hint{
+  flex:0 0 auto; display:flex; align-items:center; gap:.8em;
+  font-size:var(--fs-xs); letter-spacing:.2em; text-transform:uppercase; color:var(--txt-3);
+}
+.st-hint i{ display:block; width:3em; height:1px; background:var(--orange) }
+
+/* ---------- compact ---------- */
+
+@media (max-width:1000px), (max-height:620px){
+  .st{ padding-inline:clamp(20px,3vmin,44px) }
+  .st-wrap{ grid-template-columns:minmax(0,1fr) }
+  .st-info{
+    position:absolute; right:0; bottom:0; z-index:5;
+    width:min(320px,72vw); align-self:end;
+  }
+  .st-points .lbl{ display:none }
+}
+@media (max-width:700px){
+  .st-bar{ flex-wrap:wrap; gap:.8em }
+  .st-gauge{ order:5; flex-basis:100% }
+  .st-hint{ display:none }
+}
+@media (prefers-reduced-motion:reduce){
+  .node.on .halo, .node.reachable .plate, .link.reachable, .node.just .halo{ animation:none }
+  .node.on .halo{ opacity:.8 }
+}
