@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JUMP'N BUMP // VOIDBELT</title>
+<meta name="description" content="Quatre lapins, une falaise, un bassin et un trampoline. Sautez sur la tete des autres.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230A0A0B'/%3E%3Crect x='9' y='4' width='4' height='9' fill='%23EDE7DA'/%3E%3Crect x='19' y='4' width='4' height='9' fill='%23EDE7DA'/%3E%3Crect x='7' y='12' width='18' height='15' rx='7' fill='%23EDE7DA'/%3E%3Crect x='12' y='17' width='3' height='4' fill='%230A0A0B'/%3E%3Crect x='18' y='17' width='3' height='4' fill='%230A0A0B'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared/css/base.css">
+<link rel="stylesheet" href="/jumpnbump/jumpnbump.css">
+</head>
+<body class="jnb">
+
+<div class="jnb-stage">
+  <div class="jnb-frame">
+    <canvas id="stage" aria-label="Arene Jump'n Bump"></canvas>
+  </div>
+
+  <!-- ---------------- ecran 1 : le prenom ---------------- -->
+  <section class="panel" id="screen-name">
+    <div class="panel-in">
+      <p class="eyebrow"><i></i><span>SECTEUR 07</span><u>//</u><span>ENCLOS DES LAPINS</span><i></i></p>
+      <h1 class="title">JUMP'N<span>BUMP</span></h1>
+      <p class="lead">Quatre lapins sur une falaise flottante. On saute sur la tete des
+        autres, on marque un point, on reapparait ailleurs. C'est tout, et c'est deja
+        beaucoup.</p>
+      <form class="row" id="form-name">
+        <input id="f-name" type="text" maxlength="14" placeholder="Votre prenom"
+               autocomplete="off" spellcheck="false" aria-label="Votre prenom">
+        <button class="btn primary" type="submit">ENTRER &#9656;</button>
+      </form>
+      <p class="hint" id="name-hint">Deplacements <b>Q</b> <b>D</b>, saut <b>Z</b>,
+        plongeon <b>S</b> &mdash; modifiable avec <b>Echap</b>.</p>
+      <a class="back" href="/">&#8592; retour a VOIDBELT</a>
+    </div>
+  </section>
+
+  <!-- ---------------- ecran 2 : le hall ---------------- -->
+  <section class="panel hidden" id="screen-hall">
+    <div class="panel-in wide">
+      <p class="eyebrow"><i></i><span>HALL</span><u>//</u><span id="hall-who">&mdash;</span><i></i></p>
+      <h2 class="title small">SALONS OUVERTS</h2>
+
+      <div class="rooms" id="rooms"><p class="empty">Recherche des salons&hellip;</p></div>
+
+      <div class="row wrap">
+        <button class="btn primary" id="b-create" type="button">CREER UN SALON</button>
+        <form class="row join" id="form-join">
+          <input id="f-code" type="text" maxlength="4" placeholder="CODE"
+                 autocomplete="off" spellcheck="false" aria-label="Code du salon">
+          <button class="btn" type="submit">REJOINDRE</button>
+        </form>
+        <button class="btn ghost" id="b-solo" type="button">ENTRAINEMENT SOLO</button>
+      </div>
+      <p class="hint">L'entrainement se joue hors ligne, contre trois lapins pilotes
+        par la machine.</p>
+      <button class="back as-btn" id="b-hall-back" type="button">&#8592; changer de prenom</button>
+    </div>
+  </section>
+
+  <!-- ---------------- ecran 3 : le salon ---------------- -->
+  <section class="panel hidden" id="screen-room">
+    <div class="panel-in wide">
+      <p class="eyebrow"><i></i><span>SALON</span><u>//</u><span class="code" id="room-code">&mdash;</span><i></i></p>
+      <h2 class="title small">CHOISISSEZ VOTRE PELAGE</h2>
+
+      <div class="colors" id="colors"></div>
+      <div class="slots" id="slots"></div>
+
+      <div class="row wrap">
+        <label class="target" for="f-target">PREMIER A
+          <input id="f-target" type="number" min="3" max="99" value="15" disabled>
+          POINTS</label>
+        <button class="btn" id="b-ready" type="button">JE SUIS PRET</button>
+        <button class="btn primary hidden" id="b-start" type="button">LANCER LA PARTIE &#9656;</button>
+      </div>
+      <p class="hint" id="room-hint">&nbsp;</p>
+      <button class="back as-btn" id="b-leave" type="button">&#8592; quitter le salon</button>
+    </div>
+  </section>
+
+  <!-- ---------------- reglages (Echap) ---------------- -->
+  <section class="panel modal hidden" id="screen-options">
+    <div class="panel-in">
+      <h2 class="title small">REGLAGES</h2>
+      <ul class="binds" id="binds"></ul>
+      <div class="row wrap">
+        <label class="target" for="f-vol">SON
+          <input id="f-vol" type="range" min="0" max="100" step="1" value="50">
+          <output id="vol-out">50</output>
+        </label>
+        <button class="btn ghost" id="b-reset-keys" type="button">TOUCHES PAR DEFAUT</button>
+      </div>
+      <div class="row wrap">
+        <button class="btn primary" id="b-resume" type="button">REPRENDRE</button>
+        <button class="btn ghost" id="b-quit" type="button">QUITTER LA PARTIE</button>
+      </div>
+      <p class="hint">Cliquez sur une touche pour la reassigner.</p>
+    </div>
+  </section>
+
+  <p class="toast hidden" id="toast"></p>
+  <p class="tip hidden" id="tip">
+    <b>Echap</b> reglages &middot; sautez sur la caisse pour etre propulse &middot;
+    l'eau ralentit, la glace derape
+  </p>
+</div>
+
+<script src="/jumpnbump/game.js"></script>
+<script src="/jumpnbump/net.js"></script>
+</body>
+</html>

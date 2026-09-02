@@ -9,7 +9,11 @@
 //! Chaque page a son dossier sous `public/` (`home/`, `arena/`,
 //! `velocity/`) ; seul `public/index.html` reste à la racine, parce que
 //! c'est lui que sert `/`.
+//!
+//! Jump'n Bump ajoute la seule brique vraiment vivante du serveur : un
+//! relais WebSocket qui tient les salons de quatre lapins.
 
+mod jumpnbump;
 mod leaderboard;
 mod transmissions;
 
@@ -45,6 +49,13 @@ async fn main() {
             HeaderValue::from_static("public, max-age=86400"),
         ));
 
+    // Les salons vivent en mémoire : le routeur qui les expose porte
+    // son propre état, fusionné ensuite dans le routeur principal.
+    let jnb = Router::new()
+        .route("/api/jnb/rooms", get(jumpnbump::rooms))
+        .route("/api/jnb/ws", get(jumpnbump::ws))
+        .with_state(jumpnbump::Hub::new());
+
     let cors = CorsLayer::new()
         .allow_origin(HeaderValue::from_static("https://voidbelt.com"))
         .allow_methods([Method::GET, Method::POST])
@@ -58,10 +69,12 @@ async fn main() {
             get(leaderboard::list).post(leaderboard::submit),
         )
         .merge(shared)
+        .merge(jnb)
         .nest_service("/home", ServeDir::new("public/home"))
         .nest_service("/arena", ServeDir::new("public/arena"))
         .nest_service("/velocity", ServeDir::new("public/velocity"))
         .nest_service("/skilltree", ServeDir::new("public/skilltree"))
+        .nest_service("/jumpnbump", ServeDir::new("public/jumpnbump"))
         .fallback_service(ServeDir::new("public"))
         .layer(cors)
         .layer(CompressionLayer::new())

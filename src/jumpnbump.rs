@@ -1,0 +1,425 @@
+//! Jump'n Bump — salons et relais temps réel.
+//!
+//! Le serveur ne simule rien : chaque client fait tourner sa propre
+//! physique et diffuse la position de son lapin. Le serveur tient la
+//! liste des salons, arbitre les sauts mortels (un seul tueur par vie)
+//! et compte les points. Ça suffit pour quatre lapins et ça évite
+//! d'embarquer le masque de collision côté serveur.
+
+use axum::{
+    Json,
+    extract::{
+        Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
+    response::Response,
+};
+use serde::Deserialize;
+use serde_json::{Value, json};
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU32, Ordering},
+    },
+};
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+
+/// Quatre lapins, comme dans le jeu d'origine.
+pub const MAX_PLAYERS: usize = 4;
+/// Huit pelages dans `lapin.png`, un seul par salon.
+const COLORS: u8 = 8;
+
+#[derive(Clone, Copy, PartialEq)]
+enum Phase {
+    Lobby,
+    Playing,
+    Over,
+}
+
+impl Phase {
+    fn as_str(self) -> &'static str {
+        match self {
+            Phase::Lobby => "lobby",
+            Phase::Playing => "playing",
+            Phase::Over => "over",
+        }
+    }
+}
+
+struct Player {
+    id: u32,
+    name: String,
+    color: u8,
+    ready: bool,
+    score: u32,
+    /// Numéro de vie : sert à ne compter qu'un tueur par mort, même si
+    /// deux lapins atterrissent sur la même tête dans la même image.
+    life: u32,
+    alive: bool,
+    tx: UnboundedSender<String>,
+}
+
+impl Player {
+    fn public(&self) -> Value {
+        json!({
+            "id": self.id,
+            "name": self.name,
+            "color": self.color,
+            "ready": self.ready,
+            "score": self.score,
+            "life": self.life,
+            "alive": self.alive,
+        })
+    }
+}
+
+struct Room {
+    players: Vec<Player>,
+    host: u32,
+    phase: Phase,
+    target: u32,
+}
+
+impl Room {
+    fn new() -> Self {
+        Room {
+            players: Vec::new(),
+            host: 0,
+            phase: Phase::Lobby,
+            target: 15,
+        }
+    }
+
+    fn find(&self, id: u32) -> Option<usize> {
+        self.players.iter().position(|p| p.id == id)
+    }
+
+    fn free_color(&self) -> u8 {
+        (0..COLORS)
+            .find(|c| !self.players.iter().any(|p| p.color == *c))
+            .unwrap_or(0)
+    }
+
+    fn send_all(&self, msg: &Value) {
+        let text = msg.to_string();
+        for p in &self.players {
+            let _ = p.tx.send(text.clone());
+        }
+    }
+
+    fn send_others(&self, from: u32, text: &str) {
+        for p in &self.players {
+            if p.id != from {
+                let _ = p.tx.send(text.to_string());
+            }
+        }
+    }
+
+    fn lobby_state(&self) -> Value {
+        json!({
+            "t": "lobby",
+            "host": self.host,
+            "phase": self.phase.as_str(),
+            "target": self.target,
+            "players": self.players.iter().map(|p| p.public()).collect::<Vec<_>>(),
+        })
+    }
+}
+
+pub struct Hub {
+    rooms: Mutex<HashMap<String, Room>>,
+    next_id: AtomicU32,
+}
+
+impl Hub {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Hub {
+            rooms: Mutex::new(HashMap::new()),
+            next_id: AtomicU32::new(1),
+        })
+    }
+}
+
+/// `GET /api/jnb/rooms` — de quoi peupler la liste des salons ouverts.
+pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
+    let rooms = hub.rooms.lock().expect("hub empoisonné");
+    let mut list: Vec<Value> = rooms
+        .iter()
+        .filter(|(_, r)| !r.players.is_empty())
+        .map(|(code, r)| {
+            json!({
+                "code": code,
+                "phase": r.phase.as_str(),
+                "target": r.target,
+                "players": r.players.iter().map(|p| p.name.clone()).collect::<Vec<_>>(),
+                "max": MAX_PLAYERS,
+            })
+        })
+        .collect();
+    list.sort_by(|a, b| a["code"].as_str().cmp(&b["code"].as_str()));
+    Json(Value::Array(list))
+}
+
+#[derive(Deserialize)]
+pub struct JoinParams {
+    /// Code du salon ; vide ou absent, le serveur en crée un.
+    #[serde(default)]
+    room: String,
+    #[serde(default)]
+    name: String,
+}
+
+pub async fn ws(
+    upgrade: WebSocketUpgrade,
+    Query(params): Query<JoinParams>,
+    State(hub): State<Arc<Hub>>,
+) -> Response {
+    upgrade.on_upgrade(move |socket| session(socket, params, hub))
+}
+
+/// Un code de salon lisible à l'oral : quatre lettres, sans I ni O.
+fn make_code(seed: u32) -> String {
+    const A: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ";
+    let mut n = seed.wrapping_mul(2_654_435_761).wrapping_add(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0),
+    );
+    let mut out = String::with_capacity(4);
+    for _ in 0..4 {
+        out.push(A[(n % A.len() as u32) as usize] as char);
+        n /= A.len() as u32;
+    }
+    out
+}
+
+fn clean_name(raw: &str) -> String {
+    let kept: String = raw
+        .trim()
+        .chars()
+        .filter(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '\''))
+        .take(14)
+        .collect();
+    let kept = kept.trim().to_string();
+    if kept.is_empty() {
+        "Lapin".to_string()
+    } else {
+        kept
+    }
+}
+
+async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
+    // Chaque joueur a une file d'envoi : les autres sessions y déposent
+    // du texte sans jamais attendre le réseau d'en face, et la boucle
+    // ci-dessous alterne entre vider cette file et lire la socket.
+    let (tx, mut rx) = unbounded_channel::<String>();
+
+    let id = hub.next_id.fetch_add(1, Ordering::Relaxed);
+    let name = clean_name(&params.name);
+
+    // Entrée dans le salon (créé à la volée si le code est libre).
+    // Tout se joue sous le verrou, sans le moindre `await` : le garde
+    // du Mutex ne doit jamais traverser un point d'attente.
+    let joined = {
+        let mut rooms = hub.rooms.lock().expect("hub empoisonné");
+        let requested = params.room.trim().to_uppercase();
+        let code = if requested.is_empty() {
+            let mut c = make_code(id);
+            let mut tries = 0u32;
+            while rooms.contains_key(&c) {
+                tries += 1;
+                c = make_code(id.wrapping_add(tries.wrapping_mul(31)));
+            }
+            c
+        } else {
+            requested
+        };
+
+        let room = rooms.entry(code.clone()).or_insert_with(Room::new);
+        if room.players.len() >= MAX_PLAYERS {
+            None
+        } else {
+            let color = room.free_color();
+            if room.players.is_empty() {
+                room.host = id;
+            }
+            room.players.push(Player {
+                id,
+                name: name.clone(),
+                color,
+                ready: false,
+                score: 0,
+                // Une partie déjà lancée accueille le retardataire tout
+                // de suite : il entre en jeu à son prochain `respawn`.
+                life: 0,
+                alive: room.phase != Phase::Playing,
+                tx: tx.clone(),
+            });
+            let _ = tx.send(
+                json!({ "t": "joined", "id": id, "room": code, "max": MAX_PLAYERS }).to_string(),
+            );
+            room.send_all(&room.lobby_state());
+            Some(code)
+        }
+    };
+
+    let Some(code) = joined else {
+        let _ = socket
+            .send(Message::Text(
+                json!({ "t": "error", "m": "Ce salon est complet." })
+                    .to_string()
+                    .into(),
+            ))
+            .await;
+        return;
+    };
+
+    'session: loop {
+        let text = tokio::select! {
+            // Sortie : ce que les autres salons ont écrit pour ce joueur.
+            queued = rx.recv() => {
+                match queued {
+                    Some(out) => {
+                        if socket.send(Message::Text(out.into())).await.is_err() {
+                            break 'session;
+                        }
+                        continue 'session;
+                    }
+                    None => break 'session,
+                }
+            }
+            // Entrée : ce que ce joueur nous envoie.
+            incoming = socket.recv() => {
+                match incoming {
+                    Some(Ok(Message::Text(t))) => t.to_string(),
+                    Some(Ok(Message::Close(_))) | None => break 'session,
+                    Some(Ok(_)) => continue 'session,
+                    Some(Err(_)) => break 'session,
+                }
+            }
+        };
+        let Ok(v) = serde_json::from_str::<Value>(&text) else {
+            continue;
+        };
+        let mut rooms = hub.rooms.lock().expect("hub empoisonné");
+        let Some(room) = rooms.get_mut(&code) else {
+            break 'session;
+        };
+        let Some(me) = room.find(id) else {
+            break 'session;
+        };
+
+        match v["t"].as_str().unwrap_or("") {
+            // Position d'un lapin : relayée telle quelle aux voisins.
+            "s" => {
+                let out = json!({
+                    "t": "s", "i": id,
+                    "x": v["x"], "y": v["y"], "vx": v["vx"], "vy": v["vy"],
+                    "f": v["f"], "a": v["a"], "st": v["st"],
+                })
+                .to_string();
+                room.send_others(id, &out);
+            }
+            "color" => {
+                let c = v["c"].as_u64().unwrap_or(0) as u8;
+                let taken = room.players.iter().any(|p| p.id != id && p.color == c);
+                if c < COLORS && !taken {
+                    room.players[me].color = c;
+                    room.send_all(&room.lobby_state());
+                }
+            }
+            "ready" => {
+                room.players[me].ready = v["v"].as_bool().unwrap_or(false);
+                room.send_all(&room.lobby_state());
+            }
+            "target" => {
+                if room.host == id {
+                    room.target = v["n"].as_u64().unwrap_or(15).clamp(3, 99) as u32;
+                    room.send_all(&room.lobby_state());
+                }
+            }
+            "start" => {
+                if room.host == id {
+                    room.phase = Phase::Playing;
+                    for p in &mut room.players {
+                        p.score = 0;
+                        p.life = 0;
+                        p.alive = true;
+                        p.ready = false;
+                    }
+                    room.send_all(&json!({ "t": "start", "target": room.target }));
+                    room.send_all(&room.lobby_state());
+                }
+            }
+            "back" => {
+                if room.host == id {
+                    room.phase = Phase::Lobby;
+                    for p in &mut room.players {
+                        p.ready = false;
+                    }
+                    room.send_all(&json!({ "t": "back" }));
+                    room.send_all(&room.lobby_state());
+                }
+            }
+            // « J'ai sauté sur la tête de V, qui en était à sa vie L. »
+            // Le numéro de vie fait office de jeton : la deuxième
+            // réclamation pour la même mort tombe à l'eau.
+            "k" => {
+                let victim = v["v"].as_u64().unwrap_or(0) as u32;
+                let life = v["l"].as_u64().unwrap_or(0) as u32;
+                if room.phase != Phase::Playing || victim == id {
+                    continue;
+                }
+                let Some(vi) = room.find(victim) else {
+                    continue;
+                };
+                if !room.players[vi].alive || room.players[vi].life != life {
+                    continue;
+                }
+                room.players[vi].alive = false;
+                room.players[me].score += 1;
+                let score = room.players[me].score;
+                room.send_all(&json!({
+                    "t": "k", "k": id, "v": victim, "l": life, "s": score,
+                }));
+                if score >= room.target {
+                    room.phase = Phase::Over;
+                    room.send_all(&json!({ "t": "over", "w": id }));
+                    room.send_all(&room.lobby_state());
+                }
+            }
+            "r" => {
+                room.players[me].alive = true;
+                room.players[me].life += 1;
+                let life = room.players[me].life;
+                room.send_all(&json!({
+                    "t": "r", "i": id, "x": v["x"], "y": v["y"], "l": life,
+                }));
+            }
+            "ping" => {
+                let _ = room.players[me].tx.send(json!({ "t": "pong" }).to_string());
+            }
+            _ => {}
+        }
+    }
+
+    // Sortie : on retire le lapin, on repasse l'hôte au suivant, et on
+    // efface le salon s'il ne reste personne.
+    {
+        let mut rooms = hub.rooms.lock().expect("hub empoisonné");
+        if let Some(room) = rooms.get_mut(&code) {
+            room.players.retain(|p| p.id != id);
+            if room.players.is_empty() {
+                rooms.remove(&code);
+            } else {
+                if room.host == id {
+                    room.host = room.players[0].id;
+                }
+                room.send_all(&json!({ "t": "left", "i": id }));
+                room.send_all(&room.lobby_state());
+            }
+        }
+    }
+}
