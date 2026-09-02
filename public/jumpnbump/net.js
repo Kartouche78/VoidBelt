@@ -25,6 +25,26 @@
   };
   var sock = null, ping = null, hallTimer = null, rebinding = null;
 
+  /* ---------- la bande-son ---------- */
+
+  // Elle ne demarre qu'au coup d'envoi et s'arrete des qu'on revient au
+  // salon : dans les menus, le silence.
+  var track = $("#track"), musicVol = 0.4;
+
+  function musicPlay() {
+    track.volume = musicVol;
+    if (musicVol <= 0) return;
+    try {
+      track.currentTime = 0;
+      var pr = track.play();
+      if (pr && pr.catch) pr.catch(function () { /* lecture refusee, tant pis */ });
+    } catch (e) { /* pas de piste */ }
+  }
+
+  function musicStop() {
+    try { track.pause(); } catch (e) { /* pas de piste */ }
+  }
+
   /* ---------- petits utilitaires d'interface ---------- */
 
   var SCREENS = ["#screen-name", "#screen-hall", "#screen-room", "#screen-options"];
@@ -86,20 +106,44 @@
      ECRAN 2 — le hall
      ========================================================== */
 
+  var online = false;
+
+  function setOnline(ok, why) {
+    online = ok;
+    $("#b-create").disabled = !ok;
+    $("#form-join").querySelector("button").disabled = !ok;
+    $("#rooms-state").textContent = why;
+    $("#rooms-state").classList.toggle("bad", !ok);
+  }
+
   function refreshHall() {
     fetch(HTTP + "/api/jnb/rooms", { headers: { accept: "application/json" } })
-      .then(function (r) { return r.json(); })
-      .then(renderHall)
-      .catch(function () {
-        $("#rooms").innerHTML =
-          "<p class='empty'>Serveur injoignable. L'entrainement solo reste jouable.</p>";
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status === 404 ? "route" : "http " + r.status);
+        return r.json();
+      })
+      .then(function (list) {
+        setOnline(true, list.length + " salon(s) ouvert(s)");
+        renderHall(list);
+      })
+      .catch(function (e) {
+        // Deux pannes bien differentes : le serveur ne repond pas, ou il
+        // repond mais ne connait pas encore Jump'n Bump.
+        var msg = e.message === "route"
+          ? "Serveur de salons pas a jour"
+          : "Serveur injoignable";
+        setOnline(false, msg);
+        $("#rooms").innerHTML = "<p class='empty'>" + msg +
+          ". Le jeu en ligne est indisponible pour le moment&nbsp;; l'entrainement " +
+          "solo, lui, tourne sans serveur.</p>";
       });
   }
 
   function renderHall(list) {
     var box = $("#rooms");
     if (!list.length) {
-      box.innerHTML = "<p class='empty'>Aucun salon ouvert. Creez le premier.</p>";
+      box.innerHTML = "<p class='empty'>Aucun salon ouvert. Creez le premier : " +
+        "les autres le verront apparaitre ici.</p>";
       return;
     }
     box.innerHTML = "";
@@ -110,14 +154,18 @@
       b.className = "room" + (full ? " full" : "");
       b.disabled = full;
       b.innerHTML =
-        "<span class='room-code'>" + r.code + "</span>" +
-        "<span class='room-who'>" + r.players.map(esc).join(" &middot; ") + "</span>" +
-        "<span class='room-n'>" + r.players.length + "/" + r.max + "</span>" +
-        "<span class='room-go'>" + (r.phase === "playing" ? "EN COURS" : "REJOINDRE") + "</span>";
+        "<span class='room-code'>" + esc(r.code) + "</span>" +
+        "<span class='room-who'>" + (r.players.map(esc).join(" &middot; ") || "&mdash;") + "</span>" +
+        "<span class='room-n" + (full ? " full" : "") + "'>" +
+        r.players.length + "<s>/</s>" + r.max + "</span>" +
+        "<span class='room-go'>" +
+        (full ? "COMPLET" : r.phase === "playing" ? "EN COURS" : "REJOINDRE") + "</span>";
       b.addEventListener("click", function () { connect(r.code); });
       box.appendChild(b);
     });
   }
+
+  $("#b-refresh").addEventListener("click", refreshHall);
 
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
@@ -127,10 +175,51 @@
 
   $("#b-create").addEventListener("click", function () { connect(""); });
 
+  // Quatre cases d'un chiffre : on avance tout seul, on recule au
+  // retour arriere, et un code colle se repartit dans les cases.
+  var codeBoxes = Array.prototype.slice.call($("#code-in").querySelectorAll("input"));
+
+  function codeValue() {
+    return codeBoxes.map(function (b) { return b.value; }).join("");
+  }
+
+  codeBoxes.forEach(function (box, i) {
+    box.addEventListener("input", function () {
+      box.value = box.value.replace(/[^0-9]/g, "").slice(0, 1);
+      if (box.value && i < 3) codeBoxes[i + 1].focus();
+      if (codeValue().length === 4) $("#form-join").requestSubmit
+        ? $("#form-join").requestSubmit()
+        : connect(codeValue());
+    });
+    box.addEventListener("keydown", function (e) {
+      if (e.key === "Backspace" && !box.value && i > 0) {
+        codeBoxes[i - 1].focus();
+        codeBoxes[i - 1].value = "";
+        e.preventDefault();
+      }
+      if (e.key === "ArrowLeft" && i > 0) codeBoxes[i - 1].focus();
+      if (e.key === "ArrowRight" && i < 3) codeBoxes[i + 1].focus();
+    });
+    box.addEventListener("paste", function (e) {
+      var t = (e.clipboardData || window.clipboardData).getData("text") || "";
+      var d = t.replace(/[^0-9]/g, "").slice(0, 4);
+      if (!d) return;
+      e.preventDefault();
+      codeBoxes.forEach(function (b, k) { b.value = d[k] || ""; });
+      codeBoxes[Math.min(3, d.length - 1)].focus();
+      if (d.length === 4) connect(d);
+    });
+  });
+
+  function clearCode() {
+    codeBoxes.forEach(function (b) { b.value = ""; });
+  }
+
   $("#form-join").addEventListener("submit", function (e) {
     e.preventDefault();
-    var code = $("#f-code").value.trim().toUpperCase();
+    var code = codeValue();
     if (code.length === 4) connect(code);
+    else { toast("Il faut les quatre chiffres du salon."); codeBoxes[0].focus(); }
   });
 
   $("#b-hall-back").addEventListener("click", function () {
@@ -168,6 +257,7 @@
       if (S.mode === "online") {
         S.mode = null;
         JNB.stop();
+        musicStop();
         show("#screen-hall");
         refreshHall();
         toast("Connexion perdue.");
@@ -186,6 +276,7 @@
         S.id = m.id;
         S.room = m.room;
         clearInterval(hallTimer);
+        clearCode();
         $("#room-code").textContent = m.room;
         show("#screen-room");
         break;
@@ -198,7 +289,10 @@
         var mine = m.players.filter(function (p) { return p.id === S.id; })[0];
         if (mine) { S.color = mine.color; S.ready = mine.ready; }
         renderRoom();
-        syncRoster();
+        // Arrive en cours de partie : on entre dans l'arene tout de
+        // suite plutot que d'attendre le salon suivant.
+        if (m.phase === "playing" && !JNB.isRunning()) beginMatch();
+        else syncRoster();
         break;
 
       case "start":
@@ -208,6 +302,7 @@
 
       case "back":
         JNB.stop();
+        musicStop();
         show("#screen-room");
         break;
 
@@ -230,6 +325,7 @@
         JNB.setPhase("over");
         setTimeout(function () {
           JNB.stop();
+          musicStop();
           show("#screen-room");
         }, 4200);
         break;
@@ -311,6 +407,8 @@
       slots.appendChild(d);
     }
 
+    $("#room-count").textContent = S.players.length + "/4";
+
     var isHost = S.host === S.id;
     $("#f-target").value = S.target;
     $("#f-target").disabled = !isHost;
@@ -345,6 +443,7 @@
     if (sock) sock.close();
     sock = null;
     JNB.stop();
+    musicStop();
     show("#screen-hall");
     refreshHall();
     hallTimer = setInterval(refreshHall, 4000);
@@ -370,6 +469,8 @@
 
   function beginMatch() {
     JNB.sfx.wake();
+    musicPlay();
+    $("#tip-mode").textContent = "SALON " + S.room;
     show(null);
     JNB.start({ localId: S.id, players: roster(), target: S.target });
     JNB.banner(null);
@@ -416,6 +517,8 @@
     solo = { scores: { 1: 0, 2: 0, 3: 0, 4: 0 } };
     S.players = list;
     JNB.sfx.wake();
+    musicPlay();
+    $("#tip-mode").textContent = "ENTRAINEMENT SOLO";
     show(null);
     JNB.start({ localId: 1, players: list, target: S.target });
   }
@@ -426,7 +529,12 @@
     if (solo.scores[S.id] >= S.target) {
       JNB.banner("VOUS GAGNEZ !");
       JNB.setPhase("over");
-      setTimeout(function () { JNB.stop(); show("#screen-hall"); refreshHall(); }, 4200);
+      setTimeout(function () {
+        JNB.stop();
+        musicStop();
+        show("#screen-hall");
+        refreshHall();
+      }, 4200);
     }
   }
 
@@ -475,6 +583,25 @@
     try { localStorage.setItem("jnb.vol", v); } catch (e) { /* mode prive */ }
   });
 
+  $("#f-music").addEventListener("input", function () {
+    var v = +$("#f-music").value;
+    $("#music-out").textContent = v;
+    musicVol = v / 100;
+    track.volume = musicVol;
+    if (musicVol <= 0) track.pause();
+    else if (JNB.isRunning() && track.paused) musicPlay();
+    try { localStorage.setItem("jnb.music", v); } catch (e) { /* mode prive */ }
+  });
+
+  try {
+    var m0 = localStorage.getItem("jnb.music");
+    if (m0 !== null) {
+      $("#f-music").value = m0;
+      $("#music-out").textContent = m0;
+      musicVol = +m0 / 100;
+    }
+  } catch (e) { /* mode prive */ }
+
   try {
     var v0 = localStorage.getItem("jnb.vol");
     if (v0 !== null) {
@@ -508,6 +635,7 @@
   $("#b-quit").addEventListener("click", function () {
     closeOptions();
     JNB.stop();
+    musicStop();
     if (S.mode === "online") {
       show("#screen-room");
     } else {

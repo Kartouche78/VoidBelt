@@ -44,19 +44,30 @@
       <p class="eyebrow"><i></i><span>HALL</span><u>//</u><span id="hall-who">&mdash;</span><i></i></p>
       <h2 class="title small">SALONS OUVERTS</h2>
 
+      <div class="rooms-head">
+        <span id="rooms-state">Recherche des salons&hellip;</span>
+        <button class="mini" id="b-refresh" type="button">RAFRAICHIR</button>
+      </div>
       <div class="rooms" id="rooms"><p class="empty">Recherche des salons&hellip;</p></div>
 
       <div class="row wrap">
         <button class="btn primary" id="b-create" type="button">CREER UN SALON</button>
         <form class="row join" id="form-join">
-          <input id="f-code" type="text" maxlength="4" placeholder="CODE"
-                 autocomplete="off" spellcheck="false" aria-label="Code du salon">
+          <span class="code-lbl">CODE</span>
+          <span class="code-in" id="code-in">
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Chiffre 1">
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Chiffre 2">
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Chiffre 3">
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Chiffre 4">
+          </span>
           <button class="btn" type="submit">REJOINDRE</button>
         </form>
-        <button class="btn ghost" id="b-solo" type="button">ENTRAINEMENT SOLO</button>
       </div>
-      <p class="hint">L'entrainement se joue hors ligne, contre trois lapins pilotes
-        par la machine.</p>
+      <div class="row wrap">
+        <button class="btn ghost" id="b-solo" type="button">ENTRAINEMENT SOLO</button>
+        <span class="hint">Hors ligne, contre trois lapins pilotes par la machine.
+          Les parties en ligne n'ont que de vrais joueurs.</span>
+      </div>
       <button class="back as-btn" id="b-hall-back" type="button">&#8592; changer de prenom</button>
     </div>
   </section>
@@ -64,7 +75,8 @@
   <!-- ---------------- ecran 3 : le salon ---------------- -->
   <section class="panel hidden" id="screen-room">
     <div class="panel-in wide">
-      <p class="eyebrow"><i></i><span>SALON</span><u>//</u><span class="code" id="room-code">&mdash;</span><i></i></p>
+      <p class="eyebrow"><i></i><span>SALON</span><u>//</u><span id="room-count">1/4</span><i></i></p>
+      <p class="bigcode">CODE <b id="room-code">&mdash;</b></p>
       <h2 class="title small">CHOISISSEZ VOTRE PELAGE</h2>
 
       <div class="colors" id="colors"></div>
@@ -88,10 +100,16 @@
       <h2 class="title small">REGLAGES</h2>
       <ul class="binds" id="binds"></ul>
       <div class="row wrap">
-        <label class="target" for="f-vol">SON
+        <label class="target" for="f-vol">BRUITAGES
           <input id="f-vol" type="range" min="0" max="100" step="1" value="50">
           <output id="vol-out">50</output>
         </label>
+        <label class="target" for="f-music">MUSIQUE
+          <input id="f-music" type="range" min="0" max="100" step="1" value="40">
+          <output id="music-out">40</output>
+        </label>
+      </div>
+      <div class="row wrap">
         <button class="btn ghost" id="b-reset-keys" type="button">TOUCHES PAR DEFAUT</button>
       </div>
       <div class="row wrap">
@@ -104,10 +122,13 @@
 
   <p class="toast hidden" id="toast"></p>
   <p class="tip hidden" id="tip">
+    <em id="tip-mode">&mdash;</em>
     <b>Echap</b> reglages &middot; sautez sur la caisse pour etre propulse &middot;
     l'eau ralentit, la glace derape
   </p>
 </div>
+
+<audio id="track" src="/jumpnbump/assets/soundtrack.mp4" loop preload="none"></audio>
 
 <script src="/jumpnbump/game.js"></script>
 <script src="/jumpnbump/net.js"></script>

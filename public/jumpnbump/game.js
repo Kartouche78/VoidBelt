@@ -95,20 +95,23 @@
   var JUMP_V = 1020, JUMP_CUT = 0.42;
   var COYOTE = 0.10, BUFFER = 0.13;
   var DIVE = 2.1;                                 // gravite x2 quand on plonge
-  var BUMP_V = 2100;
+  var BUMP_V = 1400;
   var STEP_UP = 22;
   var BODY_W = 31, BODY_H = 39;
   var SPRITE_H = 58;
   var STOMP_VY = 40, STOMP_HEAD = 19;
-  var DEAD_TIME = 1.15, SPAWN_SHIELD = 1.6;
+  // On reapparait dans la foulee : la giclee de sang reste sur place et
+  // raconte la mort, le joueur, lui, repart tout de suite. Le court
+  // repit qui suit n'est pas signale a l'ecran — le clignotement etait
+  // plus genant qu'utile.
+  var DEAD_TIME = 0, SPAWN_SHIELD = 0.8;
 
   var SWIM_G = 0.30, SWIM_MAX = 0.48, SWIM_ACC = 0.42;
-  var SWIM_DAMP = 2.6, BUOY = 2100, SWIM_JUMP = 0.92, STROKE_CD = 0.26;
-  // Poussee et freinage sont regles ensemble : le lapin remonte a la
-  // surface d'un trait, se stabilise le nez dehors et n'y rebondit que
-  // deux ou trois fois. Une poussee juste egale au poids le laissait
-  // couler indefiniment.
-  var SWIM_VDAMP = 0.03;                          // freinage vertical dans l'eau
+  var SWIM_DAMP = 2.6, BUOY = 1250, SWIM_JUMP = 0.92, STROKE_CD = 0.26;
+  // Poussee et freinage se reglent ensemble. A 1250 contre un poids de
+  // 810, le lapin remonte sans se faire ejecter et se stabilise enfonce
+  // aux deux tiers : il nage, il ne flotte pas comme un bouchon.
+  var SWIM_VDAMP = 0.012;                         // freinage vertical dans l'eau
 
   /* ---------- etat global ---------- */
 
@@ -764,9 +767,9 @@
 
     // Les gouttes : elles volent, puis marquent le decor la ou elles
     // touchent. C'est ce qui etale le sang sur la carte.
-    for (i = 0; i < 26; i++) {
+    for (i = 0; i < 36; i++) {
       a = Math.random() * Math.PI * 2;
-      sp = 120 + Math.random() * 460;
+      sp = 110 + Math.random() * 520;
       parts.push({
         x: x, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 210,
         t: 0, life: 2.6, c: Math.random() < 0.4 ? BLOOD_HOT : BLOOD_DARK,
@@ -788,16 +791,20 @@
 
   /* ---------- fumee ---------- */
 
+  // La poussiere part des pattes, vers la gauche et vers la droite,
+  // d'autant plus loin que l'impact a ete rude.
   function puff(x, y, power) {
-    var n = Math.min(9, 2 + Math.round(power * 8));
+    var n = Math.min(12, 3 + Math.round(power * 9));
     for (var i = 0; i < n; i++) {
+      var side = (i % 2) ? 1 : -1;
       smokes.push({
-        x: x + (Math.random() - 0.5) * 20,
-        y: y - 1 - Math.random() * 3,
-        vx: (Math.random() - 0.5) * (70 + power * 130),
-        vy: -14 - Math.random() * 26,
-        t: 0, life: 0.4 + Math.random() * 0.35,
-        r0: 2 + Math.random() * 2.5, r1: 8 + Math.random() * 8 + power * 6
+        x: x + side * (3 + Math.random() * 12),
+        y: y - 1 - Math.random() * 4,
+        vx: side * (30 + Math.random() * (55 + power * 160)),
+        vy: -18 - Math.random() * 34,
+        t: 0, life: 0.55 + Math.random() * 0.4,
+        r0: 4 + Math.random() * 4,
+        r1: 18 + Math.random() * 12 + power * 14
       });
     }
   }
@@ -811,6 +818,9 @@
   }
 
   function splashWater(x) {
+    // Uniquement au-dessus du bassin : ailleurs, la « surface » n'existe
+    // pas et la gerbe se poserait en plein decor.
+    if (!inPool(x)) return;
     splashes.push({ x: x, t: 0 });
   }
 
@@ -900,13 +910,23 @@
       g.restore();
     }
 
+    // Deux disques par bouffee : un halo large et un coeur plus dense.
+    // Ca suffit a faire une poussiere douce sans degrade a calculer.
+    g.fillStyle = "#FBF7EC";
     for (i = 0; i < smokes.length; i++) {
       p = smokes[i];
+      // Le nuage s'ouvre vite puis s'efface : sans cette courbe, la
+      // bouffee reste un point le temps qu'on la remarque.
       var k = p.t / p.life;
-      g.globalAlpha = (1 - k) * 0.42;
-      g.fillStyle = "#F2EFE6";
+      var r = p.r0 + (p.r1 - p.r0) * (1 - Math.pow(1 - k, 2.2));
+      var al = Math.min(1, (1 - k) * 1.7);
+      g.globalAlpha = al * 0.34;
       g.beginPath();
-      g.arc(p.x, p.y, p.r0 + (p.r1 - p.r0) * k, 0, 6.2832);
+      g.arc(p.x, p.y, r, 0, 6.2832);
+      g.fill();
+      g.globalAlpha = al * 0.5;
+      g.beginPath();
+      g.arc(p.x, p.y, r * 0.58, 0, 6.2832);
       g.fill();
     }
     g.globalAlpha = 1;
@@ -1054,6 +1074,10 @@
     p.vx = 0; p.vy = 0;
     p.alive = true; p.dead = 0; p.shield = SPAWN_SHIELD;
     p.onGround = true; p.squash = 0;
+    // Sans ca, un lapin mort dans le bassin declenche une gerbe a son
+    // point de reapparition, en pleine terre ferme.
+    p.wasWet = false;
+    p.ear = 0; p.lean = 0; p.land = 0;
   }
 
   function killed(p, killer) {
@@ -1133,7 +1157,7 @@
     p.wasWet = wet > 0.2;
 
     // Entree et sortie d'eau : gerbe et onde sur la surface.
-    if (p.wasWet !== wasWet) {
+    if (p.wasWet !== wasWet && inPool(p.x)) {
       var speed = Math.abs(p.vy);
       Water.splash(p.x, (p.wasWet ? 1 : -0.6) * Math.min(120, 18 + speed * 0.16));
       burstDrops(p.x, Water.surface(p.x), 8, Math.min(340, 90 + speed * 0.5));
@@ -1444,7 +1468,7 @@
      RENDU
      ========================================================== */
 
-  var STRIPS = 9;
+  var STRIPS = 12;
 
   // Le lapin est dessine en tranches horizontales. Chaque tranche est
   // decalee et etiree selon sa hauteur : les pattes restent plantees au
@@ -1479,7 +1503,6 @@
     g.translate(p.x, p.y);
     g.rotate(Math.max(-0.18, Math.min(0.18, p.vx / 3200)));
     g.scale(p.face * sx, sy);
-    if (p.shield > 0 && Math.floor(p.shield * 12) % 2 === 0) g.globalAlpha = 0.45;
 
     var map = function (t) { return t * (1 + stretch * t); };
     var i, r0, r1, t0, t1, tm, dx;
@@ -1490,8 +1513,11 @@
       t0 = 1 - r0 / ph;
       t1 = 1 - r1 / ph;
       tm = (t0 + t1) / 2;
-      dx = swayL * 5.5 * Math.pow(tm, 1.7) +
-        wig * Math.sin(tm * 5 - p.bob * 6) * 1.7;
+      // L'onde qui remonte le corps se creuse a hauteur de la queue :
+      // c'est elle qui la fait fretiller quand le lapin court.
+      var tail = Math.exp(-Math.pow((tm - 0.45) / 0.17, 2));
+      dx = swayL * 4.2 * Math.pow(tm, 1.8) +
+        wig * Math.sin(tm * 5 - p.bob * 6) * (1.4 + tail * 2);
       g.drawImage(s.c, 0, r0, pw, r1 - r0,
         -w / 2 + dx, -h * map(t0), w, h * (map(t0) - map(t1)) + 0.8);
     }
@@ -1838,18 +1864,5 @@
 
   api.banner = function (text) { banner = text; };
   api.setPhase = function (v) { phase = v; };
-  window.__snap = function () {
-    return order.map(function (id) {
-      var q = players[id];
-      return { id: id, name: q.name, score: q.score, alive: q.alive,
-        x: Math.round(q.x), y: Math.round(q.y), vx: Math.round(q.vx), vy: Math.round(q.vy),
-        ground: q.onGround, wet: +submersion(q).toFixed(2), anim: q.anim,
-        ear: +q.ear.toFixed(2), lean: +q.lean.toFixed(2) };
-    });
-  };
-  window.__put = function (x, y) { if (me) { me.x = x; me.y = y; me.vx = 0; me.vy = 0; me.shield = 0; } };
-  window.__die = function (id) { var q = players[id || order[1]]; if (q) killed(q, me); };
-  window.__fx = function () { return { parts: parts.length, chunks: chunks.length,
-    bursts: bursts.length, smokes: smokes.length, splashes: splashes.length }; };
   window.JNB = api;
 })();

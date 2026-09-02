@@ -178,9 +178,8 @@ pub async fn ws(
     upgrade.on_upgrade(move |socket| session(socket, params, hub))
 }
 
-/// Un code de salon lisible à l'oral : quatre lettres, sans I ni O.
+/// Un code de salon : quatre chiffres, faciles a dicter et a taper.
 fn make_code(seed: u32) -> String {
-    const A: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ";
     let mut n = seed.wrapping_mul(2_654_435_761).wrapping_add(
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -189,8 +188,8 @@ fn make_code(seed: u32) -> String {
     );
     let mut out = String::with_capacity(4);
     for _ in 0..4 {
-        out.push(A[(n % A.len() as u32) as usize] as char);
-        n /= A.len() as u32;
+        out.push((b'0' + (n % 10) as u8) as char);
+        n /= 10;
     }
     out
 }
@@ -224,7 +223,18 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
     // du Mutex ne doit jamais traverser un point d'attente.
     let joined = {
         let mut rooms = hub.rooms.lock().expect("hub empoisonné");
-        let requested = params.room.trim().to_uppercase();
+        let requested: String = params
+            .room
+            .trim()
+            .chars()
+            .filter(|c| c.is_ascii_digit())
+            .take(4)
+            .collect();
+        let requested = if requested.len() == 4 {
+            requested
+        } else {
+            String::new()
+        };
         let code = if requested.is_empty() {
             let mut c = make_code(id);
             let mut tries = 0u32;

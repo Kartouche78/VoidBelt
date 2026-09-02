@@ -148,7 +148,37 @@ input[type=text]:focus, input[type=number]:focus{
   border-color:var(--orange);
   background:rgba(255,77,0,.06);
 }
-#f-code{ flex:0 0 8ch; text-align:center; text-transform:uppercase; letter-spacing:.32em }
+/* ---------- code du salon : quatre cases d'un chiffre ---------- */
+
+.code-lbl{ font-size:var(--fs-xs); letter-spacing:.24em; color:var(--txt-3) }
+.code-in{ display:flex; gap:6px }
+.code-in input{
+  flex:0 0 auto;
+  width:2.2em;
+  padding:.5em 0;
+  text-align:center;
+  font-size:var(--fs-md);
+  font-weight:700;
+  letter-spacing:0;
+  color:var(--cyan);
+  caret-color:var(--orange);
+}
+.code-in input:focus{ border-color:var(--cyan); background:rgba(95,235,247,.08) }
+
+.bigcode{
+  font-size:var(--fs-xs);
+  letter-spacing:.3em;
+  color:var(--txt-3);
+}
+.bigcode b{
+  display:inline-block;
+  margin-left:.6em;
+  font-family:'Archivo Black',Impact,sans-serif;
+  font-size:clamp(22px, 3.4vmin, 40px);
+  letter-spacing:.18em;
+  color:var(--cyan);
+  vertical-align:-.15em;
+}
 #f-target{ flex:0 0 6ch; text-align:center; padding:.4em }
 #f-target:disabled{ opacity:.45 }
 
@@ -201,6 +231,29 @@ input[type=text]:focus, input[type=number]:focus{
 
 /* ---------- liste des salons ---------- */
 
+.rooms-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1em;
+  font-size:var(--fs-xs);
+  letter-spacing:.2em;
+  color:var(--txt-3);
+}
+#rooms-state.bad{ color:var(--orange) }
+
+.mini{
+  background:none;
+  border:1px solid var(--line);
+  color:var(--txt-3);
+  font:inherit;
+  font-size:var(--fs-xs);
+  letter-spacing:.2em;
+  padding:.25em .8em;
+  cursor:pointer;
+}
+.mini:hover{ color:var(--cyan); border-color:var(--cyan) }
+
 .rooms{
   display:flex;
   flex-direction:column;
@@ -236,7 +289,15 @@ input[type=text]:focus, input[type=number]:focus{
 .room:disabled{ opacity:.4; cursor:not-allowed }
 .room-code{ font-weight:700; letter-spacing:.28em; color:var(--cyan) }
 .room-who{ color:var(--txt-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.room-n{ color:var(--txt-2) }
+.room-n{
+  color:var(--bone);
+  font-weight:700;
+  border:1px solid var(--line);
+  padding:.15em .6em;
+  white-space:nowrap;
+}
+.room-n s{ text-decoration:none; color:var(--txt-3); margin:0 .1em }
+.room-n.full{ color:var(--orange); border-color:var(--orange) }
 .room-go{ color:var(--orange); letter-spacing:.2em }
 
 /* ---------- choix du pelage ---------- */
@@ -368,6 +429,14 @@ input[type=text]:focus, input[type=number]:focus{
 }
 .tip.hidden{ display:none }
 .tip b{ color:var(--cyan); font-weight:700 }
+.tip em{
+  font-style:normal;
+  color:var(--orange);
+  letter-spacing:.24em;
+  margin-right:.8em;
+  padding-right:.8em;
+  border-right:1px solid var(--line);
+}
 
 @media (max-width:620px){
   .colors{ grid-template-columns:repeat(2, minmax(0,1fr)) }
