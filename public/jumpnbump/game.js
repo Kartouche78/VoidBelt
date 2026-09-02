@@ -37,7 +37,9 @@
     { x: 108, y: 896, w: 362, h: 18 }
   ];
 
-  var POOL = { x0: 0, x1: 478, y: 903 };
+  // La nappe dessinee doit rejoindre la berge : s'arreter douze pixels
+  // avant laissait un cran visible au bord de l'eau.
+  var POOL = { x0: 0, x1: 490, y: 903 };
 
   // La caisse en bois, en bas au milieu : le trampoline. Le rectangle
   // s'arrete avant la colonne voisine, dont le sommet est 5 px plus
@@ -120,6 +122,9 @@
   var DIVE = 2.1;                                 // gravite x2 quand on plonge
   var BUMP_V = 1550;
   var STEP_UP = 22;
+  // En nageant on se hisse plus haut qu'en marchant : sans ca, le
+  // moindre ressaut d'herbe au bord du bassin bloque net.
+  var WATER_STEP = 34;
   var BODY_W = 31, BODY_H = 39;
   var SPRITE_H = 58;
   var STOMP_VY = 40, STOMP_HEAD = 19;
@@ -154,6 +159,8 @@
   var me = null, running = false, paused = false, locked = false;
   var phase = "lobby", banner = null;
   var lastT = 0, acc = 0, netAcc = 0, clock = 0;
+  var fps = 0, fpsAcc = 0, fpsN = 0, netMs = null;
+  var lastSent = null, lastSentAt = 0;
   var api = {};
 
   /* ==========================================================
@@ -1221,10 +1228,10 @@
       face: 1, anim: 0, onGround: false, onIce: false,
       alive: true, life: 0, score: info.score || 0,
       dead: 0, shield: 0, stroke: 0, coyote: 0, buffer: 0,
-      jumpHeld: false, ownJump: false, squash: 0, bob: 0, wasWet: false,
+      jumpHeld: false, ownJump: false, squash: 0, bob: 0, wasWet: false, swimming: false,
       ear: 0, lean: 0, land: 0,
       brain: { t: 0, aim: 0, hop: 0, dive: false, stuck: 0, tries: 0, lx: 0, ly: 0, far: 0, fx: 0 },
-      buf: [], rx: 200, ry: 400, rface: 1, ranim: 0
+      buf: [], rx: 200, ry: 400, rface: 1, ranim: 0, lastRx: 0, gapAvg: 0
     };
   }
 
@@ -1359,6 +1366,7 @@
     if (boxBlocked(p.x, p.y)) unstick(p);
 
     var wet = submersion(p);
+    p.swimming = wet > 0.2;
     var wasWet = p.wasWet;
     p.wasWet = wet > 0.2;
 
@@ -1515,8 +1523,9 @@
       // Une bosse d'herbe ou un caillou : on l'enjambe si le corps tient
       // a la nouvelle hauteur, sinon c'est un mur.
       var climbed = false;
-      if (p.onGround && scene !== "lobby") {
-        for (var up = 1; up <= STEP_UP; up++) {
+      var reach = p.swimming ? WATER_STEP : STEP_UP;
+      if ((p.onGround || p.swimming) && scene !== "lobby") {
+        for (var up = 1; up <= reach; up++) {
           if (!colBlocked(edge, p.y - up - BODY_H + 1, p.y - up) &&
             !rowBlocked(p.x + adv - HW, p.x + adv + HW, p.y - up - BODY_H + 1)) {
             p.x += adv;
@@ -1638,10 +1647,13 @@
 
   // Les lapins des autres sont rejoues avec 100 ms de retard : on
   // interpole entre deux positions recues au lieu de les faire sauter.
-  var DELAY = 0.1;
-
+  // Le retard d'affichage suit le rythme reel des paquets : court quand
+  // le reseau est regulier, plus long quand il hoquette. Un retard fixe
+  // etait soit trop grand (jeu mou) soit trop petit (lapins qui sautent).
   function stepRemote(p, dt) {
-    var t = clock - DELAY, b = p.buf;
+    var gap = p.gapAvg || 0.033;
+    var delay = Math.max(0.045, Math.min(0.22, gap * 1.8));
+    var t = clock - delay, b = p.buf;
     while (b.length > 2 && b[1].t <= t) b.shift();
     if (!b.length) return;
     if (b.length === 1 || b[0].t >= t) {
@@ -1682,20 +1694,34 @@
     var dt = Math.min(0.1, (now - lastT) / 1000 || 0);
     lastT = now;
 
+    fpsAcc += dt;
+    fpsN++;
+    if (fpsAcc >= 0.5) { fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
+
     if (!paused) {
       acc += dt;
       var guard = 0;
       while (acc >= 1 / 120 && guard++ < 8) { tick(1 / 120); acc -= 1 / 120; }
 
       netAcc += dt;
-      if (netAcc >= 1 / 30) {
+      if (netAcc >= 1 / 40) {
         netAcc = 0;
         if (me && api.onSend) {
-          api.onSend({
-            x: Math.round(me.x * 10) / 10, y: Math.round(me.y * 10) / 10,
+          // Coordonnees entieres : le message est plus court, et le
+          // dixieme de pixel ne se voit pas apres interpolation.
+          var st = {
+            x: Math.round(me.x), y: Math.round(me.y),
             vx: Math.round(me.vx), vy: Math.round(me.vy),
             f: me.face, a: me.anim, st: me.alive ? 0 : 1
-          });
+          };
+          // Un lapin immobile n'a rien a raconter : on se contente d'un
+          // rappel toutes les deux cents millisecondes.
+          var key = st.x + "," + st.y + "," + st.f + "," + st.a + "," + st.st;
+          if (key !== lastSent || now - lastSentAt > 200) {
+            lastSent = key;
+            lastSentAt = now;
+            api.onSend(st);
+          }
         }
       }
     }
@@ -1992,6 +2018,7 @@
       g.restore();
     }
     drawCountdown(g);
+    drawStats(g);
     if (paused || locked) {
       g.save();
       g.fillStyle = "rgba(10,10,11,.55)";
@@ -2002,6 +2029,25 @@
 
   // Le decompte reprend les chiffres graves du panneau de score : gros,
   // au centre, chaque seconde entre d'un coup puis s'efface.
+  // Images par seconde et latence, en bas a gauche : de quoi savoir tout
+  // de suite si ca rame a cause de la machine ou du reseau.
+  function drawStats(g) {
+    var t = fps + " FPS";
+    if (netMs !== null) t = netMs + " ms  ·  " + t;
+    g.save();
+    g.font = "700 21px 'Space Mono', ui-monospace, monospace";
+    g.textAlign = "left";
+    g.textBaseline = "alphabetic";
+    g.lineWidth = 4;
+    g.strokeStyle = "rgba(0,0,0,.8)";
+    g.strokeText(t, 16, MAP_H - 16);
+    g.fillStyle = "#FF3B2F";
+    g.fillText(t, 16, MAP_H - 16);
+    g.restore();
+  }
+
+  api.setPing = function (ms) { netMs = ms; };
+
   function drawCountdown(g) {
     if (countdown === null || countdown <= 0) return;
     var n = Math.min(9, Math.ceil(countdown));
@@ -2132,6 +2178,11 @@
   api.remoteState = function (id, s) {
     var p = players[id];
     if (!p || p.local) return;
+    if (p.lastRx) {
+      var gap = clock - p.lastRx;
+      p.gapAvg = p.gapAvg ? p.gapAvg * 0.88 + gap * 0.12 : gap;
+    }
+    p.lastRx = clock;
     p.buf.push({ t: clock, x: s.x, y: s.y, vx: s.vx, vy: s.vy, f: s.f, a: s.a });
     if (p.buf.length > 8) p.buf.shift();
     p.vx = s.vx; p.vy = s.vy;

@@ -22,15 +22,12 @@
   var WS = LOCAL ? (location.protocol === "https:" ? "wss://" : "ws://") + location.host
     : "wss://api.voidbelt.com";
 
-  var COUNT = 3;                      // secondes de decompte
-
   var S = {
     name: "", color: 0, id: 1, room: "", host: 0,
     phase: "lobby", target: 15, players: [],
     mode: "solo"                      // "solo" tant qu'on n'a rejoint aucun serveur
   };
-  var sock = null, ping = null, roomsTimer = null;
-  var count = null, countTimer = null;
+  var sock = null, ping = null, roomsTimer = null, pingSent = 0;
   var lastSide = null, wantJoin = false;
 
   /* ==========================================================
@@ -182,7 +179,7 @@
   }
 
   function enterLobby() {
-    stopCount();
+    launching = false;
     lastSide = null;
     JNB.startLobby({ localId: S.id, players: roster() });
     music("lobby");
@@ -207,26 +204,29 @@
   });
 
   // La boucle du lobby : de quel cote du tronc est-on, faut-il montrer
-  // la barre, et le decompte doit-il tourner.
+  // la barre, et peut-on lancer la partie.
+  var launching = false;
+
   setInterval(function () {
-    if (!JNB.isRunning() || !JNB.inLobby()) return;
+    if (!JNB.isRunning() || !JNB.inLobby()) { launching = false; return; }
     var side = JNB.side();
     if (side !== lastSide) {
       lastSide = side;
       showBar(side === "left");
-      if (side === "left" && S.mode !== "online") stopCount();
     }
-    if (side === "right") {
-      if (S.mode === "online") {
-        // L'hote tranche pour tout le monde, sinon deux navigateurs
-        // pourraient lancer deux decomptes decales.
-        if (S.host === S.id) {
-          var ready = JNB.allRight();
-          if (ready && count === null) send({ t: "cd", on: true });
-          if (!ready && count !== null) send({ t: "cd", on: false });
-        }
-      } else if (count === null) startCount();
-      $("#lobbytip").textContent = tipText();
+    if (side !== "right") return;
+
+    $("#lobbytip").textContent = tipText();
+    if (S.mode === "online") {
+      // L'hote tranche pour tout le monde : c'est lui qui donne le
+      // depart des que tous les lapins ont franchi le tronc.
+      if (S.host === S.id && JNB.allRight() && !launching) {
+        launching = true;
+        send({ t: "start" });
+      }
+    } else if (!launching) {
+      launching = true;
+      beginSolo();
     }
   }, 80);
 
@@ -234,33 +234,6 @@
     if (S.mode !== "online") return "EN POSITION";
     if (JNB.allRight()) return "TOUT LE MONDE EST EN POSITION";
     return "EN ATTENTE DES AUTRES LAPINS — SERVEUR " + S.room;
-  }
-
-  function startCount() {
-    if (count !== null) return;
-    count = COUNT;
-    JNB.countdown(count);
-    var last = performance.now();
-    countTimer = setInterval(function () {
-      var now = performance.now();
-      count -= (now - last) / 1000;
-      last = now;
-      if (count <= 0) {
-        var online = S.mode === "online", host = S.host === S.id;
-        stopCount();
-        if (online) { if (host) send({ t: "start" }); }
-        else beginSolo();
-        return;
-      }
-      JNB.countdown(count);
-    }, 40);
-  }
-
-  function stopCount() {
-    clearInterval(countTimer);
-    countTimer = null;
-    count = null;
-    JNB.countdown(null);
   }
 
   /* ==========================================================
@@ -290,7 +263,6 @@
   }
 
   function beginMatch() {
-    stopCount();
     hideLobbyUi();
     music("game");
     JNB.sfx.wake();
@@ -321,7 +293,12 @@
     var opened = false, mine = sock;
     mine.onopen = function () {
       opened = true;
-      ping = setInterval(function () { send({ t: "ping" }); }, 25000);
+      // Un aller-retour toutes les deux secondes : ca mesure la latence
+      // et ca tient la connexion ouverte du meme coup.
+      ping = setInterval(function () {
+        pingSent = performance.now();
+        send({ t: "ping" });
+      }, 2000);
     };
     // Sans ce garde-fou, un serveur muet laisse le joueur devant un
     // ecran qui ne bouge pas, sans savoir pourquoi.
@@ -348,6 +325,7 @@
   }
 
   function goSolo() {
+    JNB.setPing(null);
     S.mode = "solo";
     S.id = 1;
     S.players = [];
@@ -392,11 +370,6 @@
         }
         break;
 
-      case "cd":
-        if (m.on) startCount();
-        else stopCount();
-        break;
-
       case "start":
         S.target = m.target || S.target;
         beginMatch();
@@ -424,6 +397,10 @@
         JNB.banner(nameOf(m.w) + " GAGNE !");
         JNB.setPhase("over");
         setTimeout(backToLobby, 4200);
+        break;
+
+      case "pong":
+        if (pingSent) JNB.setPing(Math.round(performance.now() - pingSent));
         break;
 
       case "left":
