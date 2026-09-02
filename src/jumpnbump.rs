@@ -297,8 +297,19 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
         return;
     };
 
+    // Derriere un proxy, une connexion morte peut rester ouverte
+    // longtemps : sans ce garde-fou, un salon fantome survit a son
+    // dernier joueur. Le client envoie un ping toutes les 25 s.
+    let mut last_seen = std::time::Instant::now();
+
     'session: loop {
         let text = tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+                if last_seen.elapsed() > std::time::Duration::from_secs(100) {
+                    break 'session;
+                }
+                continue 'session;
+            }
             // Sortie : ce que les autres salons ont écrit pour ce joueur.
             queued = rx.recv() => {
                 match queued {
@@ -314,7 +325,10 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
             // Entrée : ce que ce joueur nous envoie.
             incoming = socket.recv() => {
                 match incoming {
-                    Some(Ok(Message::Text(t))) => t.to_string(),
+                    Some(Ok(Message::Text(t))) => {
+                        last_seen = std::time::Instant::now();
+                        t.to_string()
+                    }
                     Some(Ok(Message::Close(_))) | None => break 'session,
                     Some(Ok(_)) => continue 'session,
                     Some(Err(_)) => break 'session,
