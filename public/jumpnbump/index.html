@@ -16,42 +16,42 @@
 
 <div class="jnb-stage">
   <div class="jnb-frame">
-    <canvas id="stage" aria-label="Arene Jump'n Bump"></canvas>
+    <canvas id="stage" aria-label="Jump'n Bump"></canvas>
+
+    <!-- La barre de reglages se cale sur la bande noire du bas de la
+         carte du lobby, et ne s'affiche qu'a gauche du tronc. -->
+    <div class="lobbybar" id="lobbybar" hidden>
+      <div class="lb-col">
+        <span class="lb-t">VOTRE PRENOM</span>
+        <input id="f-name" type="text" maxlength="14" placeholder="Lapin"
+               autocomplete="off" spellcheck="false" aria-label="Votre prenom">
+      </div>
+      <div class="lb-col">
+        <span class="lb-t">PELAGE</span>
+        <div class="colors" id="colors"></div>
+      </div>
+      <div class="lb-col">
+        <span class="lb-t">PARTIE</span>
+        <div class="lb-row">
+          <button class="btn primary" id="b-multi" type="button">MULTIJOUEUR</button>
+          <button class="roomtag" id="roomtag" type="button" hidden
+                  title="Cliquez pour copier le code"></button>
+        </div>
+      </div>
+    </div>
+
+    <p class="lobbytip" id="lobbytip" hidden></p>
   </div>
 
-  <!-- ---------------- ecran 1 : le prenom ---------------- -->
-  <section class="panel" id="screen-name">
-    <div class="panel-in">
-      <p class="eyebrow"><i></i><span>SECTEUR 07</span><u>//</u><span>ENCLOS DES LAPINS</span><i></i></p>
-      <h1 class="title">JUMP'N<span>BUMP</span></h1>
-      <p class="lead">Quatre lapins sur une falaise flottante. On saute sur la tete des
-        autres, on marque un point, on reapparait ailleurs. C'est tout, et c'est deja
-        beaucoup.</p>
-      <form class="row" id="form-name">
-        <input id="f-name" type="text" maxlength="14" placeholder="Votre prenom"
-               autocomplete="off" spellcheck="false" aria-label="Votre prenom">
-        <button class="btn primary" type="submit">ENTRER &#9656;</button>
-      </form>
-      <p class="hint" id="name-hint">Deplacements <b>Q</b> <b>D</b>, saut <b>Z</b>,
-        plongeon <b>S</b> &mdash; modifiable avec <b>Echap</b>.</p>
-      <a class="back" href="/">&#8592; retour a VOIDBELT</a>
-    </div>
-  </section>
-
-  <!-- ---------------- ecran 2 : le hall ---------------- -->
-  <section class="panel hidden" id="screen-hall">
+  <!-- ---------------- multijoueur ---------------- -->
+  <section class="panel hidden" id="screen-multi">
     <div class="panel-in wide">
-      <p class="eyebrow"><i></i><span>HALL</span><u>//</u><span id="hall-who">&mdash;</span><i></i></p>
-      <h2 class="title small">SALONS OUVERTS</h2>
+      <p class="eyebrow"><i></i><span>MULTIJOUEUR</span><u>//</u><span id="rooms-state">&mdash;</span><i></i></p>
+      <h2 class="title small">SERVEURS OUVERTS</h2>
 
-      <div class="rooms-head">
-        <span id="rooms-state">Recherche des salons&hellip;</span>
-        <button class="mini" id="b-refresh" type="button">RAFRAICHIR</button>
-      </div>
-      <div class="rooms" id="rooms"><p class="empty">Recherche des salons&hellip;</p></div>
+      <div class="rooms" id="rooms"><p class="empty">Recherche&hellip;</p></div>
 
       <div class="row wrap">
-        <button class="btn primary" id="b-create" type="button">CREER UN SALON</button>
         <form class="row join" id="form-join">
           <span class="code-lbl">CODE</span>
           <span class="code-in" id="code-in">
@@ -62,35 +62,20 @@
           </span>
           <button class="btn" type="submit">REJOINDRE</button>
         </form>
+        <button class="mini" id="b-refresh" type="button">RAFRAICHIR</button>
       </div>
-      <div class="row wrap">
-        <button class="btn ghost" id="b-solo" type="button">ENTRAINEMENT SOLO</button>
-        <span class="hint">Hors ligne, contre trois lapins pilotes par la machine.
-          Les parties en ligne n'ont que de vrais joueurs.</span>
-      </div>
-      <button class="back as-btn" id="b-hall-back" type="button">&#8592; changer de prenom</button>
-    </div>
-  </section>
-
-  <!-- ---------------- ecran 3 : le salon ---------------- -->
-  <section class="panel hidden" id="screen-room">
-    <div class="panel-in wide">
-      <p class="eyebrow"><i></i><span>SALON</span><u>//</u><span id="room-count">1/4</span><i></i></p>
-      <p class="bigcode">CODE <b id="room-code">&mdash;</b></p>
-      <h2 class="title small">CHOISISSEZ VOTRE PELAGE</h2>
-
-      <div class="colors" id="colors"></div>
-      <div class="slots" id="slots"></div>
 
       <div class="row wrap">
-        <label class="target" for="f-target">PREMIER A
-          <input id="f-target" type="number" min="3" max="99" value="15" disabled>
-          POINTS</label>
-        <button class="btn" id="b-ready" type="button">JE SUIS PRET</button>
-        <button class="btn primary hidden" id="b-start" type="button">LANCER LA PARTIE &#9656;</button>
+        <button class="btn primary" id="b-create" type="button">CREER UN SERVEUR</button>
+        <label class="check"><input type="checkbox" id="f-priv"><span>PRIVE</span></label>
+        <span class="hint">Un serveur prive n'apparait pas dans la liste : on y entre
+          en tapant son code.</span>
       </div>
-      <p class="hint" id="room-hint">&nbsp;</p>
-      <button class="back as-btn" id="b-leave" type="button">&#8592; quitter le salon</button>
+
+      <div class="row wrap">
+        <button class="back as-btn" id="b-multi-close" type="button">&#8592; retour au lobby</button>
+        <button class="back as-btn hidden" id="b-quitroom" type="button">quitter le serveur</button>
+      </div>
     </div>
   </section>
 
@@ -111,24 +96,19 @@
       </div>
       <div class="row wrap">
         <button class="btn ghost" id="b-reset-keys" type="button">TOUCHES PAR DEFAUT</button>
-      </div>
-      <div class="row wrap">
         <button class="btn primary" id="b-resume" type="button">REPRENDRE</button>
-        <button class="btn ghost" id="b-quit" type="button">QUITTER LA PARTIE</button>
+        <button class="btn ghost" id="b-quit" type="button">RETOUR AU LOBBY</button>
       </div>
-      <p class="hint">Cliquez sur une touche pour la reassigner.</p>
+      <p class="hint">Le <b>+</b> ajoute une touche a la commande, autant qu'on veut.
+        Un clic sur une touche la remplace, un clic droit la retire.</p>
     </div>
   </section>
 
   <p class="toast hidden" id="toast"></p>
-  <p class="tip hidden" id="tip">
-    <em id="tip-mode">&mdash;</em>
-    <b>Echap</b> reglages &middot; sautez sur la caisse pour etre propulse &middot;
-    l'eau ralentit, la glace derape
-  </p>
 </div>
 
-<audio id="track" src="/jumpnbump/assets/soundtrack.mp4" loop preload="none"></audio>
+<audio id="track" src="/jumpnbump/assets/soundtrack.mp3" loop preload="none"></audio>
+<audio id="track-lobby" src="/jumpnbump/assets/soundtrack_lobby.mp3" loop preload="none"></audio>
 
 <script src="/jumpnbump/game.js"></script>
 <script src="/jumpnbump/net.js"></script>

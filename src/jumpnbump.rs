@@ -79,6 +79,9 @@ struct Room {
     host: u32,
     phase: Phase,
     target: u32,
+    /// Un salon prive ne figure pas dans la liste publique : on n'y
+    /// entre qu'en tapant son code.
+    private: bool,
 }
 
 impl Room {
@@ -88,6 +91,7 @@ impl Room {
             host: 0,
             phase: Phase::Lobby,
             target: 15,
+            private: false,
         }
     }
 
@@ -146,7 +150,7 @@ pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
     let rooms = hub.rooms.lock().expect("hub empoisonné");
     let mut list: Vec<Value> = rooms
         .iter()
-        .filter(|(_, r)| !r.players.is_empty())
+        .filter(|(_, r)| !r.players.is_empty() && !r.private)
         .map(|(code, r)| {
             json!({
                 "code": code,
@@ -168,6 +172,9 @@ pub struct JoinParams {
     room: String,
     #[serde(default)]
     name: String,
+    /// « 1 » a la creation pour ouvrir un salon prive.
+    #[serde(default, rename = "priv")]
+    priv_: String,
 }
 
 pub async fn ws(
@@ -247,7 +254,11 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
             requested
         };
 
+        let fresh = !rooms.contains_key(&code);
         let room = rooms.entry(code.clone()).or_insert_with(Room::new);
+        if fresh {
+            room.private = params.priv_ == "1";
+        }
         if room.players.len() >= MAX_PLAYERS {
             None
         } else {
@@ -340,6 +351,14 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                     room.send_all(&room.lobby_state());
                 }
             }
+            // Le prenom se change dans le lobby, en direct.
+            "name" => {
+                let n = clean_name(v["n"].as_str().unwrap_or(""));
+                if room.players[me].name != n {
+                    room.players[me].name = n;
+                    room.send_all(&room.lobby_state());
+                }
+            }
             "ready" => {
                 room.players[me].ready = v["v"].as_bool().unwrap_or(false);
                 room.send_all(&room.lobby_state());
@@ -407,6 +426,14 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                 room.send_all(&json!({
                     "t": "r", "i": id, "x": v["x"], "y": v["y"], "l": life,
                 }));
+            }
+            // Le decompte d'avant-partie : l'hote decide, le serveur
+            // relaie. Chaque client fait tourner sa propre horloge.
+            "cd" => {
+                if room.host == id {
+                    let on = v["on"].as_bool().unwrap_or(false);
+                    room.send_all(&json!({ "t": "cd", "on": on }));
+                }
             }
             "ping" => {
                 let _ = room.players[me].tx.send(json!({ "t": "pong" }).to_string());

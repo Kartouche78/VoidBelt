@@ -47,14 +47,103 @@
   display:block;
   border:2px solid rgba(237,231,218,.14);
   box-shadow:0 0 0 1px rgba(0,0,0,.6), 0 30px 90px rgba(0,0,0,.65);
-  background:#0B62D6;
-  opacity:0;
-  transition:opacity .5s ease;
+  background:#0B1608;
 }
 
-.jnb.playing #stage{ opacity:1 }
+/* ============================================================
+   LA BARRE DU LOBBY
+   Elle occupe la bande noire du bas de la carte. Sa position est
+   calculee en JS ; tout ce qui suit est mis a l'echelle par --u,
+   le rapport entre la carte affichee et sa taille d'origine.
+   ============================================================ */
 
-/* ---------- panneaux (prenom, hall, salon, reglages) ---------- */
+.lobbybar, .lobbytip{
+  position:absolute;
+  z-index:15;
+  --u:1;
+  display:flex;
+  align-items:center;
+  pointer-events:none;
+}
+.lobbybar[hidden], .lobbytip[hidden]{ display:none }
+
+.lobbybar{
+  padding:0 calc(var(--u) * 40px);
+  gap:calc(var(--u) * 30px);
+}
+
+.lb-col{
+  flex:1 1 0;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:calc(var(--u) * 8px);
+  pointer-events:auto;
+}
+
+.lb-t{
+  font-size:calc(var(--u) * 15px);
+  letter-spacing:.26em;
+  color:var(--txt-3);
+  white-space:nowrap;
+}
+
+.lb-row{ display:flex; align-items:center; gap:calc(var(--u) * 10px) }
+
+.lobbybar #f-name{
+  flex:0 0 auto;
+  width:calc(var(--u) * 300px);
+  text-align:center;
+  padding:calc(var(--u) * 10px) calc(var(--u) * 14px);
+  font-size:calc(var(--u) * 22px);
+  letter-spacing:.18em;
+  background:rgba(237,231,218,.07);
+  border-color:rgba(237,231,218,.28);
+}
+
+.lobbybar .colors{
+  display:flex;
+  gap:calc(var(--u) * 8px);
+  grid-template-columns:none;
+}
+.lobbybar .swatch{
+  padding:calc(var(--u) * 6px);
+  border-width:2px;
+}
+.lobbybar .swatch i{
+  width:calc(var(--u) * 26px);
+  height:calc(var(--u) * 26px);
+}
+
+.lobbybar .btn{
+  font-size:calc(var(--u) * 17px);
+  padding:calc(var(--u) * 11px) calc(var(--u) * 20px);
+}
+
+.roomtag{
+  font-family:'Archivo Black',Impact,sans-serif;
+  font-size:calc(var(--u) * 26px);
+  letter-spacing:.2em;
+  color:var(--cyan);
+  background:rgba(95,235,247,.08);
+  border:2px solid rgba(95,235,247,.45);
+  padding:calc(var(--u) * 7px) calc(var(--u) * 14px);
+  cursor:pointer;
+}
+.roomtag:hover{ background:rgba(95,235,247,.2); color:var(--bone) }
+.roomtag[hidden]{ display:none }
+
+.lobbytip{
+  justify-content:center;
+  font-size:calc(var(--u) * 22px);
+  letter-spacing:.3em;
+  color:var(--orange);
+  text-align:center;
+  margin:0;
+}
+
+/* ---------- panneaux (multijoueur, reglages) ---------- */
 
 .panel{
   position:absolute;
@@ -241,6 +330,7 @@ input[type=text]:focus, input[type=number]:focus{
   color:var(--txt-3);
 }
 #rooms-state.bad{ color:var(--orange) }
+.eyebrow #rooms-state{ letter-spacing:.24em }
 
 .mini{
   background:none;
@@ -313,7 +403,7 @@ input[type=text]:focus, input[type=number]:focus{
   flex-direction:column;
   align-items:center;
   gap:.5em;
-  padding:.7em .4em;
+  padding:.5em;
   background:rgba(237,231,218,.04);
   border:var(--edge) solid var(--line);
   color:var(--txt-3);
@@ -368,6 +458,7 @@ input[type=text]:focus, input[type=number]:focus{
   align-items:center;
   justify-content:space-between;
   gap:1em;
+  flex-wrap:wrap;
   padding:.55em .8em;
   border:1px solid var(--line);
   background:rgba(237,231,218,.03);
@@ -375,6 +466,8 @@ input[type=text]:focus, input[type=number]:focus{
   color:var(--txt-2);
   letter-spacing:.1em;
 }
+.keys{ display:flex; align-items:center; gap:5px; flex-wrap:wrap }
+
 .key{
   min-width:6.5ch;
   border:var(--edge) solid var(--line);
@@ -388,6 +481,14 @@ input[type=text]:focus, input[type=number]:focus{
   cursor:pointer;
 }
 .key:hover{ border-color:var(--cyan) }
+.key.add{
+  min-width:0;
+  padding:.4em .7em;
+  color:var(--orange);
+  border-color:rgba(255,77,0,.4);
+  background:rgba(255,77,0,.07);
+}
+.key.add:hover{ border-color:var(--orange); background:rgba(255,77,0,.18) }
 .key.listening{
   border-color:var(--orange);
   color:var(--orange);
@@ -428,6 +529,18 @@ input[type=text]:focus, input[type=number]:focus{
   text-align:center;
 }
 .tip.hidden{ display:none }
+
+.check{
+  display:flex;
+  align-items:center;
+  gap:.5em;
+  font-size:var(--fs-xs);
+  letter-spacing:.2em;
+  color:var(--txt-3);
+  cursor:pointer;
+}
+.check input{ accent-color:var(--orange); width:1em; height:1em }
+.check span{ color:var(--txt-2) }
 .tip b{ color:var(--cyan); font-weight:700 }
 .tip em{
   font-style:normal;
@@ -447,6 +560,5 @@ input[type=text]:focus, input[type=number]:focus{
 }
 
 @media (prefers-reduced-motion:reduce){
-  #stage{ transition:none }
   .key.listening{ animation:none }
 }

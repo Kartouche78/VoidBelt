@@ -75,6 +75,29 @@
 
   var BLOOD_DARK = "#7A0C0C", BLOOD_MID = "#A81212", BLOOD_HOT = "#D81C1C";
 
+  // ---------- le lobby ----------
+  // Une clairiere plate coupee en deux par un tronc couche. A gauche on
+  // regle sa partie, a droite on se met en position : le decompte part
+  // quand tout le monde a franchi le tronc.
+  var LOBBY = {
+    w: 1774, h: 887,
+    // Le lobby se parcourt comme un plan vu de trois quarts : on va a
+    // gauche et a droite, mais aussi vers le fond et vers l'avant. La
+    // bande d'herbe ou l'on peut marcher va du pied des arbres au bord
+    // du champ.
+    top: 560, ground: 748,
+    spawnY: 660,
+    // On n'est « a droite » qu'une fois le tronc entierement franchi.
+    side: 1110,
+    bar: [763, 887],        // la bande noire du bas, ou vit la barre de reglages
+    // Le dessus du tronc, releve sur l'image. Sa collision ne commence
+    // qu'a `logY` : il reste toujours un passage au fond de la
+    // clairiere, derriere le tronc, pour aller d'un cote a l'autre.
+    log: [[700, 578], [762, 545], [830, 530], [900, 556], [980, 588], [1050, 620], [1104, 652]],
+    logY: 636,
+    sky: [268, 545]         // ou volent les papillons, sous le bandeau du titre
+  };
+
   var COLORS = [
     { key: 0, label: "Argente", tint: "#C3C8CE" },
     { key: 1, label: "Fauve", tint: "#D09257" },
@@ -95,7 +118,7 @@
   var JUMP_V = 1020, JUMP_CUT = 0.42;
   var COYOTE = 0.10, BUFFER = 0.13;
   var DIVE = 2.1;                                 // gravite x2 quand on plonge
-  var BUMP_V = 1400;
+  var BUMP_V = 1550;
   var STEP_UP = 22;
   var BODY_W = 31, BODY_H = 39;
   var SPRITE_H = 58;
@@ -106,16 +129,22 @@
   // plus genant qu'utile.
   var DEAD_TIME = 0, SPAWN_SHIELD = 0.8;
 
-  var SWIM_G = 0.30, SWIM_MAX = 0.48, SWIM_ACC = 0.42;
-  var SWIM_DAMP = 2.6, BUOY = 1250, SWIM_JUMP = 0.92, STROKE_CD = 0.26;
+  // Sous l'eau, tout se joue au ralenti : la pesanteur tombe a un
+  // septieme, la poussee suit dans les memes proportions pour garder la
+  // meme ligne de flottaison, et le freinage est assez faible pour
+  // qu'un elan se prolonge en glissade. C'est ce qui donne la sensation
+  // d'apesanteur plutot que celle de nager dans du beton.
+  var SWIM_G = 0.14, SWIM_MAX = 0.46, SWIM_ACC = 0.30;
+  var SWIM_DAMP = 1.5, BUOY = 620, SWIM_JUMP = 0.65, STROKE_CD = 0.30;
   // Poussee et freinage se reglent ensemble. A 1250 contre un poids de
   // 810, le lapin remonte sans se faire ejecter et se stabilise enfonce
   // aux deux tiers : il nage, il ne flotte pas comme un bouchon.
-  var SWIM_VDAMP = 0.012;                         // freinage vertical dans l'eau
+  var SWIM_VDAMP = 0.11;                          // freinage vertical dans l'eau
 
   /* ---------- etat global ---------- */
 
   var cvs, ctx, mapCanvas, treeCanvas;
+  var scene = "arena", arenaWorld = null, lobbyWorld = null, countdown = null;
   var solid, ice;                                  // Uint8Array MAP_W*MAP_H
   var bunny = [], digits = [], flies = [];
   var gibFrames = [], gibChunks = [], eauFrames = [];
@@ -138,6 +167,17 @@
       i.onerror = function () { ko(new Error("image absente : " + src)); };
       i.src = src;
     });
+  }
+
+  // Les bruitages sont juste rapatries ici ; ils seront decodes a la
+  // premiere interaction, quand le contexte audio existera.
+  function loadSounds(base) {
+    return Promise.all(Object.keys(SFX_FILES).map(function (k) {
+      return fetch(base + SFX_FILES[k])
+        .then(function (r) { return r.ok ? r.arrayBuffer() : null; })
+        .then(function (ab) { if (ab) Sfx.raw[k] = ab; })
+        .catch(function () { /* fichier absent : synthese */ });
+    }));
   }
 
   function scratch(w, h) {
@@ -526,7 +566,9 @@
       loadImage(base + "score.png"),
       loadImage(base + "papillon.png"),
       loadImage(base + "splash_sang.png"),
-      loadImage(base + "splash_eau.png")
+      loadImage(base + "splash_eau.png"),
+      loadImage(base + "carte_lobby.png"),
+      loadSounds(base)
     ]).then(function (all) {
       var px = sheetData(all[0]);
       buildMask(px);
@@ -540,9 +582,67 @@
       decals = scratch(PLAY_W, MAP_H);
       decalsCtx = decals.getContext("2d");
       findSpawns();
+      arenaWorld = {
+        w: MAP_W, h: MAP_H, playW: PLAY_W,
+        solid: solid, ice: ice, canvas: mapCanvas, spawns: spawns
+      };
+      buildLobby(all[6]);
       Butterflies.init();
     });
   };
+
+  /* ==========================================================
+     LES DEUX SCENES
+     ========================================================== */
+
+  // Le lobby et l'arene n'ont ni la meme taille ni le meme masque. Tout
+  // le moteur lit MAP_W, MAP_H, solid… : il suffit donc de rebrancher
+  // ces variables pour changer de monde, sans toucher au reste.
+  function useScene(name) {
+    var w = name === "lobby" ? lobbyWorld : arenaWorld;
+    if (!w) return;
+    scene = name;
+    MAP_W = w.w; MAP_H = w.h; PLAY_W = w.playW;
+    solid = w.solid; ice = w.ice; mapCanvas = w.canvas; spawns = w.spawns;
+    if (cvs) { cvs.width = MAP_W; cvs.height = MAP_H; ctx.imageSmoothingQuality = "high"; }
+    Butterflies.init();
+    parts.length = 0; smokes.length = 0; bursts.length = 0;
+    chunks.length = 0; splashes.length = 0;
+  }
+
+  function logTop(x) {
+    var pts = LOBBY.log;
+    if (x <= pts[0][0] || x >= pts[pts.length - 1][0]) return LOBBY.ground + 1;
+    for (var i = 1; i < pts.length; i++) {
+      if (x <= pts[i][0]) {
+        var a = pts[i - 1], b = pts[i];
+        return a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0]);
+      }
+    }
+    return LOBBY.ground + 1;
+  }
+
+  function buildLobby(image) {
+    var w = LOBBY.w, h = LOBBY.h, x, y;
+    var sm = new Uint8Array(w * h), im = new Uint8Array(w * h);
+
+    // Tout est plein sauf la bande d'herbe.
+    sm.fill(1);
+    for (y = LOBBY.top; y <= LOBBY.ground; y++) {
+      for (x = 24; x < w - 24; x++) sm[y * w + x] = 0;
+    }
+    for (x = LOBBY.log[0][0]; x <= LOBBY.log[LOBBY.log.length - 1][0]; x++) {
+      var t = Math.max(LOBBY.logY, Math.round(logTop(x)));
+      for (y = t; y <= LOBBY.ground; y++) sm[y * w + x] = 1;
+    }
+
+    var c = scratch(w, h);
+    c.getContext("2d").drawImage(image, 0, 0, w, h);
+
+    var sp = [];
+    for (x = 150; x <= 620; x += 70) sp.push({ x: x, y: LOBBY.spawnY });
+    lobbyWorld = { w: w, h: h, playW: w, solid: sm, ice: im, canvas: c, spawns: sp };
+  }
 
   /* ==========================================================
      MASQUE
@@ -658,11 +758,15 @@
 
   var Butterflies = {
     list: [],
+    top: function () { return scene === "lobby" ? LOBBY.sky[0] : 60; },
+    bottom: function () { return scene === "lobby" ? LOBBY.sky[1] : MAP_H - 200; },
     init: function () {
+      this.list.length = 0;
+      var t = this.top(), b = this.bottom();
       for (var i = 0; i < 11; i++) {
         this.list.push({
           x: 80 + Math.random() * (PLAY_W - 160),
-          y: 80 + Math.random() * (MAP_H - 300),
+          y: t + Math.random() * (b - t),
           tint: Math.floor(Math.random() * 3),
           phase: Math.random() * 100,
           speed: 22 + Math.random() * 26,
@@ -680,8 +784,8 @@
         b.y += Math.sin(b.phase * 1.7) * 26 * b.drift * dt * 2;
         if (b.x < 40) { b.x = 40; b.dir = 1; }
         if (b.x > PLAY_W - 40) { b.x = PLAY_W - 40; b.dir = -1; }
-        if (b.y < 60) b.y = 60;
-        if (b.y > MAP_H - 200) b.y = MAP_H - 200;
+        if (b.y < this.top()) b.y = this.top();
+        if (b.y > this.bottom()) b.y = this.bottom();
       }
     },
     draw: function (g) {
@@ -951,14 +1055,45 @@
      SON — petit synthetiseur, pas de fichiers a charger
      ========================================================== */
 
+  // Quatre bruitages sont fournis en fichier ; le reste est synthetise.
+  // Un fichier absent ou pas encore decode retombe automatiquement sur
+  // le son de synthese, donc le jeu ne devient jamais muet.
+  var SFX_FILES = {
+    jump: "jump.wav", death: "death.wav", spring: "spring.wav", splash: "splash.wav"
+  };
+
   var Sfx = {
-    ctx: null, vol: 0.5, on: true,
+    ctx: null, vol: 0.5, on: true, raw: {}, buf: {},
     wake: function () {
       if (!this.ctx) {
         var C = window.AudioContext || window.webkitAudioContext;
         if (C) this.ctx = new C();
       }
       if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
+      this.decode();
+    },
+    decode: function () {
+      if (!this.ctx) return;
+      var self = this;
+      Object.keys(this.raw).forEach(function (k) {
+        var ab = self.raw[k];
+        if (!ab || self.buf[k]) return;
+        self.raw[k] = null;
+        self.ctx.decodeAudioData(ab,
+          function (b) { self.buf[k] = b; },
+          function () { /* format refuse : on garde la synthese */ });
+      });
+    },
+    sample: function (name, gain) {
+      if (!this.on || !this.ctx || !this.buf[name]) return false;
+      var s = this.ctx.createBufferSource();
+      s.buffer = this.buf[name];
+      var g = this.ctx.createGain();
+      g.gain.value = (gain === undefined ? 1 : gain) * this.vol;
+      s.connect(g);
+      g.connect(this.ctx.destination);
+      s.start();
+      return true;
     },
     tone: function (f0, f1, dur, type, gain) {
       if (!this.on || !this.ctx) return;
@@ -984,12 +1119,22 @@
       s.connect(f); f.connect(g); g.connect(this.ctx.destination);
       s.start(t);
     },
-    jump: function () { this.tone(360, 640, 0.11, "square", 0.16); },
+    jump: function () {
+      if (!this.sample("jump", 0.75)) this.tone(360, 640, 0.11, "square", 0.16);
+    },
     land: function () { this.noise(0.07, 0.12, 500); },
     stroke: function () { this.noise(0.13, 0.10, 420); },
-    splash: function () { this.noise(0.32, 0.28, 1500); },
-    boing: function () { this.tone(180, 900, 0.26, "sawtooth", 0.22); },
-    die: function () { this.tone(700, 90, 0.34, "sawtooth", 0.24); this.noise(0.2, 0.2, 700); },
+    splash: function () {
+      if (!this.sample("splash", 0.85)) this.noise(0.32, 0.28, 1500);
+    },
+    boing: function () {
+      if (!this.sample("spring", 0.9)) this.tone(180, 900, 0.26, "sawtooth", 0.22);
+    },
+    die: function () {
+      if (this.sample("death", 0.9)) return;
+      this.tone(700, 90, 0.34, "sawtooth", 0.24);
+      this.noise(0.2, 0.2, 700);
+    },
     point: function () { this.tone(760, 1180, 0.1, "triangle", 0.2); }
   };
 
@@ -997,37 +1142,70 @@
      COMMANDES
      ========================================================== */
 
-  var DEFAULT_KEYS = { left: "KeyQ", right: "KeyD", jump: "KeyZ", down: "KeyS" };
-  var keys = Object.assign({}, DEFAULT_KEYS);
-  var down = {};
+  // Chaque commande accepte plusieurs touches : le joueur en ajoute
+  // autant qu'il veut depuis les reglages.
+  var DEFAULT_KEYS = {
+    left: ["KeyQ"], right: ["KeyD"], jump: ["KeyZ"], down: ["KeyS"]
+  };
+  var keys = {}, down = {};
 
+  function copyKeys(src) {
+    var out = {};
+    Object.keys(DEFAULT_KEYS).forEach(function (k) {
+      var v = src && src[k];
+      // Les anciennes sauvegardes ne gardaient qu'une touche par
+      // commande : on les relit sans rien perdre.
+      if (typeof v === "string") v = [v];
+      out[k] = (v && v.length ? v : DEFAULT_KEYS[k]).slice();
+    });
+    return out;
+  }
+
+  keys = copyKeys(DEFAULT_KEYS);
   try {
     var saved = JSON.parse(localStorage.getItem("jnb.keys") || "null");
-    if (saved) keys = Object.assign({}, DEFAULT_KEYS, saved);
+    if (saved) keys = copyKeys(saved);
   } catch (e) { /* premier lancement */ }
 
   api.keys = keys;
   api.defaultKeys = DEFAULT_KEYS;
+  api.resetKeys = function () {
+    Object.keys(DEFAULT_KEYS).forEach(function (k) { keys[k] = DEFAULT_KEYS[k].slice(); });
+    api.saveKeys();
+  };
+  api.keyBound = bound;
   api.saveKeys = function () {
     try { localStorage.setItem("jnb.keys", JSON.stringify(keys)); } catch (e) { /* mode prive */ }
   };
   api.sfx = Sfx;
 
+  function bound(code) {
+    var k = Object.keys(keys);
+    for (var i = 0; i < k.length; i++) {
+      if (keys[k[i]].indexOf(code) >= 0) return true;
+    }
+    return false;
+  }
+
   window.addEventListener("keydown", function (e) {
     down[e.code] = true;
-    if (running && !paused && (e.code === keys.jump || e.code === keys.down ||
-      e.code === keys.left || e.code === keys.right || e.code === "Space")) {
-      e.preventDefault();
-    }
+    if (running && !paused && bound(e.code)) e.preventDefault();
   });
   window.addEventListener("keyup", function (e) { down[e.code] = false; });
   window.addEventListener("blur", function () { down = {}; });
 
+  function held(list) {
+    for (var i = 0; i < list.length; i++) {
+      if (down[list[i]]) return true;
+    }
+    return false;
+  }
+
   function readInput() {
     if (paused || locked) return { l: false, r: false, j: false, d: false };
     return {
-      l: !!down[keys.left], r: !!down[keys.right],
-      j: !!down[keys.jump], d: !!down[keys.down]
+      l: held(keys.left), r: held(keys.right),
+      j: held(keys.jump), d: held(keys.down)
     };
   }
 
@@ -1145,8 +1323,36 @@
 
   /* --- simulation d'un lapin --- */
 
+  // Dans le lobby il n'y a pas de gravite : on se promene sur le plan
+  // de la clairiere, gauche-droite et fond-avant, comme sur une carte
+  // vue de trois quarts.
+  var PLANE_ACC = 4200, PLANE_MAX = 285, PLANE_DAMP = 0.00002;
+
+  function stepPlane(p, inp, dt) {
+    var dx = (inp.r ? 1 : 0) - (inp.l ? 1 : 0);
+    var dy = (inp.d ? 1 : 0) - (inp.j ? 1 : 0);
+    if (dx && dy) { dx *= 0.707; dy *= 0.707; }   // pas plus vite en diagonale
+
+    if (dx) { p.vx += dx * PLANE_ACC * dt; p.face = dx > 0 ? 1 : -1; }
+    else { p.vx *= Math.pow(PLANE_DAMP, dt); if (Math.abs(p.vx) < 4) p.vx = 0; }
+    if (dy) p.vy += dy * PLANE_ACC * dt;
+    else { p.vy *= Math.pow(PLANE_DAMP, dt); if (Math.abs(p.vy) < 4) p.vy = 0; }
+    p.vx = Math.max(-PLANE_MAX, Math.min(PLANE_MAX, p.vx));
+    p.vy = Math.max(-PLANE_MAX, Math.min(PLANE_MAX, p.vy));
+
+    if (boxBlocked(p.x, p.y)) unstick(p);
+    moveX(p, p.vx * dt);
+    moveY(p, p.vy * dt);
+    p.y = Math.max(LOBBY.top + BODY_H, Math.min(LOBBY.ground, p.y));
+
+    p.onGround = true;
+    p.onIce = false;
+    p.anim = (dx || dy) ? 1 : 0;
+  }
+
   function stepPlayer(p, inp, dt) {
     if (!p.alive) return;
+    if (scene === "lobby") { stepPlane(p, inp, dt); return; }
     // Un rebond mal place, une apparition trop pres d'un rocher : si le
     // corps chevauche le decor, plus rien ne bouge. On le repousse au
     // plus court plutot que de le laisser fige.
@@ -1162,7 +1368,7 @@
       Water.splash(p.x, (p.wasWet ? 1 : -0.6) * Math.min(120, 18 + speed * 0.16));
       burstDrops(p.x, Water.surface(p.x), 8, Math.min(340, 90 + speed * 0.5));
       splashWater(p.x);
-      if (speed > 120) Sfx.splash();
+      if (speed > 90) Sfx.splash();
     }
 
     var acc, max, damp;
@@ -1208,7 +1414,6 @@
         p.ownJump = true;
         Water.splash(p.x, 26);
         burstDrops(p.x, Water.surface(p.x), 5, 160);
-        if (p === me) Sfx.stroke();
       }
     } else if (p.buffer > 0 && p.coyote > 0) {
       p.vy = -JUMP_V * (p.onIce ? 0.94 : 1);
@@ -1310,7 +1515,7 @@
       // Une bosse d'herbe ou un caillou : on l'enjambe si le corps tient
       // a la nouvelle hauteur, sinon c'est un mur.
       var climbed = false;
-      if (p.onGround) {
+      if (p.onGround && scene !== "lobby") {
         for (var up = 1; up <= STEP_UP; up++) {
           if (!colBlocked(edge, p.y - up - BODY_H + 1, p.y - up) &&
             !rowBlocked(p.x + adv - HW, p.x + adv + HW, p.y - up - BODY_H + 1)) {
@@ -1365,6 +1570,36 @@
     }
   }
 
+  // Les lapins ne se traversent plus. Chaque navigateur ne deplace que
+  // les lapins qu'il simule : les deux clients se repoussent donc
+  // symetriquement, sans se disputer la meme position. La poussee est
+  // horizontale seulement — sinon on glisserait de la tete d'un
+  // adversaire avant que le saut mortel n'ait le temps de compter.
+  function separate(dt) {
+    if (phase === "over") return;
+    for (var a = 0; a < order.length; a++) {
+      var A = players[order[a]];
+      if (!A || (!A.local && !A.bot) || !A.alive) continue;
+      for (var b = 0; b < order.length; b++) {
+        var B = players[order[b]];
+        if (!B || B === A || !B.alive) continue;
+        var dy = A.y - B.y;
+        if (Math.abs(dy) > BODY_H * 0.6) continue;      // l'un est au-dessus
+        var dx = A.x - B.x;
+        var gap = BODY_W - Math.abs(dx);
+        if (gap <= 0) continue;
+        var dir = dx === 0 ? (A.id > B.id ? 1 : -1) : (dx > 0 ? 1 : -1);
+        var step = Math.min(gap * 0.6, 5);
+        if (!boxBlocked(A.x + dir * step, A.y)) A.x += dir * step;
+        // Sans couper l'elan qui rentre dans l'autre, un lapin qui
+        // marche droit sur son voisin annule la poussee et les deux
+        // restent encastres.
+        if (A.vx * dir < 0) A.vx *= Math.pow(0.02, dt);
+        if (Math.abs(A.vx) < WALK_MAX * 1.5) A.vx += dir * 700 * dt;
+      }
+    }
+  }
+
   /* ==========================================================
      BOUCLE
      ========================================================== */
@@ -1398,6 +1633,7 @@
       }
     }
     checkStomps();
+    separate(dt);
   }
 
   // Les lapins des autres sont rejoues avec 100 ms de retard : on
@@ -1429,7 +1665,9 @@
   // Les ressorts d'animation tournent pour tout le monde, y compris les
   // lapins des autres joueurs qui ne passent jamais par la physique.
   function animate(p, dt) {
-    var tgt = Math.max(-1, Math.min(1, -p.vy / 1200));
+    // Sur le plan du lobby, la vitesse verticale est un deplacement, pas
+    // une chute : les oreilles n'ont pas a s'affoler.
+    var tgt = scene === "lobby" ? 0 : Math.max(-1, Math.min(1, -p.vy / 1200));
     p.ear += (tgt - p.ear) * Math.min(1, 11 * dt);
     var lt = Math.max(-1, Math.min(1, p.vx / 420));
     p.lean += (lt - p.lean) * Math.min(1, 8 * dt);
@@ -1549,17 +1787,6 @@
       -w / 2 + split * scaleX + rx, fy + ry, (pw - split) * scaleX, fh);
     g.restore();
 
-    // Le pseudo suit le lapin, discret mais lisible.
-    var top = p.y - h * (1 + Math.max(0, stretch)) - 8;
-    g.save();
-    g.font = "700 13px 'Archivo Black', 'Space Mono', sans-serif";
-    g.textAlign = "center";
-    g.lineWidth = 4;
-    g.strokeStyle = "rgba(0,0,0,.72)";
-    g.fillStyle = COLORS[p.color].tint;
-    g.strokeText(p.name, p.x, top);
-    g.fillText(p.name, p.x, top);
-    g.restore();
   }
 
   // Deux chevrons au-dessus de la caisse : le seul element de decor
@@ -1728,15 +1955,16 @@
   }
 
   function draw() {
-    var g = ctx;
+    var g = ctx, arena = scene === "arena";
     g.clearRect(0, 0, MAP_W, MAP_H);
     g.drawImage(mapCanvas, 0, 0);
-    g.drawImage(decals, 0, 0);
+    if (arena) g.drawImage(decals, 0, 0);
 
     Butterflies.draw(g);
-    drawWater(g);
-
-    drawBumper(g);
+    if (arena) {
+      drawWater(g);
+      drawBumper(g);
+    }
 
     var i, p;
     for (i = 0; i < order.length; i++) {
@@ -1745,10 +1973,12 @@
       if (p.alive) drawBunny(g, p);
     }
     drawFx(g);
-    drawSplashes(g);
-    g.drawImage(treeCanvas, TREE.x, TREE.y);
-    drawUnderwater(g);
-    drawPanel(g);
+    if (arena) {
+      drawSplashes(g);
+      g.drawImage(treeCanvas, TREE.x, TREE.y);
+      drawUnderwater(g);
+      drawPanel(g);
+    }
 
     if (banner) {
       g.save();
@@ -1761,12 +1991,45 @@
       g.fillText(banner, PLAY_W / 2, 140);
       g.restore();
     }
+    drawCountdown(g);
     if (paused || locked) {
       g.save();
       g.fillStyle = "rgba(10,10,11,.55)";
       g.fillRect(0, 0, PLAY_W, MAP_H);
       g.restore();
     }
+  }
+
+  // Le decompte reprend les chiffres graves du panneau de score : gros,
+  // au centre, chaque seconde entre d'un coup puis s'efface.
+  function drawCountdown(g) {
+    if (countdown === null || countdown <= 0) return;
+    var n = Math.min(9, Math.ceil(countdown));
+    var d = digits[n];
+    var frac = countdown - Math.floor(countdown);
+    if (frac === 0) frac = 1;
+    var pop = 1 + Math.max(0, frac - 0.78) * 1.5;
+    var h = MAP_H * 0.30 * pop, w = h * d.ratio;
+    // Dans le lobby il s'affiche au-dessus de la clairiere de droite,
+    // celle qu'il faut rejoindre ; en partie, au centre.
+    var cx = scene === "lobby" ? (LOBBY.side + MAP_W) / 2 : MAP_W / 2;
+    var cy = MAP_H * 0.44;
+    var pw = h * 0.92, ph = h * 1.16;
+
+    g.save();
+    // Le chiffre tient presque toute la seconde puis s'efface d'un coup :
+    // au-dessus du feuillage clair, une fondu lent le rendait illisible.
+    g.globalAlpha = Math.min(1, frac * 4);
+    // Les chiffres du panneau de score sont graves en clair sur du noir :
+    // sans plaque derriere, ils disparaissent dans le ciel.
+    g.fillStyle = "rgba(9,10,12,.84)";
+    roundRect(g, cx - pw / 2, cy - ph / 2, pw, ph, h * 0.11);
+    g.fill();
+    g.strokeStyle = "rgba(237,231,218,.32)";
+    g.lineWidth = Math.max(2, h * 0.015);
+    g.stroke();
+    g.drawImage(d.c, cx - w / 2, cy - h / 2, w, h);
+    g.restore();
   }
 
   /* ==========================================================
@@ -1782,6 +2045,7 @@
   };
 
   api.start = function (opts) {
+    useScene("arena");
     players = {}; order = [];
     parts.length = 0; smokes.length = 0; bursts.length = 0;
     chunks.length = 0; splashes.length = 0;
@@ -1806,7 +2070,46 @@
     requestAnimationFrame(frame);
   };
 
-  api.stop = function () { running = false; phase = "lobby"; };
+  api.stop = function () { running = false; phase = "lobby"; countdown = null; };
+
+  // Le lobby tourne sur le meme moteur que l'arene : meme physique,
+  // memes lapins, simplement une autre carte et aucune mise a mort.
+  api.startLobby = function (opts) {
+    useScene("lobby");
+    players = {}; order = [];
+    phase = "lobby";
+    banner = null;
+    countdown = null;
+    me = null;
+    for (var i = 0; i < opts.players.length && i < 4; i++) {
+      var info = opts.players[i];
+      var p = makePlayer(info);
+      p.local = info.id === opts.localId;
+      players[info.id] = p;
+      order.push(info.id);
+      respawn(p, spawns[i % spawns.length]);
+      p.shield = 0;
+      if (p.local) me = p;
+    }
+    running = true;
+    paused = false;
+    lastT = performance.now();
+    acc = 0;
+    requestAnimationFrame(frame);
+  };
+
+  api.countdown = function (v) { countdown = v; };
+  api.inLobby = function () { return scene === "lobby"; };
+  api.side = function () { return me && me.x >= LOBBY.side ? "right" : "left"; };
+  api.allRight = function () {
+    if (!order.length) return false;
+    for (var i = 0; i < order.length; i++) {
+      var p = players[order[i]];
+      if (!p || p.x < LOBBY.side) return false;
+    }
+    return true;
+  };
+  api.lobbyBar = function () { return { top: LOBBY.bar[0], h: LOBBY.bar[1] - LOBBY.bar[0], w: LOBBY.w, ht: LOBBY.h }; };
   api.pause = function (v) { paused = v; if (!v) lastT = performance.now(); };
   api.lockInput = function (v) { locked = v; };
   api.isRunning = function () { return running; };
