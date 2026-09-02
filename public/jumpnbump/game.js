@@ -148,7 +148,7 @@
 
   /* ---------- etat global ---------- */
 
-  var cvs, ctx, mapCanvas, treeCanvas;
+  var cvs, ctx, mapCanvas, treeCanvas, clean;
   var scene = "arena", arenaWorld = null, lobbyWorld = null, countdown = null;
   var solid, ice;                                  // Uint8Array MAP_W*MAP_H
   var bunny = [], digits = [], flies = [];
@@ -159,7 +159,7 @@
   var me = null, running = false, paused = false, locked = false;
   var phase = "lobby", banner = null;
   var lastT = 0, acc = 0, netAcc = 0, clock = 0;
-  var fps = 0, fpsAcc = 0, fpsN = 0, netMs = null;
+  var fps = 0, fpsAcc = 0, fpsN = 0, netMs = null, waterGrad = null;
   var lastSent = null, lastSentAt = 0;
   var api = {};
 
@@ -409,6 +409,7 @@
     }
     mapCanvas = scratch(MAP_W, MAP_H);
     mapCanvas.getContext("2d").putImageData(px, 0, 0);
+    clean = mapCanvas;
   }
 
   // L'arbre decoupe sur le ciel : l'alpha suit l'ecart au bleu, pour
@@ -586,12 +587,17 @@
       cutFlies(all[3]);
       cutGibs(all[4]);
       cutEau(all[5]);
-      decals = scratch(PLAY_W, MAP_H);
+      // Les traces de sang sont peintes directement dans une copie de la
+      // carte : une seule grande image a recopier par trame au lieu de
+      // deux superposees.
+      decals = scratch(MAP_W, MAP_H);
       decalsCtx = decals.getContext("2d");
+      decalsCtx.drawImage(mapCanvas, 0, 0);
+      mapCanvas = decals;
       findSpawns();
       arenaWorld = {
         w: MAP_W, h: MAP_H, playW: PLAY_W,
-        solid: solid, ice: ice, canvas: mapCanvas, spawns: spawns
+        solid: solid, ice: ice, canvas: mapCanvas, clean: clean, spawns: spawns
       };
       buildLobby(all[6]);
       Butterflies.init();
@@ -615,6 +621,8 @@
     Butterflies.init();
     parts.length = 0; smokes.length = 0; bursts.length = 0;
     chunks.length = 0; splashes.length = 0;
+    panelKey = "";
+    waterGrad = null;
   }
 
   function logTop(x) {
@@ -1651,8 +1659,11 @@
   // le reseau est regulier, plus long quand il hoquette. Un retard fixe
   // etait soit trop grand (jeu mou) soit trop petit (lapins qui sautent).
   function stepRemote(p, dt) {
-    var gap = p.gapAvg || 0.033;
-    var delay = Math.max(0.045, Math.min(0.22, gap * 1.8));
+    // On vise juste derriere le dernier paquet recu et on extrapole le
+    // reste a la vitesse connue : le lapin d'en face colle au present au
+    // lieu d'etre affiche dans le passe.
+    var gap = p.gapAvg || 0.028;
+    var delay = Math.max(0.018, Math.min(0.10, gap * 0.85));
     var t = clock - delay, b = p.buf;
     while (b.length > 2 && b[1].t <= t) b.shift();
     if (!b.length) return;
@@ -1850,11 +1861,14 @@
     g.lineTo(POOL.x0, MAP_H);
     g.closePath();
 
-    var grad = g.createLinearGradient(0, POOL.y - 12, 0, MAP_H);
-    grad.addColorStop(0, "rgba(120,215,255,.42)");
-    grad.addColorStop(0.16, "rgba(24,132,240,.30)");
-    grad.addColorStop(1, "rgba(4,52,140,.42)");
-    g.fillStyle = grad;
+    if (!waterGrad) {
+      // Un degrade se recree a l'identique a chaque image sinon.
+      waterGrad = g.createLinearGradient(0, POOL.y - 12, 0, MAP_H);
+      waterGrad.addColorStop(0, "rgba(120,215,255,.42)");
+      waterGrad.addColorStop(0.16, "rgba(24,132,240,.30)");
+      waterGrad.addColorStop(1, "rgba(4,52,140,.42)");
+    }
+    g.fillStyle = waterGrad;
     g.fill();
 
     // La crete : un trait clair, double d'un halo.
@@ -1905,7 +1919,33 @@
     }
   }
 
+  var panelCache = null, panelKey = "";
+
+  // Le panneau ne bouge qu'au changement de score, de nom ou de pelage :
+  // le redessiner soixante fois par seconde — avec ses mesures de texte —
+  // etait le poste le plus cher du rendu.
   function drawPanel(g) {
+    var key = order.length + "|";
+    for (var i = 0; i < order.length; i++) {
+      var q = players[order[i]];
+      key += q ? q.id + "," + q.name + "," + q.color + "," + q.score + "," + (q.alive ? 1 : 0) + "|" : "-|";
+    }
+    if (key !== panelKey) {
+      panelKey = key;
+      if (!panelCache || panelCache.width !== MAP_W - PLAY_W) {
+        panelCache = scratch(MAP_W - PLAY_W, MAP_H);
+      }
+      var pg = panelCache.getContext("2d");
+      pg.clearRect(0, 0, panelCache.width, panelCache.height);
+      pg.save();
+      pg.translate(-PLAY_W, 0);
+      renderPanel(pg);
+      pg.restore();
+    }
+    g.drawImage(panelCache, PLAY_W, 0);
+  }
+
+  function renderPanel(g) {
     for (var i = 0; i < SLOTS.length; i++) {
       var slot = SLOTS[i], p = players[order[i]];
       if (!p) continue;
@@ -1984,7 +2024,6 @@
     var g = ctx, arena = scene === "arena";
     g.clearRect(0, 0, MAP_W, MAP_H);
     g.drawImage(mapCanvas, 0, 0);
-    if (arena) g.drawImage(decals, 0, 0);
 
     Butterflies.draw(g);
     if (arena) {
@@ -2086,7 +2125,11 @@
     cvs = canvas;
     cvs.width = MAP_W;
     cvs.height = MAP_H;
-    ctx = cvs.getContext("2d");
+    // `alpha:false` evite de melanger le canvas avec la page a chaque
+    // trame, `desynchronized:true` court-circuite un etage de mise en
+    // memoire tampon du navigateur : deux images de latence en moins
+    // entre la touche et l'ecran.
+    ctx = cvs.getContext("2d", { alpha: false, desynchronized: true });
     ctx.imageSmoothingQuality = "high";
   };
 
@@ -2095,7 +2138,10 @@
     players = {}; order = [];
     parts.length = 0; smokes.length = 0; bursts.length = 0;
     chunks.length = 0; splashes.length = 0;
-    if (decalsCtx) decalsCtx.clearRect(0, 0, PLAY_W, MAP_H);
+    if (decalsCtx) {
+      decalsCtx.clearRect(0, 0, MAP_W, MAP_H);
+      decalsCtx.drawImage(arenaWorld.clean, 0, 0);
+    }
     phase = "playing";
     banner = null;
     me = null;
@@ -2180,7 +2226,9 @@
     if (!p || p.local) return;
     if (p.lastRx) {
       var gap = clock - p.lastRx;
-      p.gapAvg = p.gapAvg ? p.gapAvg * 0.88 + gap * 0.12 : gap;
+      // Les longs silences d'un lapin immobile ne comptent pas : sinon
+      // le retard d'affichage gonflerait juste avant qu'il reparte.
+      if (gap < 0.1) p.gapAvg = p.gapAvg ? p.gapAvg * 0.85 + gap * 0.15 : gap;
     }
     p.lastRx = clock;
     p.buf.push({ t: clock, x: s.x, y: s.y, vx: s.vx, vy: s.vy, f: s.f, a: s.a });
