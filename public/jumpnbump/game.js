@@ -1278,7 +1278,9 @@
     p.alive = false;
     p.dead = DEAD_TIME;
     burstBlood(p.x, p.y);
-    if (p === me || killer === me) Sfx.die();
+    // La mort est un evenement global : chaque client qui l'applique doit
+    // entendre le son, meme s'il n'est ni la victime ni le tueur.
+    Sfx.die();
     if (killer && killer === me) Sfx.point();
   }
 
@@ -1826,6 +1828,39 @@
 
   }
 
+  // Les pseudos restent volontairement compacts pour ne pas masquer le
+  // terrain. La plaque sombre et le filet clair les gardent lisibles sur
+  // le ciel comme sur le feuillage, y compris quand le canvas est reduit.
+  function drawPlayerName(g, p) {
+    var label = String(p.name || "Lapin").toUpperCase();
+    var size = 15;
+
+    g.save();
+    g.font = "700 " + size + "px 'Space Mono', ui-monospace, monospace";
+    while (g.measureText(label).width > 132 && size > 11) {
+      size -= 1;
+      g.font = "700 " + size + "px 'Space Mono', ui-monospace, monospace";
+    }
+
+    var tw = g.measureText(label).width;
+    var bw = Math.ceil(tw + 14), bh = 23;
+    var x = Math.max(3, Math.min(PLAY_W - bw - 3, p.x - bw / 2));
+    var y = Math.max(4, p.y - SPRITE_H - bh - 9);
+
+    g.fillStyle = "rgba(10,10,11,.82)";
+    roundRect(g, x, y, bw, bh, 5);
+    g.fill();
+    g.strokeStyle = "rgba(237,231,218,.48)";
+    g.lineWidth = 1;
+    g.stroke();
+
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillStyle = "#F4F0E8";
+    g.fillText(label, x + bw / 2, y + bh / 2 + 0.5);
+    g.restore();
+  }
+
   // Deux chevrons au-dessus de la caisse : le seul element de decor
   // dont le comportement ne se devine pas a l'oeil.
   function drawBumper(g) {
@@ -2043,6 +2078,13 @@
       g.drawImage(treeCanvas, TREE.x, TREE.y);
       drawUnderwater(g);
       drawPanel(g);
+    }
+
+    // Les noms sont une information de jeu : ils passent apres le decor de
+    // premier plan pour rester visibles lorsque le lapin longe un obstacle.
+    for (i = 0; i < order.length; i++) {
+      p = players[order[i]];
+      if (p && p.alive) drawPlayerName(g, p);
     }
 
     if (banner) {
