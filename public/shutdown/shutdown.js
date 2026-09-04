@@ -467,13 +467,16 @@ scene.add(carRoot);
 const wheels = [];
 let WB = 2.5;   // empattement, mesure sur le modele au chargement
 const MAX_HP = 100;
-const HIT_DISTANCE = 2.9;
+const CAR_HALF_W = 1.08;
+const CAR_HALF_L = 2.08;
 const drivers = [];
 const hitTimes = new Map();
 const damageTimes = new Map();
 const debris = [];
 let localDriver = null;
 let pendingContact = null;
+let cameraShakeUntil = 0;
+let cameraShakeStrength = 0;
 
 const boxOf = (o) => new THREE.Box3().setFromObject(o);
 const centreOf = (o) => boxOf(o).getCenter(new THREE.Vector3());
@@ -725,7 +728,7 @@ function ensureAudio(){
   if (!AudioCtx) return null;
   const ctx = new AudioCtx();
   const master = ctx.createGain();
-  master.gain.value = .28;
+  master.gain.value = .36;
   master.connect(ctx.destination);
 
   const engineGain = ctx.createGain();
@@ -801,14 +804,14 @@ function impactSound(kind, force){
   sound[key] = now + (kind === "wall" ? 150 : 220);
   const power = clamp(force || .3, .18, 1);
   if (kind === "wall"){
-    tone(105, .11, .12 * power, "square", .45);
-    noiseHit(.13, .16 * power, 380);
+    tone(105, .14, .2 * power, "square", .45);
+    noiseHit(.16, .28 * power, 380);
   } else if (kind === "destroy"){
     tone(82, .42, .2, "sawtooth", .18);
     noiseHit(.48, .24, 240);
   } else {
-    tone(155, .16, .15 * power, "square", .38);
-    noiseHit(.2, .2 * power, 720);
+    tone(135, .2, .3 * power, "square", .32);
+    noiseHit(.24, .44 * power, 720);
   }
 }
 
@@ -841,7 +844,7 @@ function toggleSound(){
   sound.muted = !sound.muted;
   const ctx = ensureAudio();
   if (ctx && ctx.state === "suspended") ctx.resume();
-  if (sound.master) sound.master.gain.setTargetAtTime(sound.muted ? 0 : .28, sound.ctx.currentTime, .03);
+  if (sound.master) sound.master.gain.setTargetAtTime(sound.muted ? 0 : .36, sound.ctx.currentTime, .03);
   $("s-sound").textContent = sound.muted ? "SON COUPÉ" : "SON ACTIVÉ";
 }
 
@@ -909,18 +912,21 @@ function createDriver(info){
   const tint = local ? 0xff4d00 : DRIVER_TINTS[info.color % DRIVER_TINTS.length];
   const driver = {
     id: info.id, name: info.name, root, local,
-    tint,
+    tint, visual: local ? shell : (root.children[0] || root),
     hp: info.hp === undefined ? MAX_HP : info.hp,
     alive: info.alive === undefined ? true : info.alive,
     velocity: new THREE.Vector3(),
     targetX: info.x, targetZ: info.z, targetYaw: info.yaw,
     spawnX: info.x, spawnZ: info.z, spawnYaw: info.yaw,
-    respawnAt: 0, invulnerableUntil: performance.now() + 1800
+    respawnAt: 0, invulnerableUntil: performance.now() + 1200,
+    hitUntil: 0, hitStrength: 0, damagePitch: 0, damageRoll: 0
   };
   root.position.set(info.x, 0, info.z);
   root.rotation.y = info.yaw;
   root.visible = driver.alive;
   createWorldHealthBar(driver);
+  driver.damageFlash = new THREE.PointLight(0xff3b00, 0, 7);
+  scene.add(driver.damageFlash);
   drivers.push(driver);
   if (local){
     localDriver = driver;
@@ -979,6 +985,11 @@ function removeWorldHealthBar(driver){
   driver.worldBar.texture.dispose();
   driver.worldBar.sprite.material.dispose();
   driver.worldBar = null;
+  if (driver.damageFlash){
+    scene.remove(driver.damageFlash);
+    if (driver.damageFlash.dispose) driver.damageFlash.dispose();
+    driver.damageFlash = null;
+  }
 }
 
 function updateWorldHealthBars(){
@@ -1161,6 +1172,38 @@ function stepRemoteDrivers(dt){
   }
 }
 
+function carAxes(driver){
+  const angle = driver.local ? yaw : driver.root.rotation.y;
+  return {
+    right: { x: Math.cos(angle), z: -Math.sin(angle) },
+    forward: { x: -Math.sin(angle), z: -Math.cos(angle) }
+  };
+}
+
+/* Collision de deux rectangles orientés. Contrairement à l'ancien cercle,
+   les pare-chocs déclenchent bien le choc avant que les modèles se traversent. */
+function carContact(a, b, margin = .12){
+  const aa = carAxes(a), bb = carAxes(b);
+  const dx = b.root.position.x - a.root.position.x;
+  const dz = b.root.position.z - a.root.position.z;
+  const axes = [aa.right, aa.forward, bb.right, bb.forward];
+  let best = null;
+  for (const axis of axes){
+    const distance = Math.abs(dx * axis.x + dz * axis.z);
+    const ra = CAR_HALF_W * Math.abs(aa.right.x * axis.x + aa.right.z * axis.z) +
+      CAR_HALF_L * Math.abs(aa.forward.x * axis.x + aa.forward.z * axis.z);
+    const rb = CAR_HALF_W * Math.abs(bb.right.x * axis.x + bb.right.z * axis.z) +
+      CAR_HALF_L * Math.abs(bb.forward.x * axis.x + bb.forward.z * axis.z);
+    const overlap = ra + rb + margin - distance;
+    if (overlap <= 0) return null;
+    if (!best || overlap < best.overlap){
+      const sign = dx * axis.x + dz * axis.z < 0 ? -1 : 1;
+      best = { nx: axis.x * sign, nz: axis.z * sign, overlap };
+    }
+  }
+  return best;
+}
+
 function collideCars(now){
   if (localDriver && localDriver.alive){
     localDriver.velocity.set(-Math.sin(yaw) * speed, 0, -Math.cos(yaw) * speed);
@@ -1169,49 +1212,81 @@ function collideCars(now){
     const a = drivers[i], b = drivers[j];
     if (!a.alive || !b.alive) continue;
     if (!a.local && !b.local) continue;
-    let nx = b.root.position.x - a.root.position.x;
-    let nz = b.root.position.z - a.root.position.z;
-    let distance = Math.hypot(nx, nz);
-    if (distance >= HIT_DISTANCE) continue;
-    if (distance < .001){ nx = 1; nz = 0; distance = 1; }
-    else { nx /= distance; nz /= distance; }
+    const contact = carContact(a, b);
+    if (!contact) continue;
 
     const local = a.local ? a : b;
     const sign = a.local ? -1 : 1;
-    const overlap = HIT_DISTANCE - distance;
-    local.root.position.x += nx * overlap * sign;
-    local.root.position.z += nz * overlap * sign;
+    local.root.position.x += contact.nx * contact.overlap * sign;
+    local.root.position.z += contact.nz * contact.overlap * sign;
     const key = a.id < b.id ? a.id + ":" + b.id : b.id + ":" + a.id;
     if (now >= (hitTimes.get(key) || 0)){
       const other = local === a ? b : a;
-      const relativeSpeed = a.velocity.distanceTo(b.velocity);
-      const impact = Math.max(relativeSpeed, Math.abs(speed) * .7);
-      if (impact > 1.8){
-        pendingContact = { id: other.id, impact: clamp(impact, 0, 45) };
-        impactSound("car", clamp(impact / 28, .25, 1));
+      const speedKmh = Math.abs(speed) * 3.6;
+      if (speedKmh >= 15){
+        pendingContact = { victim: other.id, speedKmh: clamp(speedKmh, 0, 220) };
+        impactSound("car", clamp(speedKmh / 115, .35, 1));
         sendLocalState(now, true);
       }
-      speed *= -.32;
-      hitTimes.set(key, now + 280);
+      speed *= -.46;
+      hitTimes.set(key, now + 420);
     }
   }
 }
 
-function damagePair(a, b, impact, now){
-  if (!a || !b || !a.alive || !b.alive) return false;
-  const key = a.id < b.id ? a.id + ":" + b.id : b.id + ":" + a.id;
-  if (now < (damageTimes.get(key) || 0)) return false;
-  damageTimes.set(key, now + 650);
-  const damage = Math.round(clamp((impact - 1.2) * 3.2, 6, 40));
-  let changed = false;
-  for (const driver of [a, b]){
-    if (now < driver.invulnerableUntil) continue;
-    driver.hp = Math.max(0, driver.hp - damage);
-    paintWorldHealthBar(driver, true);
-    if (driver.hp === 0) destroyDriver(driver, now + 4500);
-    changed = true;
+function damageForSpeed(speedKmh){
+  if (speedKmh >= 150) return 80;
+  if (speedKmh >= 125) return 65;
+  if (speedKmh >= 100) return 50;
+  if (speedKmh >= 75) return 35;
+  if (speedKmh >= 50) return 20;
+  if (speedKmh >= 25) return 10;
+  if (speedKmh >= 15) return 5;
+  return 0;
+}
+
+function animateDamage(victim, attacker, damage, now = performance.now()){
+  victim.hitUntil = now + 520;
+  victim.hitStrength = clamp(damage / 50, .25, 1.5);
+  const dx = victim.root.position.x - attacker.root.position.x;
+  const dz = victim.root.position.z - attacker.root.position.z;
+  const right = carAxes(victim).right;
+  victim.hitSide = Math.sign(dx * right.x + dz * right.z) || 1;
+  if (victim.damageFlash){
+    victim.damageFlash.position.set(victim.root.position.x, victim.root.position.y + 1, victim.root.position.z);
+    victim.damageFlash.intensity = 18 * victim.hitStrength;
   }
-  return changed;
+  if (victim.local){
+    cameraShakeUntil = now + 360;
+    cameraShakeStrength = clamp(damage / 50, .25, 1.4);
+  }
+  const origin = victim.root.position.clone().lerp(attacker.root.position, .42);
+  for (let i = 0; i < Math.min(12, 4 + Math.ceil(damage / 8)); i++){
+    const material = new THREE.MeshBasicMaterial({ color: i % 2 ? 0xff4d00 : 0xffd35a, transparent: true });
+    const spark = new THREE.Mesh(debrisGeometry, material);
+    spark.scale.setScalar(.28 + Math.random() * .25);
+    spark.position.copy(origin).add(new THREE.Vector3(0, .55 + Math.random() * .65, 0));
+    scene.add(spark);
+    debris.push({
+      mesh: spark, life: .3 + Math.random() * .35,
+      velocity: new THREE.Vector3((Math.random() - .5) * 7, 2 + Math.random() * 5, (Math.random() - .5) * 7),
+      spin: new THREE.Vector3(Math.random() * 9, Math.random() * 9, Math.random() * 9)
+    });
+  }
+}
+
+function damageVehicle(attacker, victim, speedKmh, now){
+  if (!attacker || !victim || attacker === victim || !attacker.alive || !victim.alive) return false;
+  const damage = damageForSpeed(speedKmh);
+  if (!damage || now < victim.invulnerableUntil) return false;
+  const key = attacker.id + ">" + victim.id;
+  if (now < (damageTimes.get(key) || 0)) return false;
+  damageTimes.set(key, now + 720);
+  victim.hp = Math.max(0, victim.hp - damage);
+  paintWorldHealthBar(victim, true);
+  animateDamage(victim, attacker, damage, now);
+  if (victim.hp === 0) destroyDriver(victim, now + 4500);
+  return true;
 }
 
 function hostCombat(now){
@@ -1230,16 +1305,37 @@ function hostCombat(now){
   for (let i = 0; i < drivers.length; i++) for (let j = i + 1; j < drivers.length; j++){
     const a = drivers[i], b = drivers[j];
     if (!a.alive || !b.alive) continue;
-    const dx = b.root.position.x - a.root.position.x;
-    const dz = b.root.position.z - a.root.position.z;
-    const distance = Math.hypot(dx, dz);
-    if (distance < .01 || distance >= HIT_DISTANCE) continue;
-    const nx = dx / distance, nz = dz / distance;
-    const closing = (a.velocity.x - b.velocity.x) * nx + (a.velocity.z - b.velocity.z) * nz;
-    const relativeSpeed = a.velocity.distanceTo(b.velocity);
-    const impact = Math.max(closing, relativeSpeed * .72);
-    if (impact <= 1.8) continue;
-    damagePair(a, b, impact, now);
+    if (!carContact(a, b, .45)) continue;
+    damageVehicle(a, b, a.velocity.length() * 3.6, now);
+    damageVehicle(b, a, b.velocity.length() * 3.6, now);
+  }
+}
+
+function clearDamagePose(){
+  for (const driver of drivers){
+    if (!driver.visual) continue;
+    driver.visual.rotation.x -= driver.damagePitch || 0;
+    driver.visual.rotation.z -= driver.damageRoll || 0;
+    driver.damagePitch = 0;
+    driver.damageRoll = 0;
+  }
+}
+
+function updateDamageAnimations(now){
+  for (const driver of drivers){
+    const remaining = Math.max(0, driver.hitUntil - now);
+    if (remaining > 0 && driver.visual){
+      const fade = remaining / 520;
+      const wave = Math.sin((520 - remaining) * .072) * fade * driver.hitStrength;
+      driver.damagePitch = wave * .14;
+      driver.damageRoll = wave * .22 * driver.hitSide;
+      driver.visual.rotation.x += driver.damagePitch;
+      driver.visual.rotation.z += driver.damageRoll;
+    }
+    if (driver.damageFlash){
+      driver.damageFlash.position.set(driver.root.position.x, driver.root.position.y + .9, driver.root.position.z);
+      driver.damageFlash.intensity *= .78;
+    }
   }
 }
 
@@ -1386,10 +1482,13 @@ function handleNet(message){
       driver.velocity.set(message.vx || 0, 0, message.vy || 0);
     }
     if (net.id === net.host && driver && state.contact){
-      const victim = drivers.find((item) => item.id === state.contact.id);
-      const closeEnough = victim && driver.root.position.distanceTo(victim.root.position) < HIT_DISTANCE + 2.4;
-      if (closeEnough && damagePair(driver, victim, clamp(Number(state.contact.impact) || 0, 0, 50), performance.now())){
-        impactSound("car", clamp((Number(state.contact.impact) || 4) / 28, .25, 1));
+      const victim = drivers.find((item) => item.id === state.contact.victim);
+      const speedKmh = clamp(Number(state.contact.speedKmh) || 0, 0, 220);
+      const closeEnough = victim && (
+        carContact(driver, victim, .9) || driver.root.position.distanceTo(victim.root.position) < 5.2
+      );
+      if (closeEnough && damageVehicle(driver, victim, speedKmh, performance.now())){
+        impactSound("car", clamp(speedKmh / 115, .35, 1));
       }
     }
     if (message.i === net.host && Array.isArray(state.world)) applyWorld(state.world);
@@ -1415,6 +1514,13 @@ function applyWorld(world){
     if (!driver) continue;
     const hpLost = Math.max(0, driver.hp - state.hp);
     driver.hp = state.hp;
+    if (hpLost){
+      const attacker = drivers
+        .filter((other) => other !== driver && other.alive)
+        .sort((a, b) => a.root.position.distanceToSquared(driver.root.position) -
+          b.root.position.distanceToSquared(driver.root.position))[0];
+      if (attacker) animateDamage(driver, attacker, hpLost);
+    }
     if (driver.alive && !state.alive) destroyDriver(driver);
     else if (!driver.alive && state.alive) reviveDriver(driver, state);
     else paintWorldHealthBar(driver);
@@ -1519,6 +1625,12 @@ function moveCamera(dt, c){
   /* la camera ne traverse ni la chaussee ni un trottoir */
   camFrom.y = Math.max(camFrom.y, curbAt(camFrom.x, camFrom.z) + .55);
   camera.position.copy(camFrom);
+  if (performance.now() < cameraShakeUntil){
+    const fade = (cameraShakeUntil - performance.now()) / 360 * cameraShakeStrength;
+    camera.position.x += (Math.random() - .5) * .24 * fade;
+    camera.position.y += (Math.random() - .5) * .16 * fade;
+    camera.position.z += (Math.random() - .5) * .24 * fade;
+  }
 
   camAim.lerp(new THREE.Vector3(carRoot.position.x, carRoot.position.y + .85, carRoot.position.z),
               damp(9, dt));
@@ -1626,6 +1738,7 @@ const idle = { steer: 0, gas: 0, brake: 0, hand: 0, look: 0, tilt: 0, pad: false
 renderer.setAnimationLoop((now) => {
   const dt = Math.min(.05, (now - last) / 1000) || 0;
   last = now;
+  clearDamagePose();
 
   let c = idle;
   if (paused){ /* la ville se fige ; la camera, elle, revient se ranger */ }
@@ -1636,6 +1749,7 @@ renderer.setAnimationLoop((now) => {
     hostCombat(now);
     sendLocalState(now);
     collideCars(now);
+    updateDamageAnimations(now);
     stepDebris(dt);
   }
   else controls();   // on lit quand meme la manette : un bouton lance la partie
