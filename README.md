@@ -15,8 +15,7 @@ Quatre pages de jeu : `/arena/`, `/velocity/`, `/jumpnbump/` et
 
 Quatre lapins, une falaise flottante, un bassin et un trampoline. Le jeu
 tourne entierement dans le navigateur ; le serveur ne tient que les
-salons et arbitre les sauts mortels, via `GET /api/jnb/rooms` et le
-WebSocket `/api/jnb/ws?name=...&room=...`.
+salons et arbitre les sauts mortels via la passerelle multijoueur.
 
 Le bouton de creation genere un code a quatre chiffres. Un code saisi ne
 peut rejoindre qu'un salon encore dans son lobby. Les zones de spawn sont
@@ -31,8 +30,7 @@ le multijoueur fonctionne. L'entrainement solo, lui, marche sans serveur.
 ## Shutdown
 
 Un district a la grille, jusqu'a quatre Fennec et une manette. Les salons
-et les collisions sont arbitres par le serveur Rust via
-`GET /api/shutdown/rooms` et le WebSocket `/api/shutdown/ws`. La ville
+et les collisions sont arbitres par le serveur Rust. La ville
 (chaussee, trottoirs, immeubles) est fabriquee au chargement, textures
 comprises, et la seule ressource lue sur le disque est le modele de la
 voiture, `public/shutdown/models/fennec/scene.gltf`.
@@ -50,3 +48,11 @@ actions en secours.
 Le modele est « Fennec - Rocket League Car » par Jako, sous licence
 CC-BY-4.0 ; le credit est affiche dans l'ecran de pause du jeu, voir
 `public/shutdown/models/fennec/license.txt`.
+
+## Passerelle multijoueur
+
+Tous les jeux partagent `GET /api/multiplayer/rooms`, qui retourne aussi
+le champ `game`, et `/api/multiplayer/ws?game=...`. Le filtre optionnel
+`?game=shutdown` ou `?game=jumpnbump` alimente le menu de chaque jeu.
+Les anciennes routes `/api/jnb/*` et `/api/shutdown/*` restent des alias.
+L'interface globale est disponible sur `/multiplayer/`.

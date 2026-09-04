@@ -178,6 +178,10 @@ impl Hub {
 
 /// `GET /api/jnb/rooms` — de quoi peupler la liste des salons ouverts.
 pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
+    Json(room_list(&hub))
+}
+
+pub(crate) fn room_list(hub: &Arc<Hub>) -> Value {
     let rooms = hub.rooms.lock().expect("hub empoisonné");
     let mut list: Vec<Value> = rooms
         .iter()
@@ -193,19 +197,19 @@ pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
         })
         .collect();
     list.sort_by(|a, b| a["code"].as_str().cmp(&b["code"].as_str()));
-    Json(Value::Array(list))
+    Value::Array(list)
 }
 
 #[derive(Deserialize)]
 pub struct JoinParams {
     /// Code du salon ; vide ou absent, le serveur en crée un.
     #[serde(default)]
-    room: String,
+    pub(crate) room: String,
     #[serde(default)]
-    name: String,
+    pub(crate) name: String,
     /// « 1 » a la creation pour ouvrir un salon prive.
     #[serde(default, rename = "priv")]
-    priv_: String,
+    pub(crate) priv_: String,
 }
 
 pub async fn ws(
@@ -252,7 +256,7 @@ fn room_code(raw: &str) -> Option<String> {
     (code.len() == 4 && code.bytes().all(|c| c.is_ascii_digit())).then(|| code.to_owned())
 }
 
-async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
+pub(crate) async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
     // Chaque joueur a une file d'envoi : les autres sessions y déposent
     // du texte sans jamais attendre le réseau d'en face, et la boucle
     // ci-dessous alterne entre vider cette file et lire la socket.

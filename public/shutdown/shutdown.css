@@ -116,6 +116,18 @@
 .shp.local .shp-track i{ background:var(--orange) }
 .shp.dead .shp-track i{ background:#ff3131 }
 
+.stouch{ display:none; position:absolute; inset:0; pointer-events:none }
+.stouch-steer,.stouch-drive{ position:absolute; bottom:86px; display:flex; gap:10px; pointer-events:auto }
+.stouch-steer{ left:16px }
+.stouch-drive{ right:16px; align-items:flex-end }
+.stouch button{
+  width:58px; height:58px; border:1px solid rgba(237,231,218,.5); border-radius:50%;
+  background:rgba(10,10,11,.66); color:var(--bone); font:700 11px 'Space Mono',monospace;
+  box-shadow:inset 0 0 0 3px rgba(10,10,11,.4); touch-action:none; user-select:none;
+}
+.stouch button.gas{ width:72px; height:72px; border-color:var(--orange); color:var(--orange) }
+.stouch button.on{ background:var(--orange); color:var(--black); transform:scale(.94) }
+
 .sspeed{ display:flex; align-items:baseline; justify-content:flex-end; gap:.5em }
 .sspeed b{
   font-family:'Archivo Black','Arial Black',sans-serif;
@@ -241,4 +253,8 @@
   .ssector, .skeys{ display:none }
   .sspeed b{ font-size:3.2em }
   .shealth{ top:72px; width:min(210px,48vw); font-size:9px }
+}
+@media (pointer:coarse){
+  .stouch{ display:block }
+  .shud-br{ bottom:170px }
 }

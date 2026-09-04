@@ -616,6 +616,24 @@ addEventListener("keyup", (e) => held.delete(e.code));
 addEventListener("blur", () => held.clear());
 
 const down = (...codes) => codes.some((c) => held.has(c));
+const touchHeld = new Set();
+for (const button of document.querySelectorAll("[data-touch]")){
+  const action = button.dataset.touch;
+  const release = (event) => {
+    touchHeld.delete(action);
+    button.classList.remove("on");
+    if (event) event.preventDefault();
+  };
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    button.setPointerCapture(event.pointerId);
+    touchHeld.add(action);
+    button.classList.add("on");
+  });
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("lostpointercapture", release);
+}
 
 /* Un manche de manette n'est jamais tout a fait au centre : on ignore le
    premier dixieme, et on etire le reste pour ne pas perdre de course. */
@@ -670,6 +688,11 @@ function controls(){
   if (down("KeyW", "KeyZ", "ArrowUp")) gas = Math.max(gas, 1);
   if (down("KeyS", "ArrowDown")) brake = Math.max(brake, 1);
   if (down("Space")) hand = 1;
+  if (touchHeld.has("left")) steer = 1;
+  else if (touchHeld.has("right")) steer = -1;
+  if (touchHeld.has("gas")) gas = 1;
+  if (touchHeld.has("brake")) brake = 1;
+  if (touchHeld.has("hand")) hand = 1;
 
   return { steer: clamp(steer, -1, 1), gas, brake, hand, look, tilt, pad: !!g };
 }
@@ -1027,7 +1050,7 @@ function connectServer(code){
   if (net.socket) net.socket.close();
   const name = ($("s-name").value || "Pilote").trim().slice(0, 14);
   try { localStorage.setItem("shutdown.name", name); } catch (_) { /* private mode */ }
-  const url = WS_SERVER + "/api/shutdown/ws?name=" + encodeURIComponent(name) +
+  const url = WS_SERVER + "/api/multiplayer/ws?game=shutdown&name=" + encodeURIComponent(name) +
     (code ? "&room=" + encodeURIComponent(code) : "");
   const socket = new WebSocket(url);
   net.socket = socket;
@@ -1115,7 +1138,7 @@ function leaveServer(status){
 }
 
 function refreshRooms(){
-  fetch(HTTP_SERVER + "/api/shutdown/rooms", { headers: { accept: "application/json" } })
+  fetch(HTTP_SERVER + "/api/multiplayer/rooms?game=shutdown", { headers: { accept: "application/json" } })
     .then((response) => {
       if (!response.ok) throw new Error("HTTP " + response.status);
       return response.json();
@@ -1202,6 +1225,8 @@ function ready(){
   $("s-intro").hidden = false;
   try { $("s-name").value = localStorage.getItem("shutdown.name") || "Pilote"; } catch (_) { /* private mode */ }
   refreshRooms();
+  const direct = new URLSearchParams(location.search).get("room") || "";
+  if (/^\d{4}$/.test(direct)) connectServer(direct);
 }
 
 function togglePause(){

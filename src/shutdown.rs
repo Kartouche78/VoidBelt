@@ -130,12 +130,16 @@ impl Hub {
 #[derive(Deserialize)]
 pub struct JoinParams {
     #[serde(default)]
-    room: String,
+    pub(crate) room: String,
     #[serde(default)]
-    name: String,
+    pub(crate) name: String,
 }
 
 pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
+    Json(room_list(&hub))
+}
+
+pub(crate) fn room_list(hub: &Arc<Hub>) -> Value {
     let rooms = hub.rooms.lock().expect("shutdown hub poisoned");
     let mut list: Vec<_> = rooms
         .iter()
@@ -149,7 +153,7 @@ pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
         })
         .collect();
     list.sort_by(|a, b| a["code"].as_str().cmp(&b["code"].as_str()));
-    Json(Value::Array(list))
+    Value::Array(list)
 }
 
 pub async fn ws(
@@ -231,7 +235,7 @@ fn add_player(room: &mut Room, id: u32, name: String, tx: UnboundedSender<String
     });
 }
 
-async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
+pub(crate) async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
     let (tx, mut rx) = unbounded_channel::<String>();
     let id = hub.next_id.fetch_add(1, Ordering::Relaxed);
     let name = clean_name(&params.name);

@@ -15,6 +15,7 @@
 
 mod jumpnbump;
 mod leaderboard;
+mod multiplayer;
 mod shutdown;
 mod transmissions;
 
@@ -52,15 +53,23 @@ async fn main() {
 
     // Les salons vivent en mémoire : le routeur qui les expose porte
     // son propre état, fusionné ensuite dans le routeur principal.
+    let jnb_hub = jumpnbump::Hub::new();
+    let shutdown_hub = shutdown::Hub::new();
+
     let jnb = Router::new()
         .route("/api/jnb/rooms", get(jumpnbump::rooms))
         .route("/api/jnb/ws", get(jumpnbump::ws))
-        .with_state(jumpnbump::Hub::new());
+        .with_state(jnb_hub.clone());
 
     let shutdown = Router::new()
         .route("/api/shutdown/rooms", get(shutdown::rooms))
         .route("/api/shutdown/ws", get(shutdown::ws))
-        .with_state(shutdown::Hub::new());
+        .with_state(shutdown_hub.clone());
+
+    let multiplayer = Router::new()
+        .route("/api/multiplayer/rooms", get(multiplayer::rooms))
+        .route("/api/multiplayer/ws", get(multiplayer::ws))
+        .with_state(multiplayer::Hub::new(jnb_hub, shutdown_hub));
 
     let cors = CorsLayer::new()
         .allow_origin(HeaderValue::from_static("https://voidbelt.com"))
@@ -77,11 +86,13 @@ async fn main() {
         .merge(shared)
         .merge(jnb)
         .merge(shutdown)
+        .merge(multiplayer)
         .nest_service("/home", ServeDir::new("public/home"))
         .nest_service("/arena", ServeDir::new("public/arena"))
         .nest_service("/velocity", ServeDir::new("public/velocity"))
         .nest_service("/skilltree", ServeDir::new("public/skilltree"))
         .nest_service("/jumpnbump", ServeDir::new("public/jumpnbump"))
+        .nest_service("/multiplayer", ServeDir::new("public/multiplayer"))
         .nest_service("/shutdown", ServeDir::new("public/shutdown"))
         .fallback_service(ServeDir::new("public"))
         .layer(cors)

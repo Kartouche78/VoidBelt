@@ -285,7 +285,7 @@
 
   function connect(code, priv) {
     if (sock) { try { sock.close(); } catch (e) { /* rien */ } sock = null; }
-    var url = WS + "/api/jnb/ws?name=" + encodeURIComponent(S.name || "Lapin") +
+    var url = WS + "/api/multiplayer/ws?game=jumpnbump&name=" + encodeURIComponent(S.name || "Lapin") +
       (code ? "&room=" + encodeURIComponent(code) : "") + (priv ? "&priv=1" : "");
     try {
       sock = new WebSocket(url);
@@ -504,7 +504,7 @@
   }
 
   function refreshRooms() {
-    fetch(HTTP + "/api/jnb/rooms", { headers: { accept: "application/json" } })
+    fetch(HTTP + "/api/multiplayer/rooms?game=jumpnbump", { headers: { accept: "application/json" } })
       .then(function (r) {
         if (!r.ok) throw new Error(r.status === 404 ? "route" : "http " + r.status);
         return r.json();
@@ -792,6 +792,8 @@
   JNB.load().then(function () {
     enterLobby();
     if (woke) music("lobby");
+    var direct = new URLSearchParams(location.search).get("room") || "";
+    if (/^\d{4}$/.test(direct)) connect(direct, false);
   }).catch(function (err) {
     toast("Chargement impossible : " + err.message);
   });
