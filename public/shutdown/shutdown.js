@@ -610,7 +610,6 @@ addEventListener("keydown", (e) => {
   held.add(e.code);
   if (e.code === "Escape") togglePause();
   else if (e.code === "KeyR") respawn();
-  else if (!started && e.code !== "Tab") start();
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) e.preventDefault();
 });
 addEventListener("keyup", (e) => held.delete(e.code));
@@ -657,13 +656,10 @@ function controls(){
     /* triangle remet la voiture droite, start met en pause */
     if (g.buttons[3] && g.buttons[3].pressed && !prevButtons[3]) respawn();
     if (g.buttons[9] && g.buttons[9].pressed && !prevButtons[9]) togglePause();
-    let any = false;
     for (let i = 0; i < g.buttons.length; i++){
       const on = g.buttons[i].pressed;
-      any = any || on;
       prevButtons[i] = on;
     }
-    if (!started && (gas > .3 || any)) start();
   } else {
     padName = "";
   }
@@ -698,12 +694,15 @@ let speed = 0, yaw = 0, steerAngle = 0, lift = 0, yawRate = 0, accel = 0;
 
 function respawn(){
   if (localDriver && !localDriver.alive) return;
-  carRoot.position.set(0, 0, 0);
-  carRoot.rotation.y = 0;
+  const x = localDriver ? localDriver.spawnX : 0;
+  const z = localDriver ? localDriver.spawnZ : 0;
+  const spawnYaw = localDriver ? localDriver.spawnYaw : 0;
+  carRoot.position.set(x, 0, z);
+  carRoot.rotation.y = spawnYaw;
   shell.rotation.set(0, 0, 0);
-  speed = 0; yaw = 0; steerAngle = 0; lift = 0; yawRate = 0; accel = 0;
-  camFrom.set(0, 3, 7);
-  camAim.set(0, .85, 0);
+  speed = 0; yaw = spawnYaw; steerAngle = 0; lift = 0; yawRate = 0; accel = 0;
+  camFrom.set(x, 3, z + 7);
+  camAim.set(x, .85, z);
 }
 
 function cloneCar(tint){
@@ -723,40 +722,49 @@ function cloneCar(tint){
 }
 
 function initDrivers(){
-  if (drivers.length) return;
-  localDriver = {
-    id: "you", name: "VOUS", root: carRoot, local: true,
-    hp: MAX_HP, alive: true, velocity: new THREE.Vector3(),
-    spawn: { x: 0, z: 0, yaw: 0 }, respawnAt: 0, invulnerableUntil: 0
-  };
-  drivers.push(localDriver);
+  carRoot.visible = false;
+}
 
-  const rings = [
-    { name: "RIVAL 01", tint: 0x48cfe0, lane: 2, reverse: false, cruise: 14 },
-    { name: "RIVAL 02", tint: 0xffc857, lane: 3, reverse: true,  cruise: 16 },
-    { name: "RIVAL 03", tint: 0xd66efd, lane: 1, reverse: false, cruise: 18 }
-  ];
-  for (let i = 0; i < rings.length; i++){
-    const spec = rings[i], lo = roadAt(spec.lane), hi = roadAt(N - spec.lane);
-    let route = [
-      new THREE.Vector2(lo, lo), new THREE.Vector2(hi, lo),
-      new THREE.Vector2(hi, hi), new THREE.Vector2(lo, hi)
-    ];
-    if (spec.reverse) route = route.reverse();
-    const root = cloneCar(spec.tint);
-    const driver = {
-      id: "rival-" + (i + 1), name: spec.name, root, local: false,
-      hp: MAX_HP, alive: true, velocity: new THREE.Vector3(), route,
-      waypoint: 1, yaw: spec.reverse ? Math.PI : -Math.PI / 2,
-      speed: spec.cruise, cruise: spec.cruise, stunUntil: 0,
-      spawn: { x: route[0].x, z: route[0].y, yaw: spec.reverse ? Math.PI : -Math.PI / 2 },
-      respawnAt: 0, invulnerableUntil: performance.now() + 1800
-    };
-    root.position.set(driver.spawn.x, 0, driver.spawn.z);
-    root.rotation.y = driver.yaw;
-    drivers.push(driver);
+const DRIVER_TINTS = [0xff4d00, 0x48cfe0, 0xffc857, 0xd66efd];
+
+function createDriver(info){
+  const local = info.id === net.id;
+  const root = local ? carRoot : cloneCar(DRIVER_TINTS[info.color % DRIVER_TINTS.length]);
+  const driver = {
+    id: info.id, name: info.name, root, local,
+    hp: info.hp, alive: info.alive, velocity: new THREE.Vector3(),
+    targetX: info.x, targetZ: info.z, targetYaw: info.yaw,
+    spawnX: info.x, spawnZ: info.z, spawnYaw: info.yaw,
+    respawnRequested: false
+  };
+  root.position.set(info.x, 0, info.z);
+  root.rotation.y = info.yaw;
+  root.visible = info.alive;
+  drivers.push(driver);
+  if (local){
+    localDriver = driver;
+    yaw = info.yaw;
+    speed = 0;
   }
-  localDriver.invulnerableUntil = performance.now() + 1800;
+  return driver;
+}
+
+function syncRoster(players){
+  const incoming = new Set(players.map((player) => player.id));
+  for (let i = drivers.length - 1; i >= 0; i--){
+    const driver = drivers[i];
+    if (incoming.has(driver.id)) continue;
+    if (!driver.local) scene.remove(driver.root);
+    drivers.splice(i, 1);
+  }
+  for (const info of players){
+    let driver = drivers.find((item) => item.id === info.id);
+    if (!driver) driver = createDriver(info);
+    driver.name = info.name;
+    driver.hp = info.hp;
+    if (driver.alive && !info.alive) destroyDriver(driver);
+    else if (!driver.alive && info.alive) reviveDriver(driver, info);
+  }
   buildHealthHud();
 }
 
@@ -801,39 +809,38 @@ function explode(driver){
   }
 }
 
-function destroyDriver(driver, now){
+function destroyDriver(driver){
   if (!driver.alive) return;
   driver.hp = 0;
   driver.alive = false;
   driver.root.visible = false;
   driver.velocity.set(0, 0, 0);
-  driver.respawnAt = now + 4500;
+  driver.respawnRequested = false;
   if (driver.local) speed = 0;
   explode(driver);
 }
 
-function reviveDriver(driver, now){
-  driver.hp = MAX_HP;
+function reviveDriver(driver, state){
+  driver.hp = state.hp === undefined ? MAX_HP : state.hp;
   driver.alive = true;
   driver.root.visible = true;
-  driver.root.position.set(driver.spawn.x, 0, driver.spawn.z);
-  driver.root.rotation.y = driver.spawn.yaw;
+  driver.root.position.set(state.x, 0, state.z);
+  driver.root.rotation.y = state.yaw;
+  driver.targetX = state.x;
+  driver.targetZ = state.z;
+  driver.targetYaw = state.yaw;
+  driver.spawnX = state.x;
+  driver.spawnZ = state.z;
+  driver.spawnYaw = state.yaw;
   driver.velocity.set(0, 0, 0);
-  driver.invulnerableUntil = now + 1800;
+  driver.respawnRequested = false;
   if (driver.local){
-    yaw = driver.spawn.yaw;
-    respawn();
-  } else {
-    driver.yaw = driver.spawn.yaw;
-    driver.speed = driver.cruise * .35;
-    driver.waypoint = 1;
+    yaw = state.yaw;
+    speed = 0;
+    shell.rotation.set(0, 0, 0);
+    camFrom.set(state.x, 3, state.z + 7);
+    camAim.set(state.x, .85, state.z);
   }
-}
-
-function damageDriver(driver, amount, now){
-  if (!driver.alive || now < driver.invulnerableUntil) return;
-  driver.hp = Math.max(0, driver.hp - amount);
-  if (driver.hp === 0) destroyDriver(driver, now);
 }
 
 function step(dt){
@@ -891,37 +898,13 @@ function angleDelta(from, to){
   return d;
 }
 
-function stepRivals(dt, now){
+function stepRemoteDrivers(dt){
   for (const driver of drivers){
-    if (driver.local) continue;
-    if (!driver.alive){
-      if (now >= driver.respawnAt) reviveDriver(driver, now);
-      continue;
-    }
-
-    let target = driver.route[driver.waypoint];
-    let dx = target.x - driver.root.position.x;
-    let dz = target.y - driver.root.position.z;
-    if (Math.hypot(dx, dz) < 5){
-      driver.waypoint = (driver.waypoint + 1) % driver.route.length;
-      target = driver.route[driver.waypoint];
-      dx = target.x - driver.root.position.x;
-      dz = target.y - driver.root.position.z;
-    }
-
-    const desired = Math.atan2(-dx, -dz);
-    driver.yaw += clamp(angleDelta(driver.yaw, desired), -1.25 * dt, 1.25 * dt);
-    const wantedSpeed = now < driver.stunUntil ? driver.cruise * .18 : driver.cruise;
-    driver.speed += (wantedSpeed - driver.speed) * damp(2.4, dt);
-    const oldX = driver.root.position.x, oldZ = driver.root.position.z;
-    driver.root.position.x -= Math.sin(driver.yaw) * driver.speed * dt;
-    driver.root.position.z -= Math.cos(driver.yaw) * driver.speed * dt;
+    if (driver.local || !driver.alive) continue;
+    driver.root.position.x += (driver.targetX - driver.root.position.x) * damp(12, dt);
+    driver.root.position.z += (driver.targetZ - driver.root.position.z) * damp(12, dt);
     driver.root.position.y = curbAt(driver.root.position.x, driver.root.position.z);
-    driver.root.rotation.y = driver.yaw;
-    driver.velocity.set(
-      (driver.root.position.x - oldX) / Math.max(dt, .001), 0,
-      (driver.root.position.z - oldZ) / Math.max(dt, .001)
-    );
+    driver.root.rotation.y += angleDelta(driver.root.rotation.y, driver.targetYaw) * damp(14, dt);
   }
 }
 
@@ -932,6 +915,7 @@ function collideCars(now){
   for (let i = 0; i < drivers.length; i++) for (let j = i + 1; j < drivers.length; j++){
     const a = drivers[i], b = drivers[j];
     if (!a.alive || !b.alive) continue;
+    if (!a.local && !b.local) continue;
     let nx = b.root.position.x - a.root.position.x;
     let nz = b.root.position.z - a.root.position.z;
     let distance = Math.hypot(nx, nz);
@@ -939,25 +923,17 @@ function collideCars(now){
     if (distance < .001){ nx = 1; nz = 0; distance = 1; }
     else { nx /= distance; nz /= distance; }
 
+    const local = a.local ? a : b;
+    const sign = a.local ? -1 : 1;
     const overlap = HIT_DISTANCE - distance;
-    a.root.position.x -= nx * overlap * .5;
-    a.root.position.z -= nz * overlap * .5;
-    b.root.position.x += nx * overlap * .5;
-    b.root.position.z += nz * overlap * .5;
-
-    const closing = (a.velocity.x - b.velocity.x) * nx + (a.velocity.z - b.velocity.z) * nz;
+    local.root.position.x += nx * overlap * sign;
+    local.root.position.z += nz * overlap * sign;
     const key = a.id < b.id ? a.id + ":" + b.id : b.id + ":" + a.id;
-    if (closing > 2.5 && now >= (hitTimes.get(key) || 0)){
-      const amount = Math.round(clamp((closing - 1.5) * 3.1, 6, 38));
-      damageDriver(a, amount, now);
-      damageDriver(b, amount, now);
-      hitTimes.set(key, now + 650);
+    if (now >= (hitTimes.get(key) || 0)){
+      sendLocalState(now, true);
+      speed *= -.18;
+      hitTimes.set(key, now + 280);
     }
-
-    if (a.local) speed *= -.18;
-    else { a.speed *= .28; a.stunUntil = now + 500; }
-    if (b.local) speed *= -.18;
-    else { b.speed *= .28; b.stunUntil = now + 500; }
   }
 }
 
@@ -1023,7 +999,150 @@ function push(s){
 }
 
 /* ============================================================
-   7. CAMERA
+   7. MULTIJOUEUR
+   Le serveur Rust arbitre les salons, les impacts et les PV.
+   ============================================================ */
+
+const LOCAL_SERVER = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+const HTTP_SERVER = LOCAL_SERVER ? location.origin : "https://api.voidbelt.com";
+const WS_SERVER = LOCAL_SERVER
+  ? (location.protocol === "https:" ? "wss://" : "ws://") + location.host
+  : "wss://api.voidbelt.com";
+const net = { id: 0, room: "", socket: null, pingTimer: null, stateAt: 0, respawnAt: 0 };
+
+function sendNet(message){
+  if (net.socket && net.socket.readyState === WebSocket.OPEN)
+    net.socket.send(JSON.stringify(message));
+}
+
+function beginOnline(){
+  started = true;
+  paused = false;
+  $("s-intro").hidden = true;
+  $("s-pause").hidden = true;
+  if (window.PageScroll) PageScroll.lock();
+}
+
+function connectServer(code){
+  if (net.socket) net.socket.close();
+  const name = ($("s-name").value || "Pilote").trim().slice(0, 14);
+  try { localStorage.setItem("shutdown.name", name); } catch (_) { /* private mode */ }
+  const url = WS_SERVER + "/api/shutdown/ws?name=" + encodeURIComponent(name) +
+    (code ? "&room=" + encodeURIComponent(code) : "");
+  const socket = new WebSocket(url);
+  net.socket = socket;
+  $("s-net-state").textContent = "CONNEXION AU SERVEUR…";
+  socket.addEventListener("open", () => {
+    net.pingTimer = setInterval(() => sendNet({ t: "ping" }), 25000);
+  });
+  socket.addEventListener("message", (event) => {
+    let message;
+    try { message = JSON.parse(event.data); } catch (_) { return; }
+    handleNet(message);
+  });
+  socket.addEventListener("close", () => {
+    clearInterval(net.pingTimer);
+    if (net.socket !== socket) return;
+    net.socket = null;
+    leaveServer("CONNEXION PERDUE — REJOIGNEZ UN SERVEUR");
+  });
+  socket.addEventListener("error", () => {
+    $("s-net-state").textContent = "SERVEUR INJOIGNABLE";
+  });
+}
+
+function handleNet(message){
+  if (message.t === "joined"){
+    net.id = message.id;
+    net.room = message.room;
+    $("s-room").textContent = "SERVEUR " + message.room;
+  } else if (message.t === "roster"){
+    syncRoster(message.players || []);
+    if (localDriver) beginOnline();
+  } else if (message.t === "s"){
+    const driver = drivers.find((item) => item.id === message.id);
+    if (driver && !driver.local){
+      driver.targetX = message.x;
+      driver.targetZ = message.z;
+      driver.targetYaw = message.yaw;
+      driver.velocity.set(message.vx || 0, 0, message.vz || 0);
+    }
+  } else if (message.t === "hit"){
+    const a = drivers.find((item) => item.id === message.a);
+    const b = drivers.find((item) => item.id === message.b);
+    if (a){ a.hp = message.hp_a; if (!message.alive_a) destroyDriver(a); }
+    if (b){ b.hp = message.hp_b; if (!message.alive_b) destroyDriver(b); }
+    if (localDriver && !localDriver.alive) net.respawnAt = performance.now() + 4500;
+  } else if (message.t === "respawn"){
+    const driver = drivers.find((item) => item.id === message.id);
+    if (driver) reviveDriver(driver, message);
+  } else if (message.t === "left"){
+    const driver = drivers.find((item) => item.id === message.id);
+    if (driver && !driver.local){ scene.remove(driver.root); drivers.splice(drivers.indexOf(driver), 1); }
+    buildHealthHud();
+  } else if (message.t === "error"){
+    const socket = net.socket;
+    net.socket = null;
+    if (socket) socket.close();
+    leaveServer(message.m);
+  }
+}
+
+function sendLocalState(now, force = false){
+  if (!localDriver || !localDriver.alive || (!force && now - net.stateAt < 50)) return;
+  net.stateAt = now;
+  const vx = -Math.sin(yaw) * speed, vz = -Math.cos(yaw) * speed;
+  localDriver.velocity.set(vx, 0, vz);
+  sendNet({ t: "s", x: carRoot.position.x, z: carRoot.position.z, yaw, vx, vz });
+}
+
+function leaveServer(status){
+  started = false;
+  paused = false;
+  net.id = 0;
+  net.room = "";
+  $("s-room").textContent = "DISTRICT 04";
+  $("s-pause").hidden = true;
+  $("s-intro").hidden = false;
+  $("s-net-state").textContent = status || "CHOISISSEZ UN SERVEUR";
+  for (const driver of drivers) if (!driver.local) scene.remove(driver.root);
+  drivers.length = 0;
+  localDriver = null;
+  carRoot.visible = false;
+  buildHealthHud();
+  if (window.PageScroll) PageScroll.unlock();
+  refreshRooms();
+}
+
+function refreshRooms(){
+  fetch(HTTP_SERVER + "/api/shutdown/rooms", { headers: { accept: "application/json" } })
+    .then((response) => {
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      return response.json();
+    })
+    .then((rooms) => {
+      $("s-net-state").textContent = rooms.length + " SERVEUR(S) OUVERT(S)";
+      const list = $("s-rooms");
+      list.innerHTML = "";
+      for (const room of rooms){
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "sbtn ghost sroom";
+        button.disabled = room.players.length >= room.max;
+        const code = document.createElement("b");
+        code.textContent = room.code;
+        const count = document.createElement("small");
+        count.textContent = room.players.length + "/" + room.max;
+        button.append(code, count);
+        button.addEventListener("click", () => connectServer(room.code));
+        list.appendChild(button);
+      }
+    })
+    .catch(() => { $("s-net-state").textContent = "SERVEUR MULTIJOUEUR INJOIGNABLE"; });
+}
+
+/* ============================================================
+   8. CAMERA
    Une poursuite molle, assez basse pour garder les roues dans le
    cadre. Le manche droit fait tourner le regard autour de la
    voiture sans toucher a sa trajectoire.
@@ -1081,15 +1200,8 @@ function ready(){
   loaded = true;
   $("s-load").hidden = true;
   $("s-intro").hidden = false;
-}
-
-function start(){
-  if (!loaded || started) return;
-  started = true;
-  paused = false;
-  $("s-intro").hidden = true;
-  $("s-pause").hidden = true;
-  if (window.PageScroll) PageScroll.lock();
+  try { $("s-name").value = localStorage.getItem("shutdown.name") || "Pilote"; } catch (_) { /* private mode */ }
+  refreshRooms();
 }
 
 function togglePause(){
@@ -1099,11 +1211,26 @@ function togglePause(){
   if (window.PageScroll) paused ? PageScroll.unlock() : PageScroll.lock();
 }
 
-$("s-go").addEventListener("click", start);
+$("s-create").addEventListener("click", () => connectServer(""));
+$("s-join-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const code = $("s-code").value.replace(/\D/g, "").slice(0, 4);
+  if (code.length === 4) connectServer(code);
+  else $("s-net-state").textContent = "LE CODE DOIT CONTENIR 4 CHIFFRES";
+});
+$("s-code").addEventListener("input", () => {
+  $("s-code").value = $("s-code").value.replace(/\D/g, "").slice(0, 4);
+});
 $("s-menu").addEventListener("click", togglePause);
 $("s-resume").addEventListener("click", togglePause);
 $("s-reset").addEventListener("click", () => { respawn(); togglePause(); });
-canvas.addEventListener("pointerdown", () => { if (!started) start(); });
+$("s-quit").addEventListener("click", () => {
+  const socket = net.socket;
+  net.socket = null;
+  if (socket) socket.close();
+  leaveServer("SERVEUR QUITTE");
+});
+setInterval(() => { if (loaded && !started) refreshRooms(); }, 4000);
 
 addEventListener("gamepadconnected", () => { if (!started && loaded) padHint(); });
 addEventListener("gamepaddisconnected", () => padHint());
@@ -1148,9 +1275,13 @@ renderer.setAnimationLoop((now) => {
     if (localDriver && localDriver.alive) c = step(dt);
     else {
       controls();
-      if (localDriver && now >= localDriver.respawnAt) reviveDriver(localDriver, now);
+      if (localDriver && now >= net.respawnAt && !localDriver.respawnRequested){
+        localDriver.respawnRequested = true;
+        sendNet({ t: "respawn" });
+      }
     }
-    stepRivals(dt, now);
+    stepRemoteDrivers(dt);
+    sendLocalState(now);
     collideCars(now);
     stepDebris(dt);
   }

@@ -156,6 +156,7 @@
   var decals, decalsCtx;
   var spawns = [];
   var players = {}, order = [];
+  var serverSpawns = false;
   var me = null, running = false, paused = false, locked = false;
   var phase = "lobby", banner = null;
   var lastT = 0, acc = 0, netAcc = 0, clock = 0;
@@ -1235,6 +1236,7 @@
       x: 200, y: 400, vx: 0, vy: 0,
       face: 1, anim: 0, onGround: false, onIce: false,
       alive: true, life: 0, score: info.score || 0,
+      respawnPending: false,
       dead: 0, shield: 0, stroke: 0, coyote: 0, buffer: 0,
       jumpHeld: false, ownJump: false, squash: 0, bob: 0, wasWet: false, swimming: false,
       ear: 0, lean: 0, land: 0,
@@ -1261,11 +1263,21 @@
     return best;
   }
 
+  function assignedSpawn(slot) {
+    if (!spawns.length) return { x: 200, y: 400 };
+    slot = Number.isFinite(+slot) ? Math.max(0, Math.floor(+slot)) : 0;
+    // In the arena, spread the four logical server zones across the
+    // walkable points detected from map.png.
+    var index = scene === "arena" ? slot * 7 + 3 : slot;
+    return spawns[index % spawns.length];
+  }
+
   function respawn(p, at) {
     var s = at || pickSpawn(p);
     p.x = s.x; p.y = s.y;
     p.vx = 0; p.vy = 0;
     p.alive = true; p.dead = 0; p.shield = SPAWN_SHIELD;
+    p.respawnPending = false;
     p.onGround = true; p.squash = 0;
     // Sans ca, un lapin mort dans le bassin declenche une gerbe a son
     // point de reapparition, en pleine terre ferme.
@@ -1645,10 +1657,17 @@
       else stepRemote(p, dt);
 
       if (!p.alive && p.dead <= 0 && (p.local || p.bot)) {
-        var s = pickSpawn(p);
-        respawn(p, s);
-        p.life++;
-        if (p.local && api.onRespawn) api.onRespawn(s.x, s.y);
+        if (p.local && serverSpawns) {
+          if (!p.respawnPending && api.onRespawn) {
+            p.respawnPending = true;
+            api.onRespawn();
+          }
+        } else {
+          var s = pickSpawn(p);
+          respawn(p, s);
+          p.life++;
+          if (p.local && api.onRespawn) api.onRespawn();
+        }
       }
     }
     checkStomps();
@@ -2187,6 +2206,7 @@
     phase = "playing";
     banner = null;
     me = null;
+    serverSpawns = !!opts.serverSpawns;
 
     for (var i = 0; i < opts.players.length && i < 4; i++) {
       var info = opts.players[i];
@@ -2194,7 +2214,7 @@
       p.local = info.id === opts.localId;
       players[info.id] = p;
       order.push(info.id);
-      respawn(p, spawns[(i * 7 + 3) % spawns.length]);
+      respawn(p, assignedSpawn(info.spawn === undefined ? i : info.spawn));
       if (p.local) me = p;
     }
     running = true;
@@ -2215,13 +2235,14 @@
     banner = null;
     countdown = null;
     me = null;
+    serverSpawns = false;
     for (var i = 0; i < opts.players.length && i < 4; i++) {
       var info = opts.players[i];
       var p = makePlayer(info);
       p.local = info.id === opts.localId;
       players[info.id] = p;
       order.push(info.id);
-      respawn(p, spawns[i % spawns.length]);
+      respawn(p, assignedSpawn(info.spawn === undefined ? i : info.spawn));
       p.shield = 0;
       if (p.local) me = p;
     }
@@ -2254,7 +2275,7 @@
     var p = makePlayer(info);
     players[info.id] = p;
     order.push(info.id);
-    respawn(p, pickSpawn(p));
+    respawn(p, info.spawn === undefined ? pickSpawn(p) : assignedSpawn(info.spawn));
   };
 
   api.removePlayer = function (id) {
@@ -2289,14 +2310,13 @@
     if (k) k.score = score;
   };
 
-  api.applyRespawn = function (id, x, y, life) {
+  api.applyRespawn = function (id, spawn, life) {
     var p = players[id];
     if (!p) return;
     p.life = life;
-    if (p.local) return;                 // deja fait localement
-    respawn(p, { x: x, y: y });
+    respawn(p, assignedSpawn(spawn));
     p.buf.length = 0;
-    p.rx = x; p.ry = y;
+    p.rx = p.x; p.ry = p.y;
   };
 
   api.setScores = function (list) {

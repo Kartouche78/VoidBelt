@@ -29,6 +29,9 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 pub const MAX_PLAYERS: usize = 4;
 /// Huit pelages dans `lapin.png`, un seul par salon.
 const COLORS: u8 = 8;
+/// Four distant spawn zones. Rust assigns the zone; the browser only
+/// maps it to a walkable point detected in the current map asset.
+const SPAWN_SLOTS: u8 = MAX_PLAYERS as u8;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Phase {
@@ -57,6 +60,7 @@ struct Player {
     /// deux lapins atterrissent sur la même tête dans la même image.
     life: u32,
     alive: bool,
+    spawn: u8,
     tx: UnboundedSender<String>,
 }
 
@@ -70,6 +74,7 @@ impl Player {
             "score": self.score,
             "life": self.life,
             "alive": self.alive,
+            "spawn": self.spawn,
         })
     }
 }
@@ -82,6 +87,7 @@ struct Room {
     /// Un salon prive ne figure pas dans la liste publique : on n'y
     /// entre qu'en tapant son code.
     private: bool,
+    next_spawn: u8,
 }
 
 impl Room {
@@ -92,6 +98,7 @@ impl Room {
             phase: Phase::Lobby,
             target: 15,
             private: false,
+            next_spawn: 0,
         }
     }
 
@@ -103,6 +110,30 @@ impl Room {
         (0..COLORS)
             .find(|c| !self.players.iter().any(|p| p.color == *c))
             .unwrap_or(0)
+    }
+
+    /// Pick a slot not used by another living player and rotate the
+    /// preference so repeated respawns do not always use the same area.
+    fn free_spawn(&mut self, player_id: u32) -> u8 {
+        for offset in 0..SPAWN_SLOTS {
+            let candidate = (self.next_spawn + offset) % SPAWN_SLOTS;
+            let occupied = self
+                .players
+                .iter()
+                .any(|p| p.id != player_id && p.alive && p.spawn == candidate);
+            if !occupied {
+                self.next_spawn = (candidate + 1) % SPAWN_SLOTS;
+                return candidate;
+            }
+        }
+        0
+    }
+
+    fn reset_spawns(&mut self) {
+        for (slot, player) in self.players.iter_mut().enumerate() {
+            player.spawn = slot as u8;
+        }
+        self.next_spawn = (self.players.len() as u8) % SPAWN_SLOTS;
     }
 
     fn send_all(&self, msg: &Value) {
@@ -216,6 +247,11 @@ fn clean_name(raw: &str) -> String {
     }
 }
 
+fn room_code(raw: &str) -> Option<String> {
+    let code = raw.trim();
+    (code.len() == 4 && code.bytes().all(|c| c.is_ascii_digit())).then(|| code.to_owned())
+}
+
 async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
     // Chaque joueur a une file d'envoi : les autres sessions y déposent
     // du texte sans jamais attendre le réseau d'en face, et la boucle
@@ -225,7 +261,34 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
     let id = hub.next_id.fetch_add(1, Ordering::Relaxed);
     let name = clean_name(&params.name);
 
-    // Entrée dans le salon (créé à la volée si le code est libre).
+    // A join code must point to an existing room. Room creation only
+    // happens when the query has no code (the dedicated Create button).
+    let join_error = {
+        let rooms = hub.rooms.lock().expect("hub empoisonne");
+        let raw = params.room.trim();
+        if raw.is_empty() {
+            None
+        } else if room_code(raw).is_none() {
+            Some("Le code doit contenir exactement quatre chiffres.")
+        } else {
+            match rooms.get(raw) {
+                None => Some("Aucun salon ne correspond a ce code."),
+                Some(room) if room.phase != Phase::Lobby => Some("Cette partie a deja commence."),
+                Some(_) => None,
+            }
+        }
+    };
+    if let Some(message) = join_error {
+        let _ = socket
+            .send(Message::Text(
+                json!({ "t": "error", "m": message }).to_string().into(),
+            ))
+            .await;
+        return;
+    }
+
+    // Entrée dans un salon existant, ou création quand aucun code
+    // n'est fourni.
     // Tout se joue sous le verrou, sans le moindre `await` : le garde
     // du Mutex ne doit jamais traverser un point d'attente.
     let joined = {
@@ -260,9 +323,10 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
             room.private = params.priv_ == "1";
         }
         if room.players.len() >= MAX_PLAYERS {
-            None
+            Err("Ce salon est complet.")
         } else {
             let color = room.free_color();
+            let spawn = room.free_spawn(id);
             if room.players.is_empty() {
                 room.host = id;
             }
@@ -276,25 +340,27 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                 // de suite : il entre en jeu à son prochain `respawn`.
                 life: 0,
                 alive: room.phase != Phase::Playing,
+                spawn,
                 tx: tx.clone(),
             });
             let _ = tx.send(
                 json!({ "t": "joined", "id": id, "room": code, "max": MAX_PLAYERS }).to_string(),
             );
             room.send_all(&room.lobby_state());
-            Some(code)
+            Ok(code)
         }
     };
 
-    let Some(code) = joined else {
-        let _ = socket
-            .send(Message::Text(
-                json!({ "t": "error", "m": "Ce salon est complet." })
-                    .to_string()
-                    .into(),
-            ))
-            .await;
-        return;
+    let code = match joined {
+        Ok(code) => code,
+        Err(message) => {
+            let _ = socket
+                .send(Message::Text(
+                    json!({ "t": "error", "m": message }).to_string().into(),
+                ))
+                .await;
+            return;
+        }
     };
 
     // Derriere un proxy, une connexion morte peut rester ouverte
@@ -386,13 +452,18 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
             "start" => {
                 if room.host == id {
                     room.phase = Phase::Playing;
+                    room.reset_spawns();
                     for p in &mut room.players {
                         p.score = 0;
                         p.life = 0;
                         p.alive = true;
                         p.ready = false;
                     }
-                    room.send_all(&json!({ "t": "start", "target": room.target }));
+                    room.send_all(&json!({
+                        "t": "start",
+                        "target": room.target,
+                        "players": room.players.iter().map(|p| p.public()).collect::<Vec<_>>(),
+                    }));
                     room.send_all(&room.lobby_state());
                 }
             }
@@ -434,11 +505,18 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                 }
             }
             "r" => {
+                // Respawns are decided by Rust. Coordinates sent by an
+                // older or modified client are deliberately ignored.
+                if room.phase != Phase::Playing || room.players[me].alive {
+                    continue;
+                }
+                let spawn = room.free_spawn(id);
                 room.players[me].alive = true;
                 room.players[me].life += 1;
+                room.players[me].spawn = spawn;
                 let life = room.players[me].life;
                 room.send_all(&json!({
-                    "t": "r", "i": id, "x": v["x"], "y": v["y"], "l": life,
+                    "t": "r", "i": id, "spawn": spawn, "l": life,
                 }));
             }
             // Le decompte d'avant-partie : l'hote decide, le serveur
@@ -472,5 +550,56 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                 room.send_all(&room.lobby_state());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn player(id: u32, spawn: u8, alive: bool) -> Player {
+        let (tx, _) = unbounded_channel();
+        Player {
+            id,
+            name: format!("Lapin {id}"),
+            color: id as u8,
+            ready: false,
+            score: 0,
+            life: 0,
+            alive,
+            spawn,
+            tx,
+        }
+    }
+
+    #[test]
+    fn room_codes_are_exactly_four_ascii_digits() {
+        assert_eq!(room_code(" 0427 ").as_deref(), Some("0427"));
+        assert_eq!(room_code("123"), None);
+        assert_eq!(room_code("12a4"), None);
+        assert_eq!(room_code("12345"), None);
+    }
+
+    #[test]
+    fn respawn_avoids_all_living_players() {
+        let mut room = Room::new();
+        room.players = vec![
+            player(1, 0, true),
+            player(2, 1, true),
+            player(3, 2, true),
+            player(4, 3, false),
+        ];
+        assert_eq!(room.free_spawn(4), 3);
+    }
+
+    #[test]
+    fn match_start_assigns_distinct_slots() {
+        let mut room = Room::new();
+        room.players = (1..=MAX_PLAYERS as u32)
+            .map(|id| player(id, 0, true))
+            .collect();
+        room.reset_spawns();
+        let slots: Vec<u8> = room.players.iter().map(|p| p.spawn).collect();
+        assert_eq!(slots, vec![0, 1, 2, 3]);
     }
 }

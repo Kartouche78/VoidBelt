@@ -15,6 +15,7 @@
 
 mod jumpnbump;
 mod leaderboard;
+mod shutdown;
 mod transmissions;
 
 use axum::{
@@ -56,6 +57,11 @@ async fn main() {
         .route("/api/jnb/ws", get(jumpnbump::ws))
         .with_state(jumpnbump::Hub::new());
 
+    let shutdown = Router::new()
+        .route("/api/shutdown/rooms", get(shutdown::rooms))
+        .route("/api/shutdown/ws", get(shutdown::ws))
+        .with_state(shutdown::Hub::new());
+
     let cors = CorsLayer::new()
         .allow_origin(HeaderValue::from_static("https://voidbelt.com"))
         .allow_methods([Method::GET, Method::POST])
@@ -70,11 +76,13 @@ async fn main() {
         )
         .merge(shared)
         .merge(jnb)
+        .merge(shutdown)
         .nest_service("/home", ServeDir::new("public/home"))
         .nest_service("/arena", ServeDir::new("public/arena"))
         .nest_service("/velocity", ServeDir::new("public/velocity"))
         .nest_service("/skilltree", ServeDir::new("public/skilltree"))
         .nest_service("/jumpnbump", ServeDir::new("public/jumpnbump"))
+        .nest_service("/shutdown", ServeDir::new("public/shutdown"))
         .fallback_service(ServeDir::new("public"))
         .layer(cors)
         .layer(CompressionLayer::new())

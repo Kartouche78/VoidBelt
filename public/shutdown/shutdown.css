@@ -74,6 +74,7 @@
   transition:color .12s, border-color .12s, background .12s, transform .12s;
 }
 .sbtn:hover, .sbtn:focus-visible{ color:var(--bone); border-color:var(--orange) }
+.sbtn:disabled{ opacity:.4; cursor:not-allowed }
 .sbtn.solid{
   border-color:var(--bone); background:var(--orange); color:var(--black);
   font-family:'Archivo Black','Arial Black',sans-serif; letter-spacing:.14em;
@@ -209,6 +210,19 @@
   margin-top:clamp(18px,3vmin,34px);
 }
 .shint{ font-size:var(--fs-xs); letter-spacing:.2em; text-transform:uppercase; color:var(--txt-3) }
+.smulti{ margin-top:1.4em; padding-top:1.1em; border-top:1px solid var(--line) }
+.sfield{ display:flex; flex-direction:column; gap:.45em; max-width:28ch; color:var(--txt-3); font-size:var(--fs-xs); letter-spacing:.2em }
+.sfield input, .sjoin input{
+  min-width:0; border:1px solid var(--line); background:rgba(6,7,10,.84); color:var(--bone);
+  padding:.72em .85em; font:inherit; letter-spacing:.14em; text-transform:uppercase; outline:none;
+}
+.sfield input:focus, .sjoin input:focus{ border-color:var(--cyan) }
+.sjoin{ display:flex; gap:.55em }
+.sjoin input{ width:8ch; text-align:center; letter-spacing:.28em }
+.srooms{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.55em; margin-top:.8em }
+.sroom{ justify-content:space-between; width:100% }
+.sroom b{ color:var(--cyan); letter-spacing:.25em }
+.sroom small{ color:var(--txt-3) }
 
 .sset-a{ display:flex; flex-wrap:wrap; gap:.8em }
 

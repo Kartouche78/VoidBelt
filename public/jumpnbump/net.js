@@ -172,7 +172,10 @@
   function roster() {
     if (S.mode === "online") {
       return S.players.slice(0, 4).map(function (p) {
-        return { id: p.id, name: p.name, color: p.color, score: p.score };
+        return {
+          id: p.id, name: p.name, color: p.color, score: p.score,
+          spawn: p.spawn, alive: p.alive, life: p.life
+        };
       });
     }
     return [{ id: 1, name: S.name || "Lapin", color: S.color, score: 0 }];
@@ -266,7 +269,9 @@
     hideLobbyUi();
     music("game");
     JNB.sfx.wake();
-    JNB.start({ localId: S.id, players: roster(), target: S.target });
+    JNB.start({
+      localId: S.id, players: roster(), target: S.target, serverSpawns: true
+    });
   }
 
   function backToLobby() {
@@ -372,6 +377,7 @@
 
       case "start":
         S.target = m.target || S.target;
+        if (m.players) S.players = m.players;
         beginMatch();
         break;
 
@@ -390,7 +396,7 @@
         break;
 
       case "r":
-        JNB.applyRespawn(m.i, m.x, m.y, m.l);
+        JNB.applyRespawn(m.i, m.spawn, m.l);
         break;
 
       case "over":
@@ -428,8 +434,8 @@
     if (S.mode === "online") send({ t: "k", v: victimId, l: victimLife });
     else soloKill(victimId);
   };
-  JNB.onRespawn = function (x, y) {
-    if (S.mode === "online") send({ t: "r", x: Math.round(x), y: Math.round(y) });
+  JNB.onRespawn = function () {
+    if (S.mode === "online") send({ t: "r" });
   };
 
   function soloKill(victimId) {
@@ -527,10 +533,11 @@
     box.innerHTML = "";
     list.forEach(function (r) {
       var full = r.players.length >= r.max;
+      var unavailable = full || r.phase !== "lobby";
       var b = document.createElement("button");
       b.type = "button";
       b.className = "room" + (full ? " full" : "");
-      b.disabled = full;
+      b.disabled = unavailable;
       b.innerHTML =
         "<span class='room-code'>" + esc(r.code) + "</span>" +
         "<span class='room-who'>" + (r.players.map(esc).join(" &middot; ") || "&mdash;") + "</span>" +

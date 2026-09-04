@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared/css/base.css">
 <link rel="stylesheet" href="/shared/css/game-ui.css">
-<link rel="stylesheet" href="shutdown.css?v=2">
+<link rel="stylesheet" href="shutdown.css?v=3">
 <script type="importmap">
 {
   "imports": {
@@ -46,7 +46,7 @@
 
     <header class="stop">
       <a class="sbrand" href="/">VOIDBELT<i></i>SHUTDOWN</a>
-      <div class="ssector"><span>DISTRICT 04</span> GRILLE NORD</div>
+      <div class="ssector"><span id="s-room">DISTRICT 04</span> GRILLE NORD</div>
       <div class="stop-a">
         <span class="spad" id="s-pad">AUCUNE MANETTE — CLAVIER ACTIF</span>
         <button class="sbtn ghost" id="s-menu" type="button">RÉGLAGES <span class="kbd">ÉCHAP</span></button>
@@ -89,11 +89,11 @@
     <!-- ============ ÉCRAN DE DÉPART ============ -->
     <section class="smodal" id="s-intro" hidden>
       <div class="smodal-in">
-        <div class="skicker"><i></i>PROTOCOLE // COLLISION</div>
+        <div class="skicker"><i></i>PROTOCOLE // MULTIJOUEUR</div>
         <h1 class="stitle"><span>SHUT</span><em>DOWN</em></h1>
         <p class="slede">
-          Trois pilotes occupent le district. Percutez leurs véhicules,
-          protégez vos points de vie et restez le dernier moteur en marche.
+          Créez un serveur ou rejoignez un code. Chaque pilote connecté
+          apparaît immédiatement dans le même district.
         </p>
 
         <div class="sgrid">
@@ -121,9 +121,19 @@
           </div>
         </div>
 
-        <div class="sstart">
-          <button class="sbtn solid" id="s-go" type="button">PRENDRE LE VOLANT <i>&#9656;</i></button>
-          <span class="shint">ou pressez n'importe quel bouton de la manette</span>
+        <div class="smulti">
+          <label class="sfield">VOTRE NOM
+            <input id="s-name" type="text" maxlength="14" value="Pilote" autocomplete="off">
+          </label>
+          <div class="sstart">
+            <button class="sbtn solid" id="s-create" type="button">CRÉER UN SERVEUR <i>&#9656;</i></button>
+            <form class="sjoin" id="s-join-form">
+              <input id="s-code" type="text" maxlength="4" inputmode="numeric" placeholder="CODE" aria-label="Code du serveur">
+              <button class="sbtn ghost" type="submit">REJOINDRE</button>
+            </form>
+          </div>
+          <p class="shint" id="s-net-state">Recherche des serveurs ouverts…</p>
+          <div class="srooms" id="s-rooms"></div>
         </div>
       </div>
     </section>
@@ -136,6 +146,7 @@
         <div class="sset-a">
           <button class="sbtn solid" id="s-resume" type="button">REPRENDRE <span class="kbd">ÉCHAP</span></button>
           <button class="sbtn ghost" id="s-reset" type="button">REMETTRE EN PLACE <span class="kbd">R</span></button>
+          <button class="sbtn ghost" id="s-quit" type="button">QUITTER LE SERVEUR</button>
           <a class="sbtn ghost" href="/">RETOUR À L'ACCUEIL</a>
         </div>
         <p class="scredit">
@@ -171,6 +182,6 @@
 <script src="/shared/js/ticker.js"></script>
 <script src="/shared/js/page-scroll.js?v=3"
         data-up="/" data-up-label="ACCUEIL"></script>
-<script type="module" src="shutdown.js?v=2"></script>
+<script type="module" src="shutdown.js?v=3"></script>
 </body>
 </html>
