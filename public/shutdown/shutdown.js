@@ -467,12 +467,13 @@ scene.add(carRoot);
 const wheels = [];
 let WB = 2.5;   // empattement, mesure sur le modele au chargement
 const MAX_HP = 100;
-const HIT_DISTANCE = 2.45;
+const HIT_DISTANCE = 2.9;
 const drivers = [];
 const hitTimes = new Map();
 const damageTimes = new Map();
 const debris = [];
 let localDriver = null;
+let pendingContact = null;
 
 const boxOf = (o) => new THREE.Box3().setFromObject(o);
 const centreOf = (o) => boxOf(o).getCenter(new THREE.Vector3());
@@ -607,6 +608,8 @@ new GLTFLoader(manager).load(
 
 const held = new Set();
 addEventListener("keydown", (e) => {
+  const audioContext = ensureAudio();
+  if (audioContext && audioContext.state === "suspended") audioContext.resume();
   if (e.repeat) return;
   held.add(e.code);
   if (e.code === "Escape") togglePause();
@@ -699,6 +702,155 @@ function controls(){
 }
 
 /* ============================================================
+   AUDIO PROCÉDURAL
+   Le moteur et les pneus sont synthétisés : aucun téléchargement
+   supplémentaire et la hauteur suit réellement la conduite.
+   ============================================================ */
+
+const sound = {
+  ctx: null, master: null, engine: null, engine2: null, engineGain: null,
+  tire: null, tireGain: null, tirePan: null, muted: false, reverseAt: 0, wallAt: 0, carAt: 0
+};
+
+function noiseBuffer(ctx, seconds = 1){
+  const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * seconds), ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  return buffer;
+}
+
+function ensureAudio(){
+  if (sound.ctx || sound.muted) return sound.ctx;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return null;
+  const ctx = new AudioCtx();
+  const master = ctx.createGain();
+  master.gain.value = .28;
+  master.connect(ctx.destination);
+
+  const engineGain = ctx.createGain();
+  const engineFilter = ctx.createBiquadFilter();
+  engineFilter.type = "lowpass";
+  engineFilter.frequency.value = 420;
+  engineGain.gain.value = 0;
+  engineGain.connect(engineFilter).connect(master);
+  const engine = ctx.createOscillator();
+  const engine2 = ctx.createOscillator();
+  engine.type = "sawtooth";
+  engine2.type = "triangle";
+  engine2.detune.value = 703;
+  engine.connect(engineGain);
+  engine2.connect(engineGain);
+  engine.start();
+  engine2.start();
+
+  const tire = ctx.createBufferSource();
+  tire.buffer = noiseBuffer(ctx, 2);
+  tire.loop = true;
+  const tireFilter = ctx.createBiquadFilter();
+  tireFilter.type = "bandpass";
+  tireFilter.frequency.value = 1150;
+  tireFilter.Q.value = .7;
+  const tireGain = ctx.createGain();
+  const tirePan = ctx.createStereoPanner ? ctx.createStereoPanner() : ctx.createGain();
+  tireGain.gain.value = 0;
+  tire.connect(tireFilter).connect(tireGain).connect(tirePan).connect(master);
+  tire.start();
+
+  Object.assign(sound, { ctx, master, engine, engine2, engineGain, engineFilter, tire, tireGain, tirePan });
+  return ctx;
+}
+
+function tone(frequency, duration, volume, type = "square", slide = .7){
+  const ctx = ensureAudio();
+  if (!ctx || sound.muted) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(frequency, now);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(20, frequency * slide), now + duration);
+  gain.gain.setValueAtTime(Math.max(.0001, volume), now);
+  gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+  osc.connect(gain).connect(sound.master);
+  osc.start(now);
+  osc.stop(now + duration + .02);
+}
+
+function noiseHit(duration, volume, frequency){
+  const ctx = ensureAudio();
+  if (!ctx || sound.muted) return;
+  const source = ctx.createBufferSource();
+  source.buffer = noiseBuffer(ctx, duration);
+  const filter = ctx.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = frequency;
+  filter.Q.value = .55;
+  const gain = ctx.createGain();
+  const now = ctx.currentTime;
+  gain.gain.setValueAtTime(volume, now);
+  gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+  source.connect(filter).connect(gain).connect(sound.master);
+  source.start(now);
+}
+
+function impactSound(kind, force){
+  const now = performance.now();
+  const key = kind === "wall" ? "wallAt" : "carAt";
+  if (now < sound[key]) return;
+  sound[key] = now + (kind === "wall" ? 150 : 220);
+  const power = clamp(force || .3, .18, 1);
+  if (kind === "wall"){
+    tone(105, .11, .12 * power, "square", .45);
+    noiseHit(.13, .16 * power, 380);
+  } else if (kind === "destroy"){
+    tone(82, .42, .2, "sawtooth", .18);
+    noiseHit(.48, .24, 240);
+  } else {
+    tone(155, .16, .15 * power, "square", .38);
+    noiseHit(.2, .2 * power, 720);
+  }
+}
+
+function updateAudio(c, now){
+  const ctx = sound.ctx;
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const active = started && !paused && !!localDriver && localDriver.alive && !sound.muted;
+  const velocity = Math.abs(speed);
+  const throttle = Math.max(c.gas || 0, c.brake || 0);
+  const rpm = 48 + velocity * 4.2 + throttle * 34;
+  sound.engine.frequency.setTargetAtTime(rpm, t, .045);
+  sound.engine2.frequency.setTargetAtTime(rpm * .51, t, .055);
+  sound.engineFilter.frequency.setTargetAtTime(300 + velocity * 19 + throttle * 520, t, .06);
+  sound.engineGain.gain.setTargetAtTime(active ? .022 + velocity * .0012 + throttle * .055 : 0, t, .06);
+
+  const corner = Math.abs(steerAngle) * velocity / 5.5;
+  const slide = clamp(corner + (c.hand || 0) * velocity / 8, 0, 1);
+  const rolling = clamp(velocity / TOP, 0, 1) * .025;
+  sound.tireGain.gain.setTargetAtTime(active ? rolling + slide * .13 : 0, t, .035);
+  if (sound.tirePan.pan) sound.tirePan.pan.setTargetAtTime(clamp(c.steer || 0, -1, 1) * -.55, t, .04);
+
+  if (active && speed < -.7 && now >= sound.reverseAt){
+    sound.reverseAt = now + 620;
+    tone(880, .12, .065, "sine", 1);
+  }
+}
+
+function toggleSound(){
+  sound.muted = !sound.muted;
+  const ctx = ensureAudio();
+  if (ctx && ctx.state === "suspended") ctx.resume();
+  if (sound.master) sound.master.gain.setTargetAtTime(sound.muted ? 0 : .28, sound.ctx.currentTime, .03);
+  $("s-sound").textContent = sound.muted ? "SON COUPÉ" : "SON ACTIVÉ";
+}
+
+addEventListener("pointerdown", () => {
+  const ctx = ensureAudio();
+  if (ctx && ctx.state === "suspended") ctx.resume();
+}, { passive: true });
+
+/* ============================================================
    6. LA CONDUITE
    Modele de bicyclette : la voiture avance dans l'axe de son
    capot, et c'est l'angle des roues avant qui la fait pivoter.
@@ -754,8 +906,10 @@ const DRIVER_TINTS = [0xff4d00, 0x48cfe0, 0xffc857, 0xd66efd];
 function createDriver(info){
   const local = info.id === net.id;
   const root = local ? carRoot : cloneCar(DRIVER_TINTS[info.color % DRIVER_TINTS.length]);
+  const tint = local ? 0xff4d00 : DRIVER_TINTS[info.color % DRIVER_TINTS.length];
   const driver = {
     id: info.id, name: info.name, root, local,
+    tint,
     hp: info.hp === undefined ? MAX_HP : info.hp,
     alive: info.alive === undefined ? true : info.alive,
     velocity: new THREE.Vector3(),
@@ -766,6 +920,7 @@ function createDriver(info){
   root.position.set(info.x, 0, info.z);
   root.rotation.y = info.yaw;
   root.visible = driver.alive;
+  createWorldHealthBar(driver);
   drivers.push(driver);
   if (local){
     localDriver = driver;
@@ -773,6 +928,67 @@ function createDriver(info){
     speed = 0;
   }
   return driver;
+}
+
+function createWorldHealthBar(driver){
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 96;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(4.8, .9, 1);
+  sprite.renderOrder = 12;
+  scene.add(sprite);
+  driver.worldBar = { canvas, texture, sprite, key: "" };
+  paintWorldHealthBar(driver, true);
+}
+
+function paintWorldHealthBar(driver, force = false){
+  const bar = driver.worldBar;
+  if (!bar) return;
+  const key = driver.name + ":" + driver.hp + ":" + driver.alive;
+  if (!force && bar.key === key) return;
+  bar.key = key;
+  const ctx = bar.canvas.getContext("2d");
+  ctx.clearRect(0, 0, 512, 96);
+  ctx.fillStyle = "rgba(6,7,10,.88)";
+  ctx.fillRect(4, 4, 504, 88);
+  ctx.strokeStyle = driver.alive ? "#ede7da" : "#ff5c4d";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(4, 4, 504, 88);
+  ctx.font = "700 30px monospace";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#ede7da";
+  ctx.fillText(driver.local ? "VOUS" : driver.name.toUpperCase(), 18, 30);
+  ctx.textAlign = "right";
+  ctx.fillText(driver.alive ? driver.hp + " PV" : "DÉTRUIT", 494, 30);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(237,231,218,.18)";
+  ctx.fillRect(18, 57, 476, 19);
+  ctx.fillStyle = driver.alive ? "#" + driver.tint.toString(16).padStart(6, "0") : "#ff3131";
+  ctx.fillRect(18, 57, 476 * clamp(driver.hp / MAX_HP, 0, 1), 19);
+  bar.texture.needsUpdate = true;
+}
+
+function removeWorldHealthBar(driver){
+  if (!driver.worldBar) return;
+  scene.remove(driver.worldBar.sprite);
+  driver.worldBar.texture.dispose();
+  driver.worldBar.sprite.material.dispose();
+  driver.worldBar = null;
+}
+
+function updateWorldHealthBars(){
+  for (const driver of drivers){
+    const bar = driver.worldBar;
+    if (!bar) continue;
+    bar.sprite.position.set(driver.root.position.x, driver.root.position.y + 2.75, driver.root.position.z);
+    bar.sprite.visible = true;
+    paintWorldHealthBar(driver);
+  }
 }
 
 function syncRoster(players){
@@ -790,6 +1006,7 @@ function syncRoster(players){
     const driver = drivers[i];
     if (incoming.has(driver.id)) continue;
     if (!driver.local) scene.remove(driver.root);
+    removeWorldHealthBar(driver);
     drivers.splice(i, 1);
   }
   for (const info of players){
@@ -849,7 +1066,9 @@ function destroyDriver(driver, respawnAt){
   driver.velocity.set(0, 0, 0);
   driver.respawnAt = respawnAt || performance.now() + 4500;
   if (driver.local) speed = 0;
+  paintWorldHealthBar(driver, true);
   explode(driver);
+  impactSound("destroy", 1);
 }
 
 function reviveDriver(driver, state){
@@ -874,6 +1093,7 @@ function reviveDriver(driver, state){
     camFrom.set(state.x, 3, state.z + 7);
     camAim.set(state.x, .85, state.z);
   }
+  paintWorldHealthBar(driver, true);
 }
 
 function step(dt){
@@ -963,11 +1183,35 @@ function collideCars(now){
     local.root.position.z += nz * overlap * sign;
     const key = a.id < b.id ? a.id + ":" + b.id : b.id + ":" + a.id;
     if (now >= (hitTimes.get(key) || 0)){
-      sendLocalState(now, true);
-      speed *= -.18;
+      const other = local === a ? b : a;
+      const relativeSpeed = a.velocity.distanceTo(b.velocity);
+      const impact = Math.max(relativeSpeed, Math.abs(speed) * .7);
+      if (impact > 1.8){
+        pendingContact = { id: other.id, impact: clamp(impact, 0, 45) };
+        impactSound("car", clamp(impact / 28, .25, 1));
+        sendLocalState(now, true);
+      }
+      speed *= -.32;
       hitTimes.set(key, now + 280);
     }
   }
+}
+
+function damagePair(a, b, impact, now){
+  if (!a || !b || !a.alive || !b.alive) return false;
+  const key = a.id < b.id ? a.id + ":" + b.id : b.id + ":" + a.id;
+  if (now < (damageTimes.get(key) || 0)) return false;
+  damageTimes.set(key, now + 650);
+  const damage = Math.round(clamp((impact - 1.2) * 3.2, 6, 40));
+  let changed = false;
+  for (const driver of [a, b]){
+    if (now < driver.invulnerableUntil) continue;
+    driver.hp = Math.max(0, driver.hp - damage);
+    paintWorldHealthBar(driver, true);
+    if (driver.hp === 0) destroyDriver(driver, now + 4500);
+    changed = true;
+  }
+  return changed;
 }
 
 function hostCombat(now){
@@ -992,16 +1236,10 @@ function hostCombat(now){
     if (distance < .01 || distance >= HIT_DISTANCE) continue;
     const nx = dx / distance, nz = dz / distance;
     const closing = (a.velocity.x - b.velocity.x) * nx + (a.velocity.z - b.velocity.z) * nz;
-    if (closing <= 2.5) continue;
-    const key = a.id < b.id ? a.id + ":" + b.id : b.id + ":" + a.id;
-    if (now < (damageTimes.get(key) || 0)) continue;
-    damageTimes.set(key, now + 650);
-    const damage = Math.round(clamp((closing - 1.5) * 3.1, 6, 38));
-    for (const driver of [a, b]){
-      if (now < driver.invulnerableUntil) continue;
-      driver.hp = Math.max(0, driver.hp - damage);
-      if (driver.hp === 0) destroyDriver(driver, now + 4500);
-    }
+    const relativeSpeed = a.velocity.distanceTo(b.velocity);
+    const impact = Math.max(closing, relativeSpeed * .72);
+    if (impact <= 1.8) continue;
+    damagePair(a, b, impact, now);
   }
 }
 
@@ -1063,7 +1301,11 @@ function push(s){
   /* On ne garde que ce qui longe le mur : de plein fouet la voiture
      s'arrete, en rasant elle continue. */
   const into = -(-Math.sin(yaw) * nx - Math.cos(yaw) * nz) * Math.sign(speed);
-  if (into > 0) speed *= 1 - .92 * clamp(into, 0, 1);
+  if (into > 0){
+    const impact = Math.abs(speed) * into;
+    if (impact > 2.2) impactSound("wall", clamp(impact / 30, .2, 1));
+    speed *= 1 - .92 * clamp(into, 0, 1);
+  }
 }
 
 /* ============================================================
@@ -1143,10 +1385,21 @@ function handleNet(message){
       driver.targetYaw = message.a;
       driver.velocity.set(message.vx || 0, 0, message.vy || 0);
     }
+    if (net.id === net.host && driver && state.contact){
+      const victim = drivers.find((item) => item.id === state.contact.id);
+      const closeEnough = victim && driver.root.position.distanceTo(victim.root.position) < HIT_DISTANCE + 2.4;
+      if (closeEnough && damagePair(driver, victim, clamp(Number(state.contact.impact) || 0, 0, 50), performance.now())){
+        impactSound("car", clamp((Number(state.contact.impact) || 4) / 28, .25, 1));
+      }
+    }
     if (message.i === net.host && Array.isArray(state.world)) applyWorld(state.world);
   } else if (message.t === "left"){
     const driver = drivers.find((item) => item.id === message.i);
-    if (driver && !driver.local){ scene.remove(driver.root); drivers.splice(drivers.indexOf(driver), 1); }
+    if (driver && !driver.local){
+      scene.remove(driver.root);
+      removeWorldHealthBar(driver);
+      drivers.splice(drivers.indexOf(driver), 1);
+    }
     buildHealthHud();
   } else if (message.t === "error"){
     const socket = net.socket;
@@ -1160,9 +1413,12 @@ function applyWorld(world){
   for (const state of world){
     const driver = drivers.find((item) => item.id === state.id);
     if (!driver) continue;
+    const hpLost = Math.max(0, driver.hp - state.hp);
     driver.hp = state.hp;
     if (driver.alive && !state.alive) destroyDriver(driver);
     else if (!driver.alive && state.alive) reviveDriver(driver, state);
+    else paintWorldHealthBar(driver);
+    if (hpLost && state.alive) impactSound("car", clamp(hpLost / 30, .25, 1));
   }
 }
 
@@ -1178,8 +1434,9 @@ function sendLocalState(now, force = false){
   })) : null;
   sendNet({
     t: "s", x: carRoot.position.x, y: carRoot.position.z,
-    vx, vy: vz, f: 0, a: yaw, st: { game: "shutdown", world }
+    vx, vy: vz, f: 0, a: yaw, st: { game: "shutdown", world, contact: pendingContact }
   });
+  pendingContact = null;
 }
 
 function leaveServer(status){
@@ -1193,7 +1450,10 @@ function leaveServer(status){
   $("s-pause").hidden = true;
   $("s-intro").hidden = false;
   $("s-net-state").textContent = status || "CHOISISSEZ UN SERVEUR";
-  for (const driver of drivers) if (!driver.local) scene.remove(driver.root);
+  for (const driver of drivers){
+    if (!driver.local) scene.remove(driver.root);
+    removeWorldHealthBar(driver);
+  }
   drivers.length = 0;
   localDriver = null;
   carRoot.visible = false;
@@ -1316,6 +1576,7 @@ $("s-code").addEventListener("input", () => {
 $("s-menu").addEventListener("click", togglePause);
 $("s-resume").addEventListener("click", togglePause);
 $("s-reset").addEventListener("click", () => { respawn(); togglePause(); });
+$("s-sound").addEventListener("click", toggleSound);
 $("s-quit").addEventListener("click", () => {
   const socket = net.socket;
   net.socket = null;
@@ -1380,6 +1641,8 @@ renderer.setAnimationLoop((now) => {
   else controls();   // on lit quand meme la manette : un bouton lance la partie
 
   moveCamera(dt, c);
+  updateWorldHealthBars();
+  updateAudio(c, now);
   hud(now);
 
   renderer.render(scene, camera);
