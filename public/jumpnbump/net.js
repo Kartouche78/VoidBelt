@@ -29,6 +29,7 @@
   };
   var sock = null, ping = null, roomsTimer = null, pingSent = 0;
   var lastSide = null, wantJoin = false;
+  var centralGateway = false;
 
   /* ==========================================================
      MUSIQUE
@@ -285,7 +286,8 @@
 
   function connect(code, priv) {
     if (sock) { try { sock.close(); } catch (e) { /* rien */ } sock = null; }
-    var url = WS + "/api/multiplayer/ws?game=jumpnbump&name=" + encodeURIComponent(S.name || "Lapin") +
+    var path = centralGateway ? "/api/multiplayer/ws?game=jumpnbump&name=" : "/api/jnb/ws?name=";
+    var url = WS + path + encodeURIComponent(S.name || "Lapin") +
       (code ? "&room=" + encodeURIComponent(code) : "") + (priv ? "&priv=1" : "");
     try {
       sock = new WebSocket(url);
@@ -506,8 +508,17 @@
   function refreshRooms() {
     fetch(HTTP + "/api/multiplayer/rooms?game=jumpnbump", { headers: { accept: "application/json" } })
       .then(function (r) {
-        if (!r.ok) throw new Error(r.status === 404 ? "route" : "http " + r.status);
+        if (!r.ok) throw new Error("gateway");
+        centralGateway = true;
         return r.json();
+      })
+      .catch(function () {
+        centralGateway = false;
+        return fetch(HTTP + "/api/jnb/rooms", { headers: { accept: "application/json" } })
+          .then(function (r) {
+            if (!r.ok) throw new Error(r.status === 404 ? "route" : "http " + r.status);
+            return r.json();
+          });
       })
       .then(function (list) {
         setState(true, list.length + " ouvert(s)");

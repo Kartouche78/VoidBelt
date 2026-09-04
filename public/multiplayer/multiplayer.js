@@ -9,6 +9,13 @@
     document.getElementById("state").textContent = "SYNCHRONISATION…";
     fetch(api + "/api/multiplayer/rooms", { headers: { accept: "application/json" } })
       .then(function (response) { if (!response.ok) throw new Error(); return response.json(); })
+      .catch(function () {
+        return fetch(api + "/api/jnb/rooms", { headers: { accept: "application/json" } })
+          .then(function (response) { if (!response.ok) throw new Error(); return response.json(); })
+          .then(function (rooms) {
+            return rooms.map(function (room) { room.game = "jumpnbump"; return room; });
+          });
+      })
       .then(render)
       .catch(function () { document.getElementById("state").textContent = "PASSERELLE INJOIGNABLE"; });
   }
