@@ -23,7 +23,7 @@
     <div class="lobbybar" id="lobbybar" hidden>
       <div class="lb-col">
         <span class="lb-t">VOTRE PRENOM</span>
-        <input id="f-name" type="text" maxlength="14" placeholder="Lapin"
+        <input id="f-name" type="text" maxlength="10" placeholder="Lapin"
                autocomplete="off" spellcheck="false" aria-label="Votre prenom">
       </div>
       <div class="lb-col">
@@ -96,6 +96,7 @@
       </div>
       <div class="row wrap">
         <button class="btn ghost" id="b-reset-keys" type="button">TOUCHES PAR DEFAUT</button>
+        <button class="btn ghost hidden" id="b-copy-room" type="button">SERVEUR ----</button>
         <button class="btn primary" id="b-resume" type="button">REPRENDRE</button>
         <button class="btn ghost" id="b-quit" type="button">RETOUR AU LOBBY</button>
       </div>
@@ -111,6 +112,6 @@
 <audio id="track-lobby" src="/jumpnbump/assets/soundtrack_lobby.mp3" loop preload="none"></audio>
 
 <script src="/jumpnbump/game.js"></script>
-<script src="/jumpnbump/net.js"></script>
+<script src="/jumpnbump/net.js?v=4"></script>
 </body>
 </html>

@@ -201,9 +201,9 @@
   }
 
   $("#f-name").addEventListener("input", function () {
-    S.name = $("#f-name").value.slice(0, 14);
+    S.name = $("#f-name").value.slice(0, 10);
     try { localStorage.setItem("jnb.name", S.name); } catch (e) { /* mode prive */ }
-    if (S.mode === "online") send({ t: "name", n: S.name });
+    if (S.mode === "online") send({ t: "name", n: "JNB-" + S.name });
     else refreshLobbyRoster();
   });
 
@@ -287,7 +287,7 @@
   function connect(code, priv) {
     if (sock) { try { sock.close(); } catch (e) { /* rien */ } sock = null; }
     var path = centralGateway ? "/api/multiplayer/ws?game=jumpnbump&name=" : "/api/jnb/ws?name=";
-    var url = WS + path + encodeURIComponent(S.name || "Lapin") +
+    var url = WS + path + encodeURIComponent("JNB-" + (S.name || "Lapin")) +
       (code ? "&room=" + encodeURIComponent(code) : "") + (priv ? "&priv=1" : "");
     try {
       sock = new WebSocket(url);
@@ -339,6 +339,7 @@
     S.room = "";
     S.host = 0;
     $("#roomtag").hidden = true;
+    $("#b-copy-room").classList.add("hidden");
     $("#b-quitroom").classList.add("hidden");
     backToLobby();
   }
@@ -355,6 +356,8 @@
         S.mode = "online";
         $("#roomtag").textContent = m.room;
         $("#roomtag").hidden = false;
+        $("#b-copy-room").textContent = "SERVEUR " + m.room;
+        $("#b-copy-room").classList.remove("hidden");
         $("#b-quitroom").classList.remove("hidden");
         break;
 
@@ -362,8 +365,12 @@
         S.host = m.host;
         S.phase = m.phase;
         S.target = m.target;
-        S.players = m.players;
-        var mine = m.players.filter(function (p) { return p.id === S.id; })[0];
+        S.players = m.players.map(function (p) {
+          var copy = Object.assign({}, p);
+          copy.name = String(copy.name || "Lapin").replace(/^JNB-/, "");
+          return copy;
+        });
+        var mine = S.players.filter(function (p) { return p.id === S.id; })[0];
         if (mine) S.color = mine.color;
         renderColors();
         if (wantJoin) {
@@ -517,7 +524,11 @@
         return fetch(HTTP + "/api/jnb/rooms", { headers: { accept: "application/json" } })
           .then(function (r) {
             if (!r.ok) throw new Error(r.status === 404 ? "route" : "http " + r.status);
-            return r.json();
+            return r.json().then(function (rooms) {
+              return rooms.filter(function (room) {
+                return !room.players.some(function (name) { return /^SHD-/.test(name); });
+              });
+            });
           });
       })
       .then(function (list) {
@@ -551,7 +562,9 @@
       b.disabled = unavailable;
       b.innerHTML =
         "<span class='room-code'>" + esc(r.code) + "</span>" +
-        "<span class='room-who'>" + (r.players.map(esc).join(" &middot; ") || "&mdash;") + "</span>" +
+        "<span class='room-who'>" + (r.players.map(function (name) {
+          return esc(String(name).replace(/^JNB-/, ""));
+        }).join(" &middot; ") || "&mdash;") + "</span>" +
         "<span class='room-n" + (full ? " full" : "") + "'>" +
         r.players.length + "<s>/</s>" + r.max + "</span>" +
         "<span class='room-go'>" +
@@ -700,6 +713,11 @@
     renderBinds();
   });
 
+  $("#b-copy-room").addEventListener("click", function () {
+    if (!S.room) return;
+    fallbackCopy(S.room, function () { toast("Code " + S.room + " copie."); });
+  });
+
   $("#f-vol").addEventListener("input", function () {
     var v = +$("#f-vol").value;
     $("#vol-out").textContent = v;
@@ -766,7 +784,7 @@
 
   try {
     var n0 = localStorage.getItem("jnb.name");
-    if (n0) { S.name = n0; $("#f-name").value = n0; }
+    if (n0) { S.name = n0.slice(0, 10); $("#f-name").value = S.name; }
     var c0 = localStorage.getItem("jnb.color");
     if (c0 !== null) S.color = +c0;
     var v0 = localStorage.getItem("jnb.vol");
@@ -805,6 +823,7 @@
     if (woke) music("lobby");
     var direct = new URLSearchParams(location.search).get("room") || "";
     if (/^\d{4}$/.test(direct)) connect(direct, false);
+    else if (new URLSearchParams(location.search).get("create") === "1") connect("", false);
   }).catch(function (err) {
     toast("Chargement impossible : " + err.message);
   });

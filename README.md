@@ -51,8 +51,18 @@ CC-BY-4.0 ; le credit est affiche dans l'ecran de pause du jeu, voir
 
 ## Passerelle multijoueur
 
-Tous les jeux partagent `GET /api/multiplayer/rooms`, qui retourne aussi
-le champ `game`, et `/api/multiplayer/ws?game=...`. Le filtre optionnel
-`?game=shutdown` ou `?game=jumpnbump` alimente le menu de chaque jeu.
-Les anciennes routes `/api/jnb/*` et `/api/shutdown/*` restent des alias.
-L'interface globale est disponible sur `/multiplayer/`.
+L'interface globale `/multiplayer/` cree un salon en choisissant le jeu,
+puis ouvre directement celui-ci. Le code a quatre chiffres reste visible
+et copiable dans le menu Echap de chaque jeu. Les salons ouverts indiquent
+leur jeu et permettent de le rejoindre sans repasser par un deploiement.
+
+En production, Jump'n Bump et Shutdown partagent le relais Rust deja
+disponible sur `/api/jnb/*`. Le type de jeu est transporte avec le salon et
+chaque paquet d'etat accepte une enveloppe specifique au jeu. Ajouter un
+nouveau jeu consiste donc a brancher son client sur ce relais et a
+l'enregistrer dans `/multiplayer/`, sans nouvelle route, SSH ou API.
+
+Les routes Rust plus explicites `/api/multiplayer/*` et `/api/shutdown/*`
+restent disponibles pour un futur deploiement. L'interface retombe
+automatiquement sur le relais partage tant que cette version du backend
+n'est pas installee.

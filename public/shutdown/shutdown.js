@@ -470,6 +470,7 @@ const MAX_HP = 100;
 const HIT_DISTANCE = 2.45;
 const drivers = [];
 const hitTimes = new Map();
+const damageTimes = new Map();
 const debris = [];
 let localDriver = null;
 
@@ -755,14 +756,16 @@ function createDriver(info){
   const root = local ? carRoot : cloneCar(DRIVER_TINTS[info.color % DRIVER_TINTS.length]);
   const driver = {
     id: info.id, name: info.name, root, local,
-    hp: info.hp, alive: info.alive, velocity: new THREE.Vector3(),
+    hp: info.hp === undefined ? MAX_HP : info.hp,
+    alive: info.alive === undefined ? true : info.alive,
+    velocity: new THREE.Vector3(),
     targetX: info.x, targetZ: info.z, targetYaw: info.yaw,
     spawnX: info.x, spawnZ: info.z, spawnYaw: info.yaw,
-    respawnRequested: false
+    respawnAt: 0, invulnerableUntil: performance.now() + 1800
   };
   root.position.set(info.x, 0, info.z);
   root.rotation.y = info.yaw;
-  root.visible = info.alive;
+  root.visible = driver.alive;
   drivers.push(driver);
   if (local){
     localDriver = driver;
@@ -773,6 +776,15 @@ function createDriver(info){
 }
 
 function syncRoster(players){
+  players = players.map((player, index) => {
+    const spawn = NET_SPAWNS[index % NET_SPAWNS.length];
+    return Object.assign({}, player, {
+      name: String(player.name || "Pilote").replace(/^SHD-/, ""),
+      x: player.x === undefined ? spawn.x : player.x,
+      z: player.z === undefined ? spawn.z : player.z,
+      yaw: player.yaw === undefined ? spawn.yaw : player.yaw
+    });
+  });
   const incoming = new Set(players.map((player) => player.id));
   for (let i = drivers.length - 1; i >= 0; i--){
     const driver = drivers[i];
@@ -784,9 +796,6 @@ function syncRoster(players){
     let driver = drivers.find((item) => item.id === info.id);
     if (!driver) driver = createDriver(info);
     driver.name = info.name;
-    driver.hp = info.hp;
-    if (driver.alive && !info.alive) destroyDriver(driver);
-    else if (!driver.alive && info.alive) reviveDriver(driver, info);
   }
   buildHealthHud();
 }
@@ -832,13 +841,13 @@ function explode(driver){
   }
 }
 
-function destroyDriver(driver){
+function destroyDriver(driver, respawnAt){
   if (!driver.alive) return;
   driver.hp = 0;
   driver.alive = false;
   driver.root.visible = false;
   driver.velocity.set(0, 0, 0);
-  driver.respawnRequested = false;
+  driver.respawnAt = respawnAt || performance.now() + 4500;
   if (driver.local) speed = 0;
   explode(driver);
 }
@@ -856,7 +865,8 @@ function reviveDriver(driver, state){
   driver.spawnZ = state.z;
   driver.spawnYaw = state.yaw;
   driver.velocity.set(0, 0, 0);
-  driver.respawnRequested = false;
+  driver.respawnAt = 0;
+  driver.invulnerableUntil = performance.now() + 1800;
   if (driver.local){
     yaw = state.yaw;
     speed = 0;
@@ -960,6 +970,41 @@ function collideCars(now){
   }
 }
 
+function hostCombat(now){
+  if (net.host !== net.id || !localDriver) return;
+  if (localDriver.alive)
+    localDriver.velocity.set(-Math.sin(yaw) * speed, 0, -Math.cos(yaw) * speed);
+
+  for (const driver of drivers){
+    if (!driver.alive && now >= driver.respawnAt){
+      reviveDriver(driver, {
+        hp: MAX_HP, x: driver.spawnX, z: driver.spawnZ, yaw: driver.spawnYaw
+      });
+    }
+  }
+
+  for (let i = 0; i < drivers.length; i++) for (let j = i + 1; j < drivers.length; j++){
+    const a = drivers[i], b = drivers[j];
+    if (!a.alive || !b.alive) continue;
+    const dx = b.root.position.x - a.root.position.x;
+    const dz = b.root.position.z - a.root.position.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance < .01 || distance >= HIT_DISTANCE) continue;
+    const nx = dx / distance, nz = dz / distance;
+    const closing = (a.velocity.x - b.velocity.x) * nx + (a.velocity.z - b.velocity.z) * nz;
+    if (closing <= 2.5) continue;
+    const key = a.id < b.id ? a.id + ":" + b.id : b.id + ":" + a.id;
+    if (now < (damageTimes.get(key) || 0)) continue;
+    damageTimes.set(key, now + 650);
+    const damage = Math.round(clamp((closing - 1.5) * 3.1, 6, 38));
+    for (const driver of [a, b]){
+      if (now < driver.invulnerableUntil) continue;
+      driver.hp = Math.max(0, driver.hp - damage);
+      if (driver.hp === 0) destroyDriver(driver, now + 4500);
+    }
+  }
+}
+
 function stepDebris(dt){
   for (let i = debris.length - 1; i >= 0; i--){
     const bit = debris[i];
@@ -1031,7 +1076,11 @@ const HTTP_SERVER = LOCAL_SERVER ? location.origin : "https://api.voidbelt.com";
 const WS_SERVER = LOCAL_SERVER
   ? (location.protocol === "https:" ? "wss://" : "ws://") + location.host
   : "wss://api.voidbelt.com";
-const net = { id: 0, room: "", socket: null, pingTimer: null, stateAt: 0, respawnAt: 0 };
+const net = { id: 0, host: 0, room: "", socket: null, pingTimer: null, stateAt: 0 };
+const NET_SPAWNS = [
+  { x: 0, z: 0, yaw: 0 }, { x: 0, z: 78, yaw: Math.PI },
+  { x: -78, z: 0, yaw: -Math.PI / 2 }, { x: 78, z: 0, yaw: Math.PI / 2 }
+];
 
 function sendNet(message){
   if (net.socket && net.socket.readyState === WebSocket.OPEN)
@@ -1048,9 +1097,9 @@ function beginOnline(){
 
 function connectServer(code){
   if (net.socket) net.socket.close();
-  const name = ($("s-name").value || "Pilote").trim().slice(0, 14);
+  const name = ($("s-name").value || "Pilote").trim().slice(0, 10);
   try { localStorage.setItem("shutdown.name", name); } catch (_) { /* private mode */ }
-  const url = WS_SERVER + "/api/multiplayer/ws?game=shutdown&name=" + encodeURIComponent(name) +
+  const url = WS_SERVER + "/api/jnb/ws?name=" + encodeURIComponent("SHD-" + name) +
     (code ? "&room=" + encodeURIComponent(code) : "");
   const socket = new WebSocket(url);
   net.socket = socket;
@@ -1079,28 +1128,24 @@ function handleNet(message){
     net.id = message.id;
     net.room = message.room;
     $("s-room").textContent = "SERVEUR " + message.room;
-  } else if (message.t === "roster"){
+    $("s-pause-room").textContent = message.room;
+  } else if (message.t === "lobby"){
+    net.host = message.host;
     syncRoster(message.players || []);
     if (localDriver) beginOnline();
   } else if (message.t === "s"){
-    const driver = drivers.find((item) => item.id === message.id);
+    const state = message.st;
+    if (!state || state.game !== "shutdown") return;
+    const driver = drivers.find((item) => item.id === message.i);
     if (driver && !driver.local){
       driver.targetX = message.x;
-      driver.targetZ = message.z;
-      driver.targetYaw = message.yaw;
-      driver.velocity.set(message.vx || 0, 0, message.vz || 0);
+      driver.targetZ = message.y;
+      driver.targetYaw = message.a;
+      driver.velocity.set(message.vx || 0, 0, message.vy || 0);
     }
-  } else if (message.t === "hit"){
-    const a = drivers.find((item) => item.id === message.a);
-    const b = drivers.find((item) => item.id === message.b);
-    if (a){ a.hp = message.hp_a; if (!message.alive_a) destroyDriver(a); }
-    if (b){ b.hp = message.hp_b; if (!message.alive_b) destroyDriver(b); }
-    if (localDriver && !localDriver.alive) net.respawnAt = performance.now() + 4500;
-  } else if (message.t === "respawn"){
-    const driver = drivers.find((item) => item.id === message.id);
-    if (driver) reviveDriver(driver, message);
+    if (message.i === net.host && Array.isArray(state.world)) applyWorld(state.world);
   } else if (message.t === "left"){
-    const driver = drivers.find((item) => item.id === message.id);
+    const driver = drivers.find((item) => item.id === message.i);
     if (driver && !driver.local){ scene.remove(driver.root); drivers.splice(drivers.indexOf(driver), 1); }
     buildHealthHud();
   } else if (message.t === "error"){
@@ -1111,20 +1156,40 @@ function handleNet(message){
   }
 }
 
+function applyWorld(world){
+  for (const state of world){
+    const driver = drivers.find((item) => item.id === state.id);
+    if (!driver) continue;
+    driver.hp = state.hp;
+    if (driver.alive && !state.alive) destroyDriver(driver);
+    else if (!driver.alive && state.alive) reviveDriver(driver, state);
+  }
+}
+
 function sendLocalState(now, force = false){
-  if (!localDriver || !localDriver.alive || (!force && now - net.stateAt < 50)) return;
+  if (!localDriver || (!localDriver.alive && net.host !== net.id) || (!force && now - net.stateAt < 50)) return;
   net.stateAt = now;
-  const vx = -Math.sin(yaw) * speed, vz = -Math.cos(yaw) * speed;
+  const vx = localDriver.alive ? -Math.sin(yaw) * speed : 0;
+  const vz = localDriver.alive ? -Math.cos(yaw) * speed : 0;
   localDriver.velocity.set(vx, 0, vz);
-  sendNet({ t: "s", x: carRoot.position.x, z: carRoot.position.z, yaw, vx, vz });
+  const world = net.host === net.id ? drivers.map((driver) => ({
+    id: driver.id, hp: driver.hp, alive: driver.alive,
+    x: driver.root.position.x, z: driver.root.position.z, yaw: driver.root.rotation.y
+  })) : null;
+  sendNet({
+    t: "s", x: carRoot.position.x, y: carRoot.position.z,
+    vx, vy: vz, f: 0, a: yaw, st: { game: "shutdown", world }
+  });
 }
 
 function leaveServer(status){
   started = false;
   paused = false;
   net.id = 0;
+  net.host = 0;
   net.room = "";
   $("s-room").textContent = "DISTRICT 04";
+  $("s-pause-room").textContent = "----";
   $("s-pause").hidden = true;
   $("s-intro").hidden = false;
   $("s-net-state").textContent = status || "CHOISISSEZ UN SERVEUR";
@@ -1138,12 +1203,13 @@ function leaveServer(status){
 }
 
 function refreshRooms(){
-  fetch(HTTP_SERVER + "/api/multiplayer/rooms?game=shutdown", { headers: { accept: "application/json" } })
+  fetch(HTTP_SERVER + "/api/jnb/rooms", { headers: { accept: "application/json" } })
     .then((response) => {
       if (!response.ok) throw new Error("HTTP " + response.status);
       return response.json();
     })
     .then((rooms) => {
+      rooms = rooms.filter((room) => room.players.some((name) => /^SHD-/.test(name)));
       $("s-net-state").textContent = rooms.length + " SERVEUR(S) OUVERT(S)";
       const list = $("s-rooms");
       list.innerHTML = "";
@@ -1223,10 +1289,11 @@ function ready(){
   loaded = true;
   $("s-load").hidden = true;
   $("s-intro").hidden = false;
-  try { $("s-name").value = localStorage.getItem("shutdown.name") || "Pilote"; } catch (_) { /* private mode */ }
+  try { $("s-name").value = (localStorage.getItem("shutdown.name") || "Pilote").slice(0, 10); } catch (_) { /* private mode */ }
   refreshRooms();
   const direct = new URLSearchParams(location.search).get("room") || "";
   if (/^\d{4}$/.test(direct)) connectServer(direct);
+  else if (new URLSearchParams(location.search).get("create") === "1") connectServer("");
 }
 
 function togglePause(){
@@ -1254,6 +1321,11 @@ $("s-quit").addEventListener("click", () => {
   net.socket = null;
   if (socket) socket.close();
   leaveServer("SERVEUR QUITTE");
+});
+$("s-copy-code").addEventListener("click", () => {
+  if (!net.room) return;
+  if (navigator.clipboard) navigator.clipboard.writeText(net.room);
+  $("s-copy-code").title = "Code " + net.room + " copié";
 });
 setInterval(() => { if (loaded && !started) refreshRooms(); }, 4000);
 
@@ -1298,14 +1370,9 @@ renderer.setAnimationLoop((now) => {
   if (paused){ /* la ville se fige ; la camera, elle, revient se ranger */ }
   else if (started){
     if (localDriver && localDriver.alive) c = step(dt);
-    else {
-      controls();
-      if (localDriver && now >= net.respawnAt && !localDriver.respawnRequested){
-        localDriver.respawnRequested = true;
-        sendNet({ t: "respawn" });
-      }
-    }
+    else controls();
     stepRemoteDrivers(dt);
+    hostCombat(now);
     sendLocalState(now);
     collideCars(now);
     stepDebris(dt);

@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared/css/base.css">
 <link rel="stylesheet" href="/shared/css/game-ui.css">
-<link rel="stylesheet" href="shutdown.css?v=3">
+<link rel="stylesheet" href="shutdown.css?v=4">
 <script type="importmap">
 {
   "imports": {
@@ -135,7 +135,7 @@
 
         <div class="smulti">
           <label class="sfield">VOTRE NOM
-            <input id="s-name" type="text" maxlength="14" value="Pilote" autocomplete="off">
+            <input id="s-name" type="text" maxlength="10" value="Pilote" autocomplete="off">
           </label>
           <div class="sstart">
             <button class="sbtn solid" id="s-create" type="button">CRÉER UN SERVEUR <i>&#9656;</i></button>
@@ -155,6 +155,7 @@
       <div class="smodal-in narrow">
         <div class="skicker"><i></i>EN PAUSE</div>
         <h2 class="ssub">MOTEUR AU RALENTI</h2>
+        <button class="spause-room" id="s-copy-code" type="button">CODE SERVEUR <b id="s-pause-room">----</b></button>
         <div class="sset-a">
           <button class="sbtn solid" id="s-resume" type="button">REPRENDRE <span class="kbd">ÉCHAP</span></button>
           <button class="sbtn ghost" id="s-reset" type="button">REMETTRE EN PLACE <span class="kbd">R</span></button>
@@ -194,6 +195,6 @@
 <script src="/shared/js/ticker.js"></script>
 <script src="/shared/js/page-scroll.js?v=3"
         data-up="/" data-up-label="ACCUEIL"></script>
-<script type="module" src="shutdown.js?v=3"></script>
+<script type="module" src="shutdown.js?v=4"></script>
 </body>
 </html>

@@ -13,7 +13,11 @@
         return fetch(api + "/api/jnb/rooms", { headers: { accept: "application/json" } })
           .then(function (response) { if (!response.ok) throw new Error(); return response.json(); })
           .then(function (rooms) {
-            return rooms.map(function (room) { room.game = "jumpnbump"; return room; });
+            return rooms.map(function (room) {
+              room.game = room.players.some(function (name) { return /^SHD-/.test(name); })
+                ? "shutdown" : "jumpnbump";
+              return room;
+            });
           });
       })
       .then(render)
@@ -36,7 +40,9 @@
       var game = document.createElement("span"); game.className = "game"; game.textContent = names[room.game];
       var code = document.createElement("b"); code.className = "code"; code.textContent = room.code;
       var players = document.createElement("span"); players.className = "players";
-      players.textContent = (room.players || []).join(" · ") + "  [" + room.players.length + "/" + room.max + "]";
+      players.textContent = (room.players || []).map(function (name) {
+        return String(name).replace(/^(?:JNB|SHD)-/, "");
+      }).join(" · ") + "  [" + room.players.length + "/" + room.max + "]";
       card.append(game, code, players); box.appendChild(card);
     });
   }
