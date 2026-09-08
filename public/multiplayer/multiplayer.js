@@ -2,8 +2,8 @@
   "use strict";
   var local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   var api = local ? location.origin : "https://api.voidbelt.com";
-  var names = { jumpnbump: "JUMP'N BUMP", shutdown: "SHUTDOWN" };
-  var paths = { jumpnbump: "/jumpnbump/", shutdown: "/shutdown/" };
+  var names = { jumpnbump: "JUMP'N BUMP" };
+  var paths = { jumpnbump: "/jumpnbump/" };
 
   function refresh() {
     document.getElementById("state").textContent = "SYNCHRONISATION…";
@@ -14,8 +14,7 @@
           .then(function (response) { if (!response.ok) throw new Error(); return response.json(); })
           .then(function (rooms) {
             return rooms.map(function (room) {
-              room.game = room.players.some(function (name) { return /^SHD-/.test(name); })
-                ? "shutdown" : "jumpnbump";
+              room.game = "jumpnbump";
               return room;
             });
           });
@@ -25,6 +24,7 @@
   }
 
   function render(rooms) {
+    rooms = rooms.filter(function (room) { return room.game === "jumpnbump"; });
     var box = document.getElementById("servers");
     box.innerHTML = "";
     document.getElementById("state").textContent = rooms.length + " SERVEUR(S) DISPONIBLE(S)";
@@ -41,7 +41,7 @@
       var code = document.createElement("b"); code.className = "code"; code.textContent = room.code;
       var players = document.createElement("span"); players.className = "players";
       players.textContent = (room.players || []).map(function (name) {
-        return String(name).replace(/^(?:JNB|SHD)-/, "");
+        return String(name).replace(/^JNB-/, "");
       }).join(" · ") + "  [" + room.players.length + "/" + room.max + "]";
       card.append(game, code, players); box.appendChild(card);
     });

@@ -81,29 +81,11 @@
     </div>
 
     <nav class="access rise d5" aria-label="Zones de jeu">
-      <a class="access-card" href="/velocity/">
-        <span class="access-k">02</span>
-        <span class="access-t">Velocity</span>
-        <span class="access-d">Prototype de course 3D en cockpit. Maîtrisez la trajectoire, le boost et le chrono sur une planète hostile.</span>
-        <span class="access-go">COURIR &#9656;</span>
-      </a>
       <a class="access-card" href="/jumpnbump/">
-        <span class="access-k">03</span>
+        <span class="access-k">02</span>
         <span class="access-t">Jump'n Bump</span>
         <span class="access-d">Quatre lapins, une falaise flottante, un bassin et un trampoline. Sautez sur la tete des autres.</span>
         <span class="access-go">SAUTER &#9656;</span>
-      </a>
-      <a class="access-card" href="/shutdown/">
-        <span class="access-k">04</span>
-        <span class="access-t">Shutdown</span>
-          <span class="access-d">Quatre voitures, cent points de vie et un district sans regles. Percutez les rivaux avant d'etre detruit.</span>
-        <span class="access-go">ROULER &#9656;</span>
-      </a>
-      <a class="access-card" href="/multiplayer/">
-        <span class="access-k">//</span>
-        <span class="access-t">Serveurs</span>
-        <span class="access-d">Tous les salons multijoueurs Voidbelt, classes par jeu et accessibles par code.</span>
-        <span class="access-go">SE CONNECTER &#9656;</span>
       </a>
       <a class="access-card" href="/arena/">
         <span class="access-k">01</span>
@@ -113,11 +95,9 @@
       </a>
     </nav>
 
-    <!-- les trois pages sont empilees : la molette passe de l'une a l'autre -->
+    <!-- la molette vers le haut ouvre l'arene -->
     <div class="scrollcue rise d5" aria-hidden="true">
       <span><i>&#9650;</i> DÉFILEZ VERS LE HAUT <b>L'ARÈNE</b></span>
-      <s></s>
-      <span><i>&#9660;</i> DÉFILEZ VERS LE BAS <b>VELOCITY</b></span>
     </div>
 
   </div>
@@ -130,11 +110,7 @@
     <nav class="sitenav" aria-label="Navigation du site">
       <a href="/arena/">ARÈNE</a>
       <s>/</s>
-      <a href="/velocity/">VELOCITY</a>
-      <s>/</s>
       <a href="/jumpnbump/">JUMP'N BUMP</a>
-      <s>/</s>
-      <a href="/shutdown/">SHUTDOWN</a>
     </nav>
   </div>
   <div class="ticker"><div class="ticker-track" id="tick"></div></div>
@@ -146,7 +122,7 @@
              aria-label="Volume de la musique">
       <output class="rvol-o" id="f-volv" for="f-volr">25</output>
     </span>
-    <span class="updown"><i>&#9650;</i> <b>ARÈNE</b> <s>&#183;</s> <i>&#9660;</i> <b>VELOCITY</b></span>
+    <span class="updown"><i>&#9650;</i> <b>ARÈNE</b></span>
     <span>DÉBRIS <b id="kills">00</b></span>
   </div>
 </footer>
@@ -160,7 +136,6 @@
 <script src="/home/home.js"></script>
 <script src="/shared/js/ticker.js"></script>
 <script src="/shared/js/page-scroll.js?v=3"
-        data-up="/arena/"    data-up-label="L'ARÈNE"
-        data-down="/velocity/" data-down-label="VELOCITY"></script>
+        data-up="/arena/"    data-up-label="L'ARÈNE"></script>
 </body>
 </html>

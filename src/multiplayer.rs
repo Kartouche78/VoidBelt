@@ -3,7 +3,7 @@
 //! Public rooms expose their game kind. The gateway keeps one URL for
 //! browsers while dispatching each socket to authoritative game rules.
 
-use crate::{jumpnbump, shutdown};
+use crate::jumpnbump;
 use axum::{
     Json,
     extract::{
@@ -18,14 +18,12 @@ use std::sync::Arc;
 
 pub struct Hub {
     jumpnbump: Arc<jumpnbump::Hub>,
-    shutdown: Arc<shutdown::Hub>,
 }
 
 impl Hub {
-    pub fn new(jumpnbump: Arc<jumpnbump::Hub>, shutdown: Arc<shutdown::Hub>) -> Arc<Self> {
+    pub fn new(jumpnbump: Arc<jumpnbump::Hub>) -> Arc<Self> {
         Arc::new(Self {
             jumpnbump,
-            shutdown,
         })
     }
 }
@@ -67,9 +65,6 @@ pub async fn rooms(Query(query): Query<RoomQuery>, State(hub): State<Arc<Hub>>) 
     if game.is_empty() || game == "jumpnbump" {
         list.extend(tagged(jumpnbump::room_list(&hub.jumpnbump), "jumpnbump"));
     }
-    if game.is_empty() || game == "shutdown" {
-        list.extend(tagged(shutdown::room_list(&hub.shutdown), "shutdown"));
-    }
     list.sort_by(|a, b| {
         a["game"]
             .as_str()
@@ -98,17 +93,6 @@ pub async fn ws(
                 )
                 .await;
             }
-            "shutdown" => {
-                shutdown::session(
-                    socket,
-                    shutdown::JoinParams {
-                        room: query.room,
-                        name: query.name,
-                    },
-                    hub.shutdown.clone(),
-                )
-                .await;
-            }
             _ => {
                 let _ = socket
                     .send(Message::Text(
@@ -129,7 +113,7 @@ mod tests {
     #[test]
     fn room_tag_identifies_its_game() {
         let rooms = json!([{ "code": "1234", "players": [] }]);
-        let tagged = tagged(rooms, "shutdown");
-        assert_eq!(tagged[0]["game"], "shutdown");
+        let tagged = tagged(rooms, "jumpnbump");
+        assert_eq!(tagged[0]["game"], "jumpnbump");
     }
 }

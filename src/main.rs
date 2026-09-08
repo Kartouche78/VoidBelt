@@ -1,22 +1,7 @@
-//! VOIDBELT — serveur du site.
-//!
-//! Sert les trois pages — accueil, arène, Velocity — et leurs
-//! ressources partagées comme des fichiers statiques, et expose une
-//! petite API JSON pour le contenu qui n'a pas sa place dans le
-//! JavaScript : l'archive de répliques de l'accueil et le classement
-//! de Velocity.
-//!
-//! Chaque page a son dossier sous `public/` (`home/`, `arena/`,
-//! `velocity/`) ; seul `public/index.html` reste à la racine, parce que
-//! c'est lui que sert `/`.
-//!
-//! Jump'n Bump ajoute la seule brique vraiment vivante du serveur : un
-//! relais WebSocket qui tient les salons de quatre lapins.
+//! VOIDBELT ? pages statiques, transmissions et salons Jump'n Bump.
 
 mod jumpnbump;
-mod leaderboard;
 mod multiplayer;
-mod shutdown;
 mod transmissions;
 
 use axum::{
@@ -54,22 +39,16 @@ async fn main() {
     // Les salons vivent en mémoire : le routeur qui les expose porte
     // son propre état, fusionné ensuite dans le routeur principal.
     let jnb_hub = jumpnbump::Hub::new();
-    let shutdown_hub = shutdown::Hub::new();
 
     let jnb = Router::new()
         .route("/api/jnb/rooms", get(jumpnbump::rooms))
         .route("/api/jnb/ws", get(jumpnbump::ws))
         .with_state(jnb_hub.clone());
 
-    let shutdown = Router::new()
-        .route("/api/shutdown/rooms", get(shutdown::rooms))
-        .route("/api/shutdown/ws", get(shutdown::ws))
-        .with_state(shutdown_hub.clone());
-
     let multiplayer = Router::new()
         .route("/api/multiplayer/rooms", get(multiplayer::rooms))
         .route("/api/multiplayer/ws", get(multiplayer::ws))
-        .with_state(multiplayer::Hub::new(jnb_hub, shutdown_hub));
+        .with_state(multiplayer::Hub::new(jnb_hub));
 
     let cors = CorsLayer::new()
         .allow_origin(HeaderValue::from_static("https://voidbelt.com"))
@@ -79,21 +58,14 @@ async fn main() {
     let app = Router::new()
         .route("/api/health", get(health))
         .route("/api/transmissions", get(transmissions::list))
-        .route(
-            "/api/velocity/leaderboard",
-            get(leaderboard::list).post(leaderboard::submit),
-        )
         .merge(shared)
         .merge(jnb)
-        .merge(shutdown)
         .merge(multiplayer)
         .nest_service("/home", ServeDir::new("public/home"))
         .nest_service("/arena", ServeDir::new("public/arena"))
-        .nest_service("/velocity", ServeDir::new("public/velocity"))
         .nest_service("/skilltree", ServeDir::new("public/skilltree"))
         .nest_service("/jumpnbump", ServeDir::new("public/jumpnbump"))
         .nest_service("/multiplayer", ServeDir::new("public/multiplayer"))
-        .nest_service("/shutdown", ServeDir::new("public/shutdown"))
         .fallback_service(ServeDir::new("public"))
         .layer(cors)
         .layer(CompressionLayer::new())

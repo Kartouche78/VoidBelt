@@ -1,15 +1,6 @@
 /* ============================================================
    VOIDBELT — NAVIGATION PAR DEFILEMENT
-   Les trois pages sont empilees verticalement, comme un seul
-   long document :
-
-        haut   ^   ARENE      (le jeu du vaisseau)
-                   ACCUEIL
-        bas    v   VELOCITY   (le jeu de course)
-
-   Depuis l'accueil : molette vers le haut -> l'Arene,
-   molette vers le bas -> Velocity. Depuis un jeu, on revient a
-   l'accueil dans l'autre sens. Le script se configure par des
+   La navigation entre les pages se configure par des
    attributs poses sur la balise <script> :
 
      data-up          adresse de la page au-dessus
