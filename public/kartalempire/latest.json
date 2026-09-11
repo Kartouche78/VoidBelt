@@ -1,7 +1,7 @@
 {
-    "version":  "1.3.0",
-    "url":  "https://api.voidbelt.com/kartalempire/releases/KartalEmpire-1.3.0-win-x64.exe",
-    "sha256":  "f4d861aad9acde5b7eded7307f650fa9483ce23be8b43e01e10419fa03ab10e6",
-    "size":  73963934,
+    "version":  "2.0.0",
+    "url":  "https://api.voidbelt.com/kartalempire/releases/KartalEmpire-2.0.0-win-x64.exe",
+    "sha256":  "0583184bc24b5b06a27c863c16e715b0fff686b9acc5d66ce2d9af2d5ca8d7f2",
+    "size":  73973150,
     "runtime":  "win-x64"
 }
