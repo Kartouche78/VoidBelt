@@ -42,7 +42,7 @@ function draw(){
   svg('path',{d:'M750 25 L185 775 L1315 775 Z M750 45 L210 760 L1290 760 Z'},decor);
   for(const n of nodes){const p=nodes.find(p=>p.id===n.parent)||{x:750,y:465};svg('line',{x1:p.x,y1:p.y,x2:n.x,y2:n.y,class:`connection ${rank(n)?'lit':''}`,style:`--branch:${branches[n.branch].color}`});}
   const center=svg('g',{'aria-hidden':'true'});svg('circle',{cx:750,cy:465,r:52,fill:'#0d1111',stroke:'#c5b183','stroke-width':2},center);svg('circle',{cx:750,cy:465,r:43,fill:'none',stroke:'#9f916c'},center);label('⟁',{x:750,y:478,'text-anchor':'middle',fill:'#e1cea3','font-size':65},center);label('ÉVEIL',{x:750,y:547,class:'branch-subtitle'},center);
-  for(const b of branches){const top=b.angle===-90,x=top?750:b.angle===150?185:1315,y=top?88:710;const g=svg('g',{style:`--branch:${b.color}`,'aria-hidden':'true'});for(const r of [61,68,77])svg('circle',{cx:x,cy:y,r,fill:'none',stroke:b.color,opacity:r===61?.6:.18},g);svg('path',{d:`M ${x} ${y-51} L ${x+45} ${y-25} L ${x+45} ${y+25} L ${x} ${y+51} L ${x-45} ${y+25} L ${x-45} ${y-25} Z`,class:'emblem'},g);label(b.icon,{x,y,class:'emblem-icon'},g);label(b.name.toUpperCase(),{x,y:y+96,class:'branch-title',fill:b.color},g);label(b.subtitle,{x,y:y+116,class:'branch-subtitle'},g);}
+  for(const b of branches){const top=b.angle===-90,x=top?750:b.angle===150?185:1315,y=top?-115:710;const g=svg('g',{style:`--branch:${b.color}`,'aria-hidden':'true'});for(const r of [61,68,77])svg('circle',{cx:x,cy:y,r,fill:'none',stroke:b.color,opacity:r===61?.6:.18},g);svg('path',{d:`M ${x} ${y-51} L ${x+45} ${y-25} L ${x+45} ${y+25} L ${x} ${y+51} L ${x-45} ${y+25} L ${x-45} ${y-25} Z`,class:'emblem'},g);label(b.icon,{x,y,class:'emblem-icon'},g);label(b.name.toUpperCase(),{x,y:y+96,class:'branch-title',fill:b.color},g);label(b.subtitle,{x,y:y+116,class:'branch-subtitle'},g);}
   for(const n of nodes){const b=branches[n.branch],r=n.type==='passive'?18:24;const g=svg('g',{class:`node ${rank(n)?'active':available(n)?'available':'locked'} ${selected===n.id?'selected':''}`,transform:`translate(${n.x} ${n.y})`,style:`--branch:${b.color};--shade:${b.shade}`,tabindex:0,role:'button','aria-label':`${n.name}, rang ${rank(n)} sur ${n.max}, ${available(n)?'disponible':'verrouillée'}`,'aria-haspopup':'dialog'});svg('circle',{r:r+5,class:'outer'},g);if(n.type==='passive')svg('circle',{r,class:'shape'},g);else svg('polygon',{points:n.type==='active'?`0,-${r} ${r},0 0,${r} -${r},0`:`0,-${r} ${r*.87},-${r/2} ${r*.87},${r/2} 0,${r} -${r*.87},${r/2} -${r*.87},-${r/2}`,class:'shape'},g);label(available(n)||rank(n)?n.icon:'·',{y:-1,class:'icon'},g);if(!available(n)&&!rank(n)){svg('rect',{x:-5,y:-1,width:10,height:9,rx:1,fill:'#999e91'},g);svg('path',{d:'M-3-1 V-5 A3 3 0 0 1 3-5 V-1',fill:'none',stroke:'#999e91','stroke-width':1.6},g);}label(`${rank(n)}/${n.max}`,{y:r+17,class:'rank'},g);const title=svg('title',{},g);title.textContent=n.name;g.addEventListener('click',()=>open(n.id));g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();open(n.id);}});}
   $('points').textContent=state.points;const total=nodes.reduce((sum,n)=>sum+rank(n),0);$('progress').textContent=`${total} rang${total>1?'s':''} investi${total>1?'s':''} · ${nodes.filter(n=>rank(n)===n.max).length}/${nodes.length} compétences maîtrisées`;
 }
@@ -54,3 +54,59 @@ function closePanel(){const id=selected;selected=null;$('panel').hidden=true;dra
 $('close').addEventListener('click',closePanel);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('panel').hidden)closePanel();});
 $('reset').addEventListener('click',()=>{state={points:12,ranks:{}};selected=null;$('panel').hidden=true;save();draw();notify('Arbre réinitialisé · 12 points disponibles');});
 draw();
+
+// Camera coordinates stay independent of redraws and skill progression.
+const tree = $('tree');
+const initialView = {x:0,y:-210,width:1500,height:1100};
+let camera = {...initialView}, gesture = null, suppressClick = false;
+function renderCamera(){
+  tree.setAttribute('viewBox', `${camera.x} ${camera.y} ${camera.width} ${camera.height}`);
+  $('zoom-level').textContent = `${Math.round(initialView.width / camera.width * 100)} %`;
+}
+function worldPoint(clientX,clientY){
+  return new DOMPoint(clientX,clientY).matrixTransform(tree.getScreenCTM().inverse());
+}
+function zoomAt(factor,point){
+  const width=Math.max(initialView.width/4,Math.min(initialView.width/0.6,camera.width*factor));
+  const ratio=width/camera.width;
+  camera={x:point.x-(point.x-camera.x)*ratio,y:point.y-(point.y-camera.y)*ratio,width,height:camera.height*ratio};
+  renderCamera();
+}
+tree.addEventListener('wheel',event=>{
+  event.preventDefault();
+  const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?tree.clientHeight:1);
+  zoomAt(Math.exp(Math.max(-0.4,Math.min(0.4,delta*0.0015))),worldPoint(event.clientX,event.clientY));
+},{passive:false});
+tree.addEventListener('pointerdown',event=>{
+  if(event.button!==0||gesture)return;
+  suppressClick=false;
+  gesture={id:event.pointerId,x:event.clientX,y:event.clientY,camera:{...camera},inverse:tree.getScreenCTM().inverse(),dragging:false};
+});
+window.addEventListener('pointermove',event=>{
+  if(!gesture||event.pointerId!==gesture.id)return;
+  if(!gesture.dragging&&Math.hypot(event.clientX-gesture.x,event.clientY-gesture.y)<5)return;
+  gesture.dragging=true;
+  suppressClick=true;
+  if(!tree.hasPointerCapture(event.pointerId))tree.setPointerCapture(event.pointerId);
+  tree.classList.add('dragging');
+  const start=new DOMPoint(gesture.x,gesture.y).matrixTransform(gesture.inverse);
+  const current=new DOMPoint(event.clientX,event.clientY).matrixTransform(gesture.inverse);
+  camera={...gesture.camera,x:gesture.camera.x+start.x-current.x,y:gesture.camera.y+start.y-current.y};
+  renderCamera();
+});
+function endGesture(event){
+  if(!gesture||event.pointerId!==gesture.id)return;
+  gesture=null;
+  tree.classList.remove('dragging');
+  if(tree.hasPointerCapture(event.pointerId))tree.releasePointerCapture(event.pointerId);
+}
+window.addEventListener('pointerup',endGesture);
+window.addEventListener('pointercancel',endGesture);
+tree.addEventListener('lostpointercapture',endGesture);
+tree.addEventListener('click',event=>{
+  if(suppressClick&&event.detail!==0){event.preventDefault();event.stopImmediatePropagation();suppressClick=false;}
+},true);
+$('zoom-in').addEventListener('click',()=>zoomAt(1/1.2,{x:camera.x+camera.width/2,y:camera.y+camera.height/2}));
+$('zoom-out').addEventListener('click',()=>zoomAt(1.2,{x:camera.x+camera.width/2,y:camera.y+camera.height/2}));
+$('recenter').addEventListener('click',()=>{camera={...initialView};renderCamera();});
+renderCamera();
