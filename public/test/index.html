@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Voidbelt — Arbre de compétences</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+<main>
+  <header><div class="title"><span class="sigil">⟁</span><div><p>VOIDBELT · LES VOIES DE L’ASCENSION</p><h1>Arbre de compétences</h1></div></div><div class="wallet"><span>Points disponibles</span><strong id="points">12</strong><button id="add" title="Ajouter 5 points pour tester l’arbre">+ 5 points</button></div></header>
+  <section class="workspace" aria-label="Arbre de compétences interactif">
+    <div class="motto left">DISCIPLINE<br>ÉQUILIBRE<br>ASCENSION</div><div class="motto right">APPRENDRE<br>COMBINER<br>TRANSCENDER</div>
+    <div class="viewport"><svg id="tree" viewBox="0 0 1500 850" role="group" aria-label="Trois branches de compétences : Précision, Vitalité et Puissance"></svg></div>
+    <div class="hint">CHOISISSEZ UNE COMPÉTENCE <span>·</span> ÉVEILLEZ VOTRE POTENTIEL</div>
+  </section>
+  <footer><div class="legend"><span>○ <small>Passif</small></span><span>◇ <small>Actif</small></span><span>⬡ <small>Maîtrise</small></span></div><span id="progress">0 rang investi</span><button id="reset">Réinitialiser</button></footer>
+</main>
+<aside id="panel" aria-labelledby="skill-name" hidden><button id="close" aria-label="Fermer les détails">×</button><p id="branch-name" class="eyebrow"></p><div id="skill-icon"></div><h2 id="skill-name"></h2><p id="description"></p><div id="ranks"></div><p id="effect"></p><p id="requirement"></p><button id="invest"></button><p class="cost">Chaque rang coûte 1 point de compétence.</p></aside>
+<div id="toast" role="status" aria-live="polite"></div>
+</body></html>
