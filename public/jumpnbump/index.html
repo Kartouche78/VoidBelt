@@ -28,10 +28,33 @@
       </div>
       <div class="lb-col">
         <span class="lb-t">PELAGE</span>
+        <!-- Deux etages de quatre : la meme grille tient sur la moitie
+             de la largeur, ce qui laisse la place aux regles. -->
         <div class="colors" id="colors"></div>
       </div>
       <div class="lb-col">
         <span class="lb-t">PARTIE</span>
+        <div class="steps" id="rules">
+          <div class="step">
+            <span class="step-t">MANCHES</span>
+            <button class="step-b" type="button" data-rule="rounds" data-step="-1"
+                    aria-label="Une manche de moins">&minus;</button>
+            <b id="r-val">3</b>
+            <button class="step-b" type="button" data-rule="rounds" data-step="1"
+                    aria-label="Une manche de plus">+</button>
+          </div>
+          <div class="step">
+            <span class="step-t">KILLS</span>
+            <button class="step-b" type="button" data-rule="target" data-step="-1"
+                    aria-label="Un kill de moins par manche">&minus;</button>
+            <b id="t-val">15</b>
+            <button class="step-b" type="button" data-rule="target" data-step="1"
+                    aria-label="Un kill de plus par manche">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="lb-col">
+        <span class="lb-t">SERVEUR</span>
         <div class="lb-row">
           <button class="btn primary" id="b-multi" type="button">MULTIJOUEUR</button>
           <button class="roomtag" id="roomtag" type="button" hidden
@@ -39,6 +62,10 @@
         </div>
       </div>
     </div>
+
+    <!-- La pancarte posee sur la clairiere de droite : c'est la qu'on se
+         met en position pour lancer la partie. -->
+    <p class="zonetag" id="lobbyzone" hidden><i></i><span id="zone-t">ZONE DE DEPART</span></p>
 
     <p class="lobbytip" id="lobbytip" hidden></p>
   </div>
@@ -86,12 +113,12 @@
       <ul class="binds" id="binds"></ul>
       <div class="row wrap">
         <label class="target" for="f-vol">BRUITAGES
-          <input id="f-vol" type="range" min="0" max="100" step="1" value="50">
-          <output id="vol-out">50</output>
+          <input id="f-vol" type="range" min="0" max="100" step="1" value="30">
+          <output id="vol-out">30</output>
         </label>
         <label class="target" for="f-music">MUSIQUE
-          <input id="f-music" type="range" min="0" max="100" step="1" value="40">
-          <output id="music-out">40</output>
+          <input id="f-music" type="range" min="0" max="100" step="1" value="30">
+          <output id="music-out">30</output>
         </label>
       </div>
       <div class="row wrap">
@@ -112,6 +139,6 @@
 <audio id="track-lobby" src="/jumpnbump/assets/soundtrack_lobby.mp3" loop preload="none"></audio>
 
 <script src="/jumpnbump/game.js"></script>
-<script src="/jumpnbump/net.js?v=4"></script>
+<script src="/jumpnbump/net.js?v=5"></script>
 </body>
 </html>

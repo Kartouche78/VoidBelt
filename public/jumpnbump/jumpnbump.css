@@ -68,8 +68,8 @@
 .lobbybar[hidden], .lobbytip[hidden]{ display:none }
 
 .lobbybar{
-  padding:0 calc(var(--u) * 40px);
-  gap:calc(var(--u) * 30px);
+  padding:0 calc(var(--u) * 34px);
+  gap:calc(var(--u) * 26px);
 }
 
 .lb-col{
@@ -102,18 +102,134 @@
   border-color:rgba(237,231,218,.28);
 }
 
+/* Deux etages de quatre : la meme rangee de pelages prend moitie moins
+   de large, et les regles de la partie tiennent a cote. */
 .lobbybar .colors{
-  display:flex;
-  gap:calc(var(--u) * 8px);
-  grid-template-columns:none;
+  display:grid;
+  grid-template-columns:repeat(4, auto);
+  gap:calc(var(--u) * 6px);
 }
 .lobbybar .swatch{
-  padding:calc(var(--u) * 6px);
+  padding:calc(var(--u) * 5px);
   border-width:2px;
 }
 .lobbybar .swatch i{
+  width:calc(var(--u) * 22px);
+  height:calc(var(--u) * 22px);
+}
+
+/* ---------- regles de la partie : manches et kills ---------- */
+
+.steps{
+  display:flex;
+  flex-direction:column;
+  gap:calc(var(--u) * 7px);
+}
+
+.step{
+  display:grid;
+  grid-template-columns:calc(var(--u) * 84px) auto calc(var(--u) * 36px) auto;
+  align-items:center;
+  gap:calc(var(--u) * 6px);
+}
+.step-t{
+  font-size:calc(var(--u) * 12px);
+  letter-spacing:.2em;
+  color:var(--txt-3);
+  text-align:right;
+  white-space:nowrap;
+}
+.step b{
+  font-family:'Archivo Black',Impact,sans-serif;
+  font-weight:400;
+  font-size:calc(var(--u) * 20px);
+  letter-spacing:.06em;
+  color:var(--cyan);
+  text-align:center;
+}
+.step-b{
   width:calc(var(--u) * 26px);
   height:calc(var(--u) * 26px);
+  display:grid;
+  place-items:center;
+  border:2px solid var(--line);
+  background:rgba(237,231,218,.05);
+  color:var(--txt-2);
+  font:inherit;
+  font-size:calc(var(--u) * 15px);
+  font-weight:700;
+  line-height:1;
+  cursor:pointer;
+  transition:background .16s ease, color .16s ease, border-color .16s ease;
+}
+.step-b:hover:not(:disabled){
+  border-color:var(--cyan);
+  color:var(--cyan);
+  background:rgba(95,235,247,.12);
+}
+.step-b:disabled{ opacity:.3; cursor:not-allowed }
+.steps.locked b{ color:var(--txt-3) }
+
+/* ---------- la pancarte de la clairiere de droite ---------- */
+
+.zonetag{
+  position:absolute;
+  z-index:16;
+  --u:1;
+  transform:translate(-50%, -50%);
+  display:flex;
+  align-items:center;
+  gap:calc(var(--u) * 10px);
+  margin:0;
+  padding:calc(var(--u) * 9px) calc(var(--u) * 20px);
+  border:2px solid rgba(95,235,247,.5);
+  border-radius:999px;
+  background:linear-gradient(180deg, rgba(11,17,21,.88), rgba(5,8,11,.94));
+  box-shadow:0 calc(var(--u) * 10px) calc(var(--u) * 24px) rgba(0,0,0,.55);
+  color:var(--cyan);
+  font-size:calc(var(--u) * 15px);
+  font-weight:700;
+  letter-spacing:.24em;
+  white-space:nowrap;
+  pointer-events:none;
+}
+.zonetag[hidden]{ display:none }
+
+/* La pointe sous la pastille : elle designe l'endroit exact. */
+.zonetag::after{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:100%;
+  width:0;
+  height:0;
+  transform:translateX(-50%);
+  border-left:calc(var(--u) * 9px) solid transparent;
+  border-right:calc(var(--u) * 9px) solid transparent;
+  border-top:calc(var(--u) * 11px) solid rgba(95,235,247,.5);
+}
+
+.zonetag i{
+  width:calc(var(--u) * 9px);
+  height:calc(var(--u) * 9px);
+  border-radius:50%;
+  background:currentColor;
+  box-shadow:0 0 0 calc(var(--u) * 3px) rgba(95,235,247,.18);
+  animation:jnb-beat 1.9s ease-out infinite;
+}
+
+.zonetag.on{ border-color:rgba(122,224,138,.62); color:#7AE08A }
+.zonetag.on::after{ border-top-color:rgba(122,224,138,.62) }
+.zonetag.on i{ box-shadow:0 0 0 calc(var(--u) * 3px) rgba(122,224,138,.2) }
+
+.zonetag.go{ border-color:var(--orange); color:var(--orange) }
+.zonetag.go::after{ border-top-color:var(--orange) }
+.zonetag.go i{ box-shadow:0 0 0 calc(var(--u) * 3px) rgba(255,77,0,.22) }
+
+@keyframes jnb-beat{
+  0%{ box-shadow:0 0 0 0 currentColor; opacity:1 }
+  70%{ box-shadow:0 0 0 calc(var(--u) * 10px) transparent; opacity:.75 }
+  100%{ box-shadow:0 0 0 0 transparent; opacity:1 }
 }
 
 .lobbybar .btn{
@@ -561,4 +677,5 @@ input[type=text]:focus, input[type=number]:focus{
 
 @media (prefers-reduced-motion:reduce){
   .key.listening{ animation:none }
+  .zonetag i{ animation:none }
 }

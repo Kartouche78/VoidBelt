@@ -87,16 +87,24 @@
     // gauche et a droite, mais aussi vers le fond et vers l'avant. La
     // bande d'herbe ou l'on peut marcher va du pied des arbres au bord
     // du champ.
-    top: 560, ground: 748,
+    // La bande d'herbe s'arrete a la hauteur du tronc : on ne passe plus
+    // derriere lui en longeant le fond de la clairiere.
+    top: 597, ground: 748,
     spawnY: 660,
     // On n'est « a droite » qu'une fois le tronc entierement franchi.
     side: 1110,
     bar: [763, 887],        // la bande noire du bas, ou vit la barre de reglages
-    // Le dessus du tronc, releve sur l'image. Sa collision ne commence
-    // qu'a `logY` : il reste toujours un passage au fond de la
-    // clairiere, derriere le tronc, pour aller d'un cote a l'autre.
+    // Le dessus du tronc, releve sur l'image. Ce n'est plus un mur du
+    // masque mais un relief : on le franchit d'un saut, et on marche sur
+    // son dos une fois dessus.
     log: [[700, 578], [762, 545], [830, 530], [900, 556], [980, 588], [1050, 620], [1104, 652]],
-    logY: 636,
+    // Meme a ses deux bouts, ou il s'affine, le tronc reste trop haut
+    // pour etre enjambe au pas : sans ce plancher on lui grimperait
+    // dessus en marchant le long de sa pente.
+    logMin: 64,
+    // La pancarte « zone de depart », au-dessus de la clairiere de
+    // droite : c'est la qu'on se met en position.
+    zone: [1430, 545],
     sky: [268, 545]         // ou volent les papillons, sous le bandeau du titre
   };
 
@@ -638,25 +646,39 @@
     return LOBBY.ground + 1;
   }
 
+  // Hauteur du dos du tronc sous le lapin, zero partout ailleurs. Le
+  // tronc n'est pas dans le masque : le traiter comme un relief permet de
+  // passer par-dessus en sautant, et d'y marcher une fois dessus.
+  function logRise(x, y) {
+    var pts = LOBBY.log, a = pts[0][0], b = pts[pts.length - 1][0];
+    if (x + HW <= a || x - HW >= b) return 0;
+    var h = 0;
+    for (var s = -1; s <= 1; s++) {
+      var px = Math.max(a + 1, Math.min(b - 1, x + s * HW));
+      h = Math.max(h, y - logTop(px));
+    }
+    return Math.max(LOBBY.logMin, h);
+  }
+
   function buildLobby(image) {
     var w = LOBBY.w, h = LOBBY.h, x, y;
     var sm = new Uint8Array(w * h), im = new Uint8Array(w * h);
 
-    // Tout est plein sauf la bande d'herbe.
+    // Tout est plein sauf la bande d'herbe ; le tronc, lui, est un relief
+    // gere a part et non un mur du masque.
     sm.fill(1);
     for (y = LOBBY.top; y <= LOBBY.ground; y++) {
       for (x = 24; x < w - 24; x++) sm[y * w + x] = 0;
-    }
-    for (x = LOBBY.log[0][0]; x <= LOBBY.log[LOBBY.log.length - 1][0]; x++) {
-      var t = Math.max(LOBBY.logY, Math.round(logTop(x)));
-      for (y = t; y <= LOBBY.ground; y++) sm[y * w + x] = 1;
     }
 
     var c = scratch(w, h);
     c.getContext("2d").drawImage(image, 0, 0, w, h);
 
+    // Deux groupes de points d'apparition, un de chaque cote du tronc :
+    // une pichenette ne renvoie pas a l'autre bout de la clairiere.
     var sp = [];
     for (x = 150; x <= 620; x += 70) sp.push({ x: x, y: LOBBY.spawnY });
+    for (x = 1200; x <= 1670; x += 70) sp.push({ x: x, y: LOBBY.spawnY });
     lobbyWorld = { w: w, h: h, playW: w, solid: sm, ice: im, canvas: c, spawns: sp };
   }
 
@@ -1079,7 +1101,7 @@
   };
 
   var Sfx = {
-    ctx: null, vol: 0.5, on: true, raw: {}, buf: {},
+    ctx: null, vol: 0.3, on: true, raw: {}, buf: {},
     wake: function () {
       if (!this.ctx) {
         var C = window.AudioContext || window.webkitAudioContext;
@@ -1161,7 +1183,10 @@
   // Chaque commande accepte plusieurs touches : le joueur en ajoute
   // autant qu'il veut depuis les reglages.
   var DEFAULT_KEYS = {
-    left: ["KeyQ"], right: ["KeyD"], jump: ["KeyZ"], down: ["KeyS"]
+    left: ["KeyQ"], right: ["KeyD"], jump: ["KeyZ"], down: ["KeyS"],
+    // Le saut du lobby, a part : dans l'arene c'est `jump` qui saute ;
+    // dans le lobby `jump` monte vers le fond, et celui-ci decolle.
+    hop: ["Space"]
   };
   var keys = {}, down = {};
 
@@ -1203,7 +1228,16 @@
     return false;
   }
 
+  // Tant que le curseur est dans un champ, les touches ecrivent : elles
+  // ne pilotent pas le lapin et ne sont surtout pas avalees, sinon plus
+  // moyen de taper son prenom.
+  function typing() {
+    var el = document.activeElement;
+    return !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
+  }
+
   window.addEventListener("keydown", function (e) {
+    if (typing()) return;
     down[e.code] = true;
     if (running && !paused && bound(e.code)) e.preventDefault();
   });
@@ -1218,10 +1252,14 @@
   }
 
   function readInput() {
-    if (paused || locked) return { l: false, r: false, j: false, d: false };
+    if (paused || locked || typing()) {
+      return { l: false, r: false, j: false, d: false, h: false };
+    }
     return {
       l: held(keys.left), r: held(keys.right),
-      j: held(keys.jump), d: held(keys.down)
+      j: held(keys.jump), d: held(keys.down),
+      // Le saut du lobby n'a pas cours dans l'arene.
+      h: scene === "lobby" && held(keys.hop)
     };
   }
 
@@ -1234,6 +1272,9 @@
       id: info.id, name: info.name, color: info.color,
       bot: !!info.bot, local: false,
       x: 200, y: 400, vx: 0, vy: 0,
+      // `z` : la hauteur au-dessus du plan du lobby. Elle ne sert que
+      // la-bas — dans l'arene elle reste a zero.
+      z: 0, zv: 0, hopHeld: false,
       face: 1, anim: 0, onGround: false, onIce: false,
       alive: true, life: 0, score: info.score || 0,
       respawnPending: false,
@@ -1241,15 +1282,23 @@
       jumpHeld: false, ownJump: false, squash: 0, bob: 0, wasWet: false, swimming: false,
       ear: 0, lean: 0, land: 0,
       brain: { t: 0, aim: 0, hop: 0, dive: false, stuck: 0, tries: 0, lx: 0, ly: 0, far: 0, fx: 0 },
-      buf: [], rx: 200, ry: 400, rface: 1, ranim: 0, lastRx: 0, gapAvg: 0
+      buf: [], rx: 200, ry: 400, rz: 0, rface: 1, ranim: 0, lastRx: 0, gapAvg: 0
     };
   }
 
   function pickSpawn(p) {
     if (!spawns.length) return { x: 200, y: 400 };
+    // Dans le lobby on renait de son cote du tronc : etre renvoye a
+    // l'autre bout de la clairiere pour une pichenette serait rude.
+    var pool = spawns;
+    if (scene === "lobby") {
+      var right = p.x >= LOBBY.side;
+      pool = spawns.filter(function (q) { return (q.x >= LOBBY.side) === right; });
+      if (!pool.length) pool = spawns;
+    }
     var best = null, bestScore = -1;
     for (var tries = 0; tries < 14; tries++) {
-      var s = spawns[Math.floor(Math.random() * spawns.length)];
+      var s = pool[Math.floor(Math.random() * pool.length)];
       var far = 1e9;
       for (var i = 0; i < order.length; i++) {
         var o = players[order[i]];
@@ -1276,6 +1325,7 @@
     var s = at || pickSpawn(p);
     p.x = s.x; p.y = s.y;
     p.vx = 0; p.vy = 0;
+    p.z = 0; p.zv = 0;
     p.alive = true; p.dead = 0; p.shield = SPAWN_SHIELD;
     p.respawnPending = false;
     p.onGround = true; p.squash = 0;
@@ -1289,7 +1339,7 @@
     if (!p.alive) return;
     p.alive = false;
     p.dead = DEAD_TIME;
-    burstBlood(p.x, p.y);
+    burstBlood(p.x, p.y - p.z);
     // La mort est un evenement global : chaque client qui l'applique doit
     // entendre le son, meme s'il n'est ni la victime ni le tueur.
     Sfx.die();
@@ -1352,12 +1402,59 @@
 
   /* --- simulation d'un lapin --- */
 
-  // Dans le lobby il n'y a pas de gravite : on se promene sur le plan
-  // de la clairiere, gauche-droite et fond-avant, comme sur une carte
-  // vue de trois quarts.
+  // Dans le lobby, la clairiere se parcourt comme un plan vu de trois
+  // quarts : gauche-droite et fond-avant. La seule chose qui en sorte est
+  // le saut — `z`, la hauteur au-dessus de l'herbe — et il ne sert qu'a
+  // une chose : passer le tronc, puis marcher sur son dos.
   var PLANE_ACC = 4200, PLANE_MAX = 285, PLANE_DAMP = 0.00002;
+  // Le sommet du saut (V*V / 2G) depasse la hauteur du tronc vue depuis
+  // le bord le plus avance de la clairiere : d'ou qu'on parte, un seul
+  // saut suffit a se hisser dessus.
+  var HOP_V = 1080, HOP_G = 2600, HOP_STEP = 3;
+
+  // Avance d'un axe, pixel par pixel : le tronc barre la route tant qu'on
+  // ne vole pas plus haut que son dos, et se suit comme une pente une
+  // fois qu'on y est monte.
+  function planeAxis(p, d, vertical, lo, hi) {
+    if (!d) return;
+    var step = d > 0 ? 1 : -1, left = Math.abs(d);
+    while (left > 0) {
+      var adv = Math.min(1, left) * step;
+      left -= 1;
+      var nx = vertical ? p.x : Math.max(lo, Math.min(hi, p.x + adv));
+      var ny = vertical ? Math.max(lo, Math.min(hi, p.y + adv)) : p.y;
+      var rise = logRise(nx, ny);
+      if (rise > p.z + HOP_STEP) {
+        if (vertical) p.vy = 0; else p.vx = 0;
+        return;
+      }
+      p.x = nx; p.y = ny;
+      if (rise > p.z) p.z = rise;
+    }
+  }
 
   function stepPlane(p, inp, dt) {
+    var x0 = 24 + HW, x1 = LOBBY.w - 24 - HW;
+    var y0 = LOBBY.top + BODY_H, y1 = LOBBY.ground;
+
+    // Le saut part a l'appui, pas tant que la touche est tenue : sinon on
+    // rebondirait en boucle rien qu'en la gardant enfoncee.
+    var rise = logRise(p.x, p.y);
+    var grounded = p.z <= rise + 0.5;
+    if (inp.h && grounded && !p.hopHeld) {
+      p.z = rise + 0.5;
+      p.zv = HOP_V;
+      p.squash = -0.5;
+      grounded = false;
+      puff(p.x, p.y - p.z, 0.25);
+      if (p === me) Sfx.jump();
+    }
+    p.hopHeld = !!inp.h;
+    if (!grounded) {
+      p.zv -= HOP_G * dt;
+      p.z += p.zv * dt;
+    }
+
     var dx = (inp.r ? 1 : 0) - (inp.l ? 1 : 0);
     var dy = (inp.d ? 1 : 0) - (inp.j ? 1 : 0);
     if (dx && dy) { dx *= 0.707; dy *= 0.707; }   // pas plus vite en diagonale
@@ -1369,14 +1466,31 @@
     p.vx = Math.max(-PLANE_MAX, Math.min(PLANE_MAX, p.vx));
     p.vy = Math.max(-PLANE_MAX, Math.min(PLANE_MAX, p.vy));
 
-    if (boxBlocked(p.x, p.y)) unstick(p);
-    moveX(p, p.vx * dt);
-    moveY(p, p.vy * dt);
-    p.y = Math.max(LOBBY.top + BODY_H, Math.min(LOBBY.ground, p.y));
+    planeAxis(p, p.vx * dt, 0, x0, x1);
+    planeAxis(p, p.vy * dt, 1, y0, y1);
+    p.x = Math.max(x0, Math.min(x1, p.x));
+    p.y = Math.max(y0, Math.min(y1, p.y));
 
-    p.onGround = true;
+    // Retombee : sur le dos du tronc, ou dans l'herbe. Se poser sur le
+    // tronc, c'est simplement cesser de descendre a la hauteur de son
+    // dos — on y marche ensuite comme sur une passerelle.
+    rise = logRise(p.x, p.y);
+    if (p.z <= rise) {
+      if (p.zv < -260) {
+        p.squash = Math.min(0.6, -p.zv / 2600);
+        p.ear = -0.95;
+        p.land = 0.26;
+        puff(p.x, p.y - rise, Math.min(1, -p.zv / 1500));
+        if (p === me) Sfx.land();
+      }
+      p.z = rise;
+      p.zv = 0;
+      grounded = true;
+    } else grounded = false;
+
+    p.onGround = grounded;
     p.onIce = false;
-    p.anim = (dx || dy) ? 1 : 0;
+    p.anim = grounded ? ((dx || dy) ? 1 : 0) : (p.zv > 0 ? 2 : 3);
   }
 
   function stepPlayer(p, inp, dt) {
@@ -1595,7 +1709,33 @@
         A.squash = -0.4;
         killed(B, A);
         if (A.local && api.onKill) api.onKill(B.id, B.life);
-        else if (A.bot) A.score++;
+        else if (A.bot) {
+          A.score++;
+          if (api.onScore) api.onScore(A.id, A.score);
+        }
+        break;
+      }
+    }
+  }
+
+  // Dans le lobby aussi on s'ecrase — mais c'est la hauteur du saut qui
+  // decide, pas la chute. Rien n'est en jeu : chaque navigateur constate
+  // les morts qu'il voit, et un desaccord d'une image ne coute rien.
+  function checkLobbyStomps() {
+    for (var a = 0; a < order.length; a++) {
+      var A = players[order[a]];
+      if (!A || !A.alive || A.shield > 0 || A.zv >= 0) continue;
+      for (var b = 0; b < order.length; b++) {
+        var B = players[order[b]];
+        if (!B || B === A || !B.alive || B.shield > 0) continue;
+        if (Math.abs(A.x - B.x) > BODY_W) continue;
+        if (Math.abs(A.y - B.y) > BODY_H) continue;
+        var dz = A.z - B.z;
+        if (dz < STOMP_HEAD || dz > BODY_H + 26) continue;
+        // Le rebond ne revient qu'aux lapins que ce navigateur pilote :
+        // les autres le rejoueront depuis leur propre simulation.
+        if (A.local || A.bot) { A.zv = HOP_V * 0.66; A.squash = -0.4; }
+        killed(B, A);
         break;
       }
     }
@@ -1616,12 +1756,18 @@
         if (!B || B === A || !B.alive) continue;
         var dy = A.y - B.y;
         if (Math.abs(dy) > BODY_H * 0.6) continue;      // l'un est au-dessus
+        // Dans le lobby, celui qui saute survole l'autre : il ne le
+        // pousse pas.
+        if (Math.abs(A.z - B.z) > BODY_H * 0.6) continue;
         var dx = A.x - B.x;
         var gap = BODY_W - Math.abs(dx);
         if (gap <= 0) continue;
         var dir = dx === 0 ? (A.id > B.id ? 1 : -1) : (dx > 0 ? 1 : -1);
         var step = Math.min(gap * 0.6, 5);
-        if (!boxBlocked(A.x + dir * step, A.y)) A.x += dir * step;
+        var to = A.x + dir * step;
+        var free = scene === "lobby" ? logRise(to, A.y) <= A.z + HOP_STEP
+          : !boxBlocked(to, A.y);
+        if (free) A.x = to;
         // Sans couper l'elan qui rentre dans l'autre, un lapin qui
         // marche droit sur son voisin annule la poussee et les deux
         // restent encastres.
@@ -1670,7 +1816,7 @@
         }
       }
     }
-    checkStomps();
+    if (scene === "lobby") checkLobbyStomps(); else checkStomps();
     separate(dt);
   }
 
@@ -1692,6 +1838,7 @@
       var s0 = b[0], ahead = Math.max(0, Math.min(0.25, t - s0.t));
       p.rx = s0.x + s0.vx * ahead;
       p.ry = s0.y + s0.vy * ahead;
+      p.rz = s0.z;
       p.rface = s0.f; p.ranim = s0.a;
     } else {
       var a = b[0], c = b[1];
@@ -1699,19 +1846,26 @@
       k = Math.max(0, Math.min(1, k));
       p.rx = a.x + (c.x - a.x) * k;
       p.ry = a.y + (c.y - a.y) * k;
+      p.rz = a.z + (c.z - a.z) * k;
       p.rface = k < 0.5 ? a.f : c.f;
       p.ranim = k < 0.5 ? a.a : c.a;
     }
-    p.x = p.rx; p.y = p.ry;
+    // La vitesse du saut n'est pas transmise : on la relit du mouvement,
+    // c'est elle qui dit si le lapin monte ou retombe — donc s'il est en
+    // train d'en ecraser un autre.
+    p.zv = dt > 0 ? (p.rz - p.z) / dt : 0;
+    p.x = p.rx; p.y = p.ry; p.z = p.rz;
     p.face = p.rface; p.anim = p.ranim;
   }
 
   // Les ressorts d'animation tournent pour tout le monde, y compris les
   // lapins des autres joueurs qui ne passent jamais par la physique.
   function animate(p, dt) {
-    // Sur le plan du lobby, la vitesse verticale est un deplacement, pas
-    // une chute : les oreilles n'ont pas a s'affoler.
-    var tgt = scene === "lobby" ? 0 : Math.max(-1, Math.min(1, -p.vy / 1200));
+    // Sur le plan du lobby, la vitesse verticale est un deplacement et
+    // non une chute : ce sont les oreilles du bond, pas celles de `vy`,
+    // qu'il faut suivre.
+    var tgt = scene === "lobby" ? Math.max(-1, Math.min(1, p.zv / 1200))
+      : Math.max(-1, Math.min(1, -p.vy / 1200));
     p.ear += (tgt - p.ear) * Math.min(1, 11 * dt);
     var lt = Math.max(-1, Math.min(1, p.vx / 420));
     p.lean += (lt - p.lean) * Math.min(1, 8 * dt);
@@ -1744,11 +1898,12 @@
           var st = {
             x: Math.round(me.x), y: Math.round(me.y),
             vx: Math.round(me.vx), vy: Math.round(me.vy),
+            z: Math.round(me.z),
             f: me.face, a: me.anim, st: me.alive ? 0 : 1
           };
           // Un lapin immobile n'a rien a raconter : on se contente d'un
           // rappel toutes les deux cents millisecondes.
-          var key = st.x + "," + st.y + "," + st.f + "," + st.a + "," + st.st;
+          var key = st.x + "," + st.y + "," + st.z + "," + st.f + "," + st.a + "," + st.st;
           if (key !== lastSent || now - lastSentAt > 200) {
             lastSent = key;
             lastSentAt = now;
@@ -1796,7 +1951,7 @@
     var wig = (p.anim === 1 ? 1 : 0) + (p.anim === 4 ? 0.8 : 0);
 
     g.save();
-    g.translate(p.x, p.y);
+    g.translate(p.x, p.y - p.z);
     g.rotate(Math.max(-0.18, Math.min(0.18, p.vx / 3200)));
     g.scale(p.face * sx, sy);
 
@@ -1864,7 +2019,7 @@
     var tw = g.measureText(label).width;
     var bw = Math.ceil(tw + 14), bh = 23;
     var x = Math.max(3, Math.min(PLAY_W - bw - 3, p.x - bw / 2));
-    var y = Math.max(4, p.y - SPRITE_H - bh - 9);
+    var y = Math.max(4, p.y - p.z - SPRITE_H - bh - 9);
 
     g.fillStyle = "rgba(10,10,11,.82)";
     roundRect(g, x, y, bw, bh, 5);
@@ -1877,6 +2032,19 @@
     g.textBaseline = "middle";
     g.fillStyle = "#F4F0E8";
     g.fillText(label, x + bw / 2, y + bh / 2 + 0.5);
+    g.restore();
+  }
+
+  // Sur le plan du lobby, rien ne dit a quelle hauteur vole un lapin :
+  // l'ombre au sol s'en charge, elle se resserre a mesure qu'il monte.
+  function drawShadow(g, p) {
+    var k = Math.max(0.18, 1 - p.z / 300);
+    g.save();
+    g.globalAlpha = 0.34 * k;
+    g.fillStyle = "#04140A";
+    g.beginPath();
+    g.ellipse(p.x, p.y + 3, 16 * (0.5 + k * 0.5), 5.5 * (0.5 + k * 0.5), 0, 0, Math.PI * 2);
+    g.fill();
     g.restore();
   }
 
@@ -2086,6 +2254,12 @@
     }
 
     var i, p;
+    if (!arena) {
+      for (i = 0; i < order.length; i++) {
+        p = players[order[i]];
+        if (p && p.alive) drawShadow(g, p);
+      }
+    }
     for (i = 0; i < order.length; i++) {
       p = players[order[i]];
       if (!p) continue;
@@ -2117,6 +2291,7 @@
       g.fillText(banner, PLAY_W / 2, 140);
       g.restore();
     }
+    drawRounds(g);
     drawCountdown(g);
     drawStats(g);
     if (paused || locked) {
@@ -2125,6 +2300,54 @@
       g.fillRect(0, 0, PLAY_W, MAP_H);
       g.restore();
     }
+  }
+
+  // Le compteur de manches, en haut de l'arene : la manche en cours, et
+  // une pastille par manche, a la couleur de celui qui l'a prise.
+  var roundInfo = null;
+
+  api.setRound = function (n, total, won) {
+    roundInfo = total > 1 ? { n: n, total: total, won: won || [] } : null;
+  };
+
+  function drawRounds(g) {
+    if (!roundInfo || scene !== "arena") return;
+    var label = "MANCHE " + roundInfo.n + " / " + roundInfo.total;
+    var pip = 18, gap = 7, n = roundInfo.total;
+    var pipsW = n * pip + (n - 1) * gap;
+
+    g.save();
+    g.font = "700 15px 'Space Mono', ui-monospace, monospace";
+    var w = Math.max(g.measureText(label).width, pipsW) + 36;
+    var x = PLAY_W / 2 - w / 2;
+    g.fillStyle = "rgba(9,10,12,.78)";
+    roundRect(g, x, 12, w, 60, 10);
+    g.fill();
+    g.strokeStyle = "rgba(237,231,218,.2)";
+    g.lineWidth = 1.5;
+    g.stroke();
+
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.fillStyle = "rgba(237,231,218,.74)";
+    g.fillText(label, PLAY_W / 2, 30);
+
+    var px = PLAY_W / 2 - pipsW / 2;
+    for (var i = 0; i < n; i++) {
+      var won = players[roundInfo.won[i]];
+      var here = i + 1 === roundInfo.n;
+      roundRect(g, px, 46, pip, 13, 4);
+      g.fillStyle = won ? COLORS[won.color].tint
+        : here ? "rgba(255,77,0,.3)" : "rgba(237,231,218,.09)";
+      g.fill();
+      if (!won) {
+        g.strokeStyle = here ? "#FF4D00" : "rgba(237,231,218,.22)";
+        g.lineWidth = 1.5;
+        g.stroke();
+      }
+      px += pip + gap;
+    }
+    g.restore();
   }
 
   // Le decompte reprend les chiffres graves du panneau de score : gros,
@@ -2253,6 +2476,25 @@
     requestAnimationFrame(frame);
   };
 
+  // Une manche de plus : les compteurs repartent a zero et tout le monde
+  // retrouve son coin de la carte ; seules les manches gagnees restent.
+  api.newRound = function (list) {
+    phase = "playing";
+    banner = null;
+    countdown = null;
+    parts.length = 0; smokes.length = 0; bursts.length = 0;
+    chunks.length = 0; splashes.length = 0;
+    for (var i = 0; i < list.length; i++) {
+      var p = players[list[i].id];
+      if (!p) continue;
+      p.score = 0;
+      p.life = list[i].life || 0;
+      respawn(p, assignedSpawn(list[i].spawn === undefined ? i : list[i].spawn));
+      p.buf.length = 0;
+      p.rx = p.x; p.ry = p.y; p.rz = 0;
+    }
+  };
+
   api.countdown = function (v) { countdown = v; };
   api.inLobby = function () { return scene === "lobby"; };
   api.side = function () { return me && me.x >= LOBBY.side ? "right" : "left"; };
@@ -2265,6 +2507,8 @@
     return true;
   };
   api.lobbyBar = function () { return { top: LOBBY.bar[0], h: LOBBY.bar[1] - LOBBY.bar[0], w: LOBBY.w, ht: LOBBY.h }; };
+  // Ou poser la pancarte de la zone de depart, en coordonnees de carte.
+  api.lobbyZone = function () { return { x: LOBBY.zone[0], y: LOBBY.zone[1], ht: LOBBY.h }; };
   api.pause = function (v) { paused = v; if (!v) lastT = performance.now(); };
   api.lockInput = function (v) { locked = v; };
   api.isRunning = function () { return running; };
@@ -2294,7 +2538,10 @@
       if (gap < 0.1) p.gapAvg = p.gapAvg ? p.gapAvg * 0.85 + gap * 0.15 : gap;
     }
     p.lastRx = clock;
-    p.buf.push({ t: clock, x: s.x, y: s.y, vx: s.vx, vy: s.vy, f: s.f, a: s.a });
+    p.buf.push({
+      t: clock, x: s.x, y: s.y, z: s.z || 0,
+      vx: s.vx, vy: s.vy, f: s.f, a: s.a
+    });
     if (p.buf.length > 8) p.buf.shift();
     p.vx = s.vx; p.vy = s.vy;
     // Chaque client est seul juge de sa propre mort : on recopie son

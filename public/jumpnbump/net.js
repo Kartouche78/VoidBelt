@@ -24,7 +24,12 @@
 
   var S = {
     name: "", color: 0, id: 1, room: "", host: 0,
-    phase: "lobby", target: 15, players: [],
+    phase: "lobby",
+    // Les regles de la partie : combien de manches, et combien de morts
+    // a infliger pour en emporter une. `won` garde le vainqueur de
+    // chaque manche jouee, c'est lui qui colore les pastilles.
+    target: 15, rounds: 3, round: 1, won: [],
+    players: [],
     mode: "solo"                      // "solo" tant qu'on n'a rejoint aucun serveur
   };
   var sock = null, ping = null, roomsTimer = null, pingSent = 0;
@@ -35,7 +40,7 @@
      MUSIQUE
      ========================================================== */
 
-  var trackGame = $("#track"), trackLobby = $("#track-lobby"), musicVol = 0.4;
+  var trackGame = $("#track"), trackLobby = $("#track-lobby"), musicVol = 0.3;
 
   function play(el) {
     el.volume = musicVol;
@@ -114,6 +119,12 @@
       el.style.height = (bar.h * u) + "px";
       el.style.setProperty("--u", u);
     });
+    // La pancarte, elle, se pose sur un point de la carte : elle suit la
+    // clairiere de droite quelle que soit la taille de la fenetre.
+    var z = JNB.lobbyZone(), tag = $("#lobbyzone");
+    tag.style.left = (r.left - f.left + z.x * u) + "px";
+    tag.style.top = (r.top - f.top + z.y * u) + "px";
+    tag.style.setProperty("--u", u);
   }
 
   window.addEventListener("resize", layoutBar);
@@ -127,6 +138,20 @@
   function hideLobbyUi() {
     $("#lobbybar").hidden = true;
     $("#lobbytip").hidden = true;
+    $("#lobbyzone").hidden = true;
+  }
+
+  // La pancarte de la clairiere de droite : elle dit ou se placer, puis
+  // confirme qu'on y est.
+  function paintZone() {
+    var el = $("#lobbyzone");
+    if (el.hidden) return;
+    var here = JNB.side() === "right";
+    var all = S.mode === "online" ? JNB.allRight() : here;
+    el.classList.toggle("on", here);
+    el.classList.toggle("go", all);
+    $("#zone-t").textContent = all ? "TOUT LE MONDE EST PRET"
+      : here ? "EN POSITION" : "ZONE DE DEPART";
   }
 
   /* ==========================================================
@@ -167,6 +192,59 @@
   }
 
   /* ==========================================================
+     LES REGLES DE LA PARTIE
+     ----------------------------------------------------------
+     Manches et morts par manche. Hors ligne chacun regle les
+     siennes ; en ligne, seul l'hote decide et le serveur renvoie
+     le reglage a tout le monde.
+     ========================================================== */
+
+  var RULES = {
+    rounds: { min: 1, max: 9, key: "jnb.rounds" },
+    target: { min: 1, max: 50, key: "jnb.target" }
+  };
+
+  function rulesMine() { return S.mode !== "online" || S.host === S.id; }
+
+  function renderRules() {
+    $("#r-val").textContent = S.rounds;
+    $("#t-val").textContent = S.target;
+    var mine = rulesMine();
+    Array.prototype.forEach.call(document.querySelectorAll(".step-b"), function (b) {
+      b.disabled = !mine;
+    });
+    $("#rules").classList.toggle("locked", !mine);
+    $("#rules").title = mine ? "" : "Seul l'hote du serveur regle la partie.";
+  }
+
+  function bumpRule(k, d) {
+    if (!rulesMine()) {
+      toast("Seul l'hote du serveur regle la partie.");
+      return;
+    }
+    var r = RULES[k];
+    var v = Math.max(r.min, Math.min(r.max, S[k] + d));
+    if (v === S[k]) return;
+    S[k] = v;
+    try { localStorage.setItem(r.key, v); } catch (e) { /* mode prive */ }
+    if (S.mode === "online") send({ t: k, n: v });
+    renderRules();
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".step-b"), function (b) {
+    b.addEventListener("click", function () {
+      bumpRule(b.dataset.rule, +b.dataset.step);
+    });
+  });
+
+  // Un bouton garde le focus apres le clic : la barre d'espace le
+  // rejouerait au lieu de faire bondir le lapin.
+  $("#lobbybar").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (b) b.blur();
+  });
+
+  /* ==========================================================
      LE LOBBY
      ========================================================== */
 
@@ -188,8 +266,11 @@
     JNB.startLobby({ localId: S.id, players: roster() });
     music("lobby");
     showBar(true);
+    $("#lobbyzone").hidden = false;
     renderColors();
+    renderRules();
     layoutBar();
+    paintZone();
   }
 
   // Le lobby tourne deja : on met juste la liste des lapins a jour.
@@ -218,6 +299,7 @@
       lastSide = side;
       showBar(side === "left");
     }
+    paintZone();
     if (side !== "right") return;
 
     $("#lobbytip").textContent = tipText();
@@ -260,10 +342,16 @@
     }
     solo.score = 0;
     S.players = list;
+    S.round = 1;
+    S.won = [];
+    // Hors ligne, personne ne renvoie la phase : on la remet soi-meme,
+    // sinon la partie suivante repartirait « deja finie ».
+    S.phase = "playing";
     hideLobbyUi();
     music("game");
     JNB.sfx.wake();
     JNB.start({ localId: 1, players: list, target: S.target });
+    JNB.setRound(S.round, S.rounds, S.won);
   }
 
   function beginMatch() {
@@ -273,6 +361,7 @@
     JNB.start({
       localId: S.id, players: roster(), target: S.target, serverSpawns: true
     });
+    JNB.setRound(S.round, S.rounds, S.won);
   }
 
   function backToLobby() {
@@ -365,6 +454,9 @@
         S.host = m.host;
         S.phase = m.phase;
         S.target = m.target;
+        if (m.rounds) S.rounds = m.rounds;
+        if (m.round) S.round = m.round;
+        renderRules();
         S.players = m.players.map(function (p) {
           var copy = Object.assign({}, p);
           copy.name = String(copy.name || "Lapin").replace(/^JNB-/, "");
@@ -386,8 +478,31 @@
 
       case "start":
         S.target = m.target || S.target;
+        S.rounds = m.rounds || S.rounds;
+        S.round = m.round || 1;
+        S.won = [];
         if (m.players) S.players = m.players;
         beginMatch();
+        break;
+
+      // Fin de manche : le serveur a deja remis les compteurs a zero et
+      // renvoye tout le monde a son coin. On laisse le nom du vainqueur
+      // a l'ecran le temps de souffler, puis on repart.
+      case "round":
+        S.round = m.round;
+        S.rounds = m.rounds || S.rounds;
+        S.target = m.target || S.target;
+        S.won[m.round - 2] = m.w;
+        JNB.setPhase("round");
+        JNB.setRound(S.round, S.rounds, S.won);
+        JNB.banner("MANCHE " + (m.round - 1) + " : " + nameOf(m.w).toUpperCase());
+        (function (list, at) {
+          setTimeout(function () {
+            if (S.mode !== "online" || S.round !== at) return;
+            JNB.newRound(list);
+            JNB.setRound(S.round, S.rounds, S.won);
+          }, ROUND_PAUSE);
+        })(m.players || [], m.round);
         break;
 
       case "back":
@@ -409,6 +524,8 @@
         break;
 
       case "over":
+        if (m.last) S.won[S.round - 1] = m.last;
+        JNB.setRound(S.round, S.rounds, S.won);
         JNB.banner(nameOf(m.w) + " GAGNE !");
         JNB.setPhase("over");
         setTimeout(backToLobby, 4200);
@@ -450,11 +567,53 @@
   function soloKill(victimId) {
     solo.score += 1;
     JNB.applyKill(S.id, victimId, solo.score);
-    if (solo.score >= S.target) {
-      JNB.banner("VOUS GAGNEZ !");
+    soloRound(S.id, solo.score);
+  }
+
+  // Les lapins d'entrainement comptent leurs points tout seuls : le
+  // moteur previent des qu'un des leurs marque, pour que la manche
+  // puisse se terminer sur eux aussi.
+  JNB.onScore = function (id, score) {
+    if (S.mode !== "online") soloRound(id, score);
+  };
+
+  var ROUND_PAUSE = 2600;
+
+  function soloRound(id, score) {
+    if (score < S.target || S.phase === "over") return;
+    S.won[S.round - 1] = id;
+    if (S.round >= S.rounds) {
+      var w = bestRunner();
+      JNB.setRound(S.round, S.rounds, S.won);
+      JNB.banner(w === S.id ? "VOUS GAGNEZ !" : nameOf(w).toUpperCase() + " GAGNE !");
       JNB.setPhase("over");
+      S.phase = "over";
       setTimeout(backToLobby, 4200);
+      return;
     }
+    S.round += 1;
+    solo.score = 0;
+    JNB.setPhase("round");
+    JNB.setRound(S.round, S.rounds, S.won);
+    JNB.banner("MANCHE " + (S.round - 1) + " : " + nameOf(id).toUpperCase());
+    var at = S.round;
+    setTimeout(function () {
+      if (S.mode === "online" || S.round !== at) return;
+      if (!JNB.isRunning() || JNB.inLobby()) return;
+      JNB.newRound(S.players);
+      JNB.setRound(S.round, S.rounds, S.won);
+    }, ROUND_PAUSE);
+  }
+
+  // Le vainqueur de la partie : le plus de manches remportees.
+  function bestRunner() {
+    var tally = {}, best = S.id, top = -1;
+    S.won.forEach(function (id) {
+      if (!id) return;
+      tally[id] = (tally[id] || 0) + 1;
+      if (tally[id] > top) { top = tally[id]; best = id; }
+    });
+    return best;
   }
 
   /* ==========================================================
@@ -629,7 +788,8 @@
     ["left", "Gauche"],
     ["right", "Droite"],
     ["jump", "Sauter — monter dans le lobby"],
-    ["down", "Plonger — descendre dans le lobby"]
+    ["down", "Plonger — descendre dans le lobby"],
+    ["hop", "Bondir — lobby seulement, pour passer le tronc"]
   ];
 
   // `listening` designe la case en attente d'une touche : soit une case
@@ -793,17 +953,22 @@
       $("#vol-out").textContent = v0;
       JNB.sfx.vol = +v0 / 100;
       JNB.sfx.on = +v0 > 0;
-    } else JNB.sfx.vol = 0.5;
+    } else JNB.sfx.vol = 0.3;
     var m0 = localStorage.getItem("jnb.music");
     if (m0 !== null) {
       $("#f-music").value = m0;
       $("#music-out").textContent = m0;
       musicVol = +m0 / 100;
     }
+    Object.keys(RULES).forEach(function (k) {
+      var v = localStorage.getItem(RULES[k].key);
+      if (v !== null) S[k] = Math.max(RULES[k].min, Math.min(RULES[k].max, +v));
+    });
   } catch (e) { /* mode prive */ }
 
   JNB.attach($("#stage"));
   buildColors();
+  renderRules();
   renderBinds();
 
   // Les navigateurs n'autorisent le son qu'apres un geste du joueur. On

@@ -61,6 +61,8 @@ struct Player {
     life: u32,
     alive: bool,
     spawn: u8,
+    /// Manches remportees depuis le debut de la partie.
+    wins: u32,
     tx: UnboundedSender<String>,
 }
 
@@ -75,6 +77,7 @@ impl Player {
             "life": self.life,
             "alive": self.alive,
             "spawn": self.spawn,
+            "wins": self.wins,
         })
     }
 }
@@ -83,7 +86,11 @@ struct Room {
     players: Vec<Player>,
     host: u32,
     phase: Phase,
+    /// Nombre de morts a infliger pour emporter une manche.
     target: u32,
+    /// Nombre de manches que dure la partie, et celle en cours.
+    rounds: u32,
+    round: u32,
     /// Un salon prive ne figure pas dans la liste publique : on n'y
     /// entre qu'en tapant son code.
     private: bool,
@@ -97,6 +104,8 @@ impl Room {
             host: 0,
             phase: Phase::Lobby,
             target: 15,
+            rounds: 3,
+            round: 1,
             private: false,
             next_spawn: 0,
         }
@@ -136,6 +145,16 @@ impl Room {
         self.next_spawn = (self.players.len() as u8) % SPAWN_SLOTS;
     }
 
+    /// Celui qui a remporte le plus de manches ; a egalite, celui qui a
+    /// fait le plus de victimes dans la derniere.
+    fn match_winner(&self) -> u32 {
+        self.players
+            .iter()
+            .max_by_key(|p| (p.wins, p.score))
+            .map(|p| p.id)
+            .unwrap_or(0)
+    }
+
     fn send_all(&self, msg: &Value) {
         let text = msg.to_string();
         for p in &self.players {
@@ -157,6 +176,8 @@ impl Room {
             "host": self.host,
             "phase": self.phase.as_str(),
             "target": self.target,
+            "rounds": self.rounds,
+            "round": self.round,
             "players": self.players.iter().map(|p| p.public()).collect::<Vec<_>>(),
         })
     }
@@ -191,6 +212,7 @@ pub(crate) fn room_list(hub: &Arc<Hub>) -> Value {
                 "code": code,
                 "phase": r.phase.as_str(),
                 "target": r.target,
+                "rounds": r.rounds,
                 "players": r.players.iter().map(|p| p.name.clone()).collect::<Vec<_>>(),
                 "max": MAX_PLAYERS,
             })
@@ -345,6 +367,7 @@ pub(crate) async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<
                 life: 0,
                 alive: room.phase != Phase::Playing,
                 spawn,
+                wins: 0,
                 tx: tx.clone(),
             });
             let _ = tx.send(
@@ -449,23 +472,33 @@ pub(crate) async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<
             }
             "target" => {
                 if room.host == id {
-                    room.target = v["n"].as_u64().unwrap_or(15).clamp(3, 99) as u32;
+                    room.target = v["n"].as_u64().unwrap_or(15).clamp(1, 99) as u32;
+                    room.send_all(&room.lobby_state());
+                }
+            }
+            "rounds" => {
+                if room.host == id {
+                    room.rounds = v["n"].as_u64().unwrap_or(3).clamp(1, 9) as u32;
                     room.send_all(&room.lobby_state());
                 }
             }
             "start" => {
                 if room.host == id {
                     room.phase = Phase::Playing;
+                    room.round = 1;
                     room.reset_spawns();
                     for p in &mut room.players {
                         p.score = 0;
                         p.life = 0;
                         p.alive = true;
                         p.ready = false;
+                        p.wins = 0;
                     }
                     room.send_all(&json!({
                         "t": "start",
                         "target": room.target,
+                        "rounds": room.rounds,
+                        "round": room.round,
                         "players": room.players.iter().map(|p| p.public()).collect::<Vec<_>>(),
                     }));
                     room.send_all(&room.lobby_state());
@@ -503,8 +536,34 @@ pub(crate) async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<
                     "t": "k", "k": id, "v": victim, "l": life, "s": score,
                 }));
                 if score >= room.target {
-                    room.phase = Phase::Over;
-                    room.send_all(&json!({ "t": "over", "w": id }));
+                    room.players[me].wins += 1;
+                    let wins = room.players[me].wins;
+                    if room.round >= room.rounds {
+                        room.phase = Phase::Over;
+                        let winner = room.match_winner();
+                        room.send_all(&json!({
+                            "t": "over", "w": winner, "last": id,
+                            "round": room.round, "wins": wins,
+                        }));
+                    } else {
+                        // Manche suivante : les compteurs repartent a zero,
+                        // seules les manches gagnees sont conservees.
+                        room.round += 1;
+                        room.reset_spawns();
+                        for p in &mut room.players {
+                            p.score = 0;
+                            p.life = 0;
+                            p.alive = true;
+                        }
+                        room.send_all(&json!({
+                            "t": "round",
+                            "w": id,
+                            "round": room.round,
+                            "rounds": room.rounds,
+                            "target": room.target,
+                            "players": room.players.iter().map(|p| p.public()).collect::<Vec<_>>(),
+                        }));
+                    }
                     room.send_all(&room.lobby_state());
                 }
             }
@@ -572,6 +631,7 @@ mod tests {
             life: 0,
             alive,
             spawn,
+            wins: 0,
             tx,
         }
     }
@@ -594,6 +654,17 @@ mod tests {
             player(4, 3, false),
         ];
         assert_eq!(room.free_spawn(4), 3);
+    }
+
+    #[test]
+    fn match_winner_counts_rounds_before_kills() {
+        let mut room = Room::new();
+        room.players = vec![player(1, 0, true), player(2, 1, true)];
+        room.players[0].wins = 1;
+        room.players[0].score = 2;
+        room.players[1].wins = 2;
+        room.players[1].score = 0;
+        assert_eq!(room.match_winner(), 2);
     }
 
     #[test]
