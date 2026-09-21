@@ -11,12 +11,39 @@ import { Net } from './net.js';
 
 const SOLO_SEAT = 0;
 
+/** Charge les reglages publies, s'il y en a. Le serveur fait autorite ;
+ *  a defaut on tente le fichier statique, pour que le site sans API tourne
+ *  quand meme sur les memes valeurs. Toute erreur laisse les valeurs
+ *  d'usine : mieux vaut un jeu d'origine qu'un jeu qui ne demarre pas. */
+async function applyPublishedTune(engine) {
+  for (const [url, pick] of [
+    ['/api/rl2/tune', (d) => d.values],
+    ['assets/tune.json', (d) => d],
+  ]) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) continue;
+      const values = pick(await res.json());
+      if (values && typeof values === 'object') {
+        engine.setTune(values);
+        return;
+      }
+    } catch {
+      // Injoignable ou illisible : on essaie la source suivante.
+    }
+  }
+}
+
 async function boot() {
   const settings = loadSettings();
   const engine = await loadEngine('assets/rl2.wasm');
   engine.start(seed(), settings.match.level, settings.match.duration);
+  // Reglages publies depuis /admin. Ils doivent etre pris avant de lire la
+  // geometrie : la taille des voitures et de la balle en depend, et le
+  // rendu se construit dessus.
+  await applyPublishedTune(engine);
 
-  const geom = engine.geometry();
+  let geom = engine.geometry();
   const padTable = engine.pads();
   const view = new Renderer(document.getElementById('scene'), geom);
   view.setPads(padTable);
@@ -118,6 +145,21 @@ async function boot() {
     app.finished = false;
     app.last = performance.now();
     menu.hide();
+  }
+
+  // Apercu dans /admin : la page parente pousse ses curseurs, on les
+  // applique a chaud. On ne repond qu'a une fenetre qui nous encadre.
+  if (window.parent !== window) {
+    addEventListener('message', (e) => {
+      if (e.source !== window.parent || e.data?.t !== 'rl2-tune') return;
+      const applied = engine.setTune(e.data.values);
+      geom = engine.geometry();
+      view.setGeometry(geom);
+      // On accuse reception : l'interface sait ainsi que l'apercu est a jour,
+      // et non qu'elle parle dans le vide.
+      parent.postMessage({ t: 'rl2-tuned', tune: applied }, '*');
+    });
+    parent.postMessage({ t: 'rl2-ready' }, '*');
   }
 
   const kickoff = document.getElementById('btn-kickoff');

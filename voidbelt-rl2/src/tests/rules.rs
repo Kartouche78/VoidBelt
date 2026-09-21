@@ -1,6 +1,6 @@
 //! Regles du match : plots, demolitions, buts, chrono, bot.
 
-use super::{drive, harvest, run, started, DT};
+use super::{drive, harvest, run, started, DT, T};
 use crate::arena;
 use crate::ball::{self, Ball};
 use crate::boost::Field;
@@ -27,12 +27,12 @@ fn le_plot_donne_du_boost_puis_se_recharge() {
     let mut c = Car::new(0);
     c.pos = v2(x, y);
     c.boost = 0.0;
-    let taken = f.collect(&mut c).expect("plot non ramasse");
+    let taken = f.collect(&mut c, &T).expect("plot non ramasse");
     assert_eq!(c.boost, if big { 100.0 } else { 12.0 });
     c.boost = 0.0;
-    assert!(f.collect(&mut c).is_none(), "ramasse deux fois de suite");
+    assert!(f.collect(&mut c, &T).is_none(), "ramasse deux fois de suite");
     f.tick(if big { 10.1 } else { 4.1 });
-    assert!(f.collect(&mut c).is_some(), "plot {taken} jamais revenu");
+    assert!(f.collect(&mut c, &T).is_some(), "plot {taken} jamais revenu");
 }
 
 #[test]
@@ -52,11 +52,11 @@ fn au_dela_de_deux_cent_trente_le_choc_demolit() {
     a.pos = v2(arena::CX - 10.0, arena::CY);
     a.vel = v2(car::DEMO_SPEED + 6.0, 0.0);
     b.pos = v2(arena::CX + 10.0, arena::CY);
-    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     assert!(bump.demo_b && !bump.demo_a, "mauvaise victime");
     assert!(b.demo > 0.0);
     for _ in 0..(120 * 4) {
-        b.step(DT);
+        b.step(DT, &T);
     }
     assert_eq!(b.demo, 0.0, "jamais reapparu");
 }
@@ -68,7 +68,7 @@ fn un_choc_lent_bouscule_sans_demolir() {
     a.pos = v2(arena::CX - 10.0, arena::CY);
     a.vel = v2(car::DEMO_SPEED - 30.0, 0.0);
     b.pos = v2(arena::CX + 10.0, arena::CY);
-    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     assert!(!bump.any_demo(), "il demolit sous le seuil");
     assert!(b.vel.x > 60.0, "bourrade trop molle: {}", b.vel.x);
 }
@@ -81,7 +81,7 @@ fn un_frontal_lance_fait_sauter_les_deux() {
     a.vel = v2(car::DEMO_SPEED + 40.0, 0.0);
     b.pos = v2(arena::CX + 10.0, arena::CY);
     b.vel = v2(-(car::DEMO_SPEED + 40.0), 0.0);
-    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     assert!(bump.demo_a && bump.demo_b, "un survivant au frontal");
     assert!(a.demo > 0.0 && b.demo > 0.0);
 }
@@ -94,7 +94,7 @@ fn la_carcasse_reste_ou_elle_a_explose() {
     a.vel = v2(car::SPEED_MAX, 0.0);
     b.pos = v2(arena::CX + 10.0, arena::CY);
     let ou = b.pos;
-    collide::car_car(&mut a, &mut b).expect("pas de contact");
+    collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     // L'hote lit cette position pour y poser l'explosion : elle doit rester
     // sur les lieux, au degagement des chassis pres.
     assert!(b.pos.sub(ou).len() < car::HALF_LEN, "la carcasse a ete teleportee");
@@ -105,14 +105,14 @@ fn la_carcasse_reste_ou_elle_a_explose() {
 fn une_voiture_demolie_ne_gene_plus_personne() {
     let mut a = Car::new(0);
     let mut b = Car::new(1);
-    b.demolish();
+    b.demolish(&T);
     b.pos = v2(arena::CX, arena::CY);
     a.pos = v2(arena::CX, arena::CY);
     a.vel = v2(300.0, 0.0);
-    assert!(collide::car_car(&mut a, &mut b).is_none(), "on percute une carcasse");
+    assert!(collide::car_car(&mut a, &mut b, &T).is_none(), "on percute une carcasse");
     let mut ball = Ball::new();
     ball.pos = v2(arena::CX, arena::CY);
-    assert_eq!(collide::car_ball(&mut b, &mut ball), 0.0, "une carcasse frappe la balle");
+    assert_eq!(collide::car_ball(&mut b, &mut ball, &T), 0.0, "une carcasse frappe la balle");
 }
 
 #[test]
@@ -309,7 +309,7 @@ fn le_tampon_d_etat_a_la_bonne_taille() {
     assert_eq!(out[6], arena::CX);
     assert_eq!(out[state::CAR_COUNT], 2.0, "l'effectif n'est pas annonce");
     assert_eq!(state::pad_table().len(), 34 * 3);
-    assert_eq!(state::geometry().len(), 17);
+    assert_eq!(state::geometry(&T).len(), 17);
 }
 
 #[test]
@@ -423,7 +423,7 @@ fn la_bousculade_pousse_celui_qui_l_encaisse() {
     b.pos = v2(526.0, 400.0);
     a.vel = v2(car::DEMO_SPEED - 60.0, 0.0);
     b.vel = v2(0.0, 0.0);
-    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     assert!(!bump.any_demo(), "il demolit sous le seuil");
     assert!(b.vel.x > 100.0, "la victime n'est pas poussee: {}", b.vel.x);
     assert!(a.vel.x > 0.0, "l'assaillant repart en arriere: {}", a.vel.x);
@@ -439,7 +439,7 @@ fn un_frontal_sous_le_seuil_repousse_les_deux_a_parts_egales() {
     let v = car::DEMO_SPEED - 80.0;
     a.vel = v2(v, 0.0);
     b.vel = v2(-v, 0.0);
-    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     assert!(!bump.any_demo(), "il demolit sous le seuil");
     assert!(a.vel.x < 0.0 && b.vel.x > 0.0, "ils ne se repoussent pas");
     assert!(
@@ -459,7 +459,7 @@ fn la_bousculade_reste_une_bousculade_juste_sous_le_seuil() {
     b.pos = v2(526.0, 400.0);
     a.vel = v2(car::DEMO_SPEED - 2.0, 0.0);
     b.vel = v2(0.0, 0.0);
-    collide::car_car(&mut a, &mut b).expect("pas de contact");
+    collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     assert!(
         b.vel.x < car::DEMO_SPEED,
         "la victime part plus vite que l'assaillant: {}",
@@ -476,7 +476,7 @@ fn un_coequipier_ne_demolit_jamais() {
     b.pos = v2(526.0, 400.0);
     a.vel = v2(car::DEMO_SPEED + 80.0, 0.0);
     b.vel = v2(0.0, 0.0);
-    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     assert!(!bump.any_demo(), "un allie a ete demoli");
     assert!(b.vel.x > 100.0, "l allie n'est meme pas pousse");
 }
@@ -490,7 +490,7 @@ fn un_frontal_entre_allies_ne_fait_pas_de_victime() {
     let v = car::DEMO_SPEED + 60.0;
     a.vel = v2(v, 0.0);
     b.vel = v2(-v, 0.0);
-    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     assert!(!bump.any_demo(), "frontal fratricide");
 }
 
@@ -503,6 +503,6 @@ fn un_adversaire_reste_demolissable_au_dela_du_seuil() {
     b.pos = v2(526.0, 400.0);
     a.vel = v2(car::DEMO_SPEED + 20.0, 0.0);
     b.vel = v2(0.0, 0.0);
-    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     assert!(bump.demo_b && !bump.demo_a, "l adversaire survit au-dela du seuil");
 }

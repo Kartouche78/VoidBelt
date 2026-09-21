@@ -6,6 +6,7 @@
 //! nombres bruts, et on resserre le braquage pour rester jouable.
 
 use crate::arena;
+use crate::tune::Tune;
 use crate::vec::{wrap_angle, V2};
 
 // Gabarit cale sur les planches `car_*.png`, au format 2:3 : la boite de
@@ -19,29 +20,29 @@ pub const MASS: f32 = 180.0;
 pub const DRIVE_MAX: f32 = 380.0;
 pub const SPEED_MAX: f32 = 620.0;
 pub const SUPERSONIC: f32 = 592.0;
-const THROTTLE_A: f32 = 431.0;
-const BOOST_A: f32 = 267.0;
-const BRAKE_A: f32 = 943.0;
-const COAST_A: f32 = 141.0;
+pub const THROTTLE_A: f32 = 431.0;
+pub const BOOST_A: f32 = 267.0;
+pub const BRAKE_A: f32 = 943.0;
+pub const COAST_A: f32 = 141.0;
 
 pub const BOOST_MAX: f32 = 100.0;
-const BOOST_USE: f32 = 33.3;
+pub const BOOST_USE: f32 = 33.3;
 pub const KICKOFF_BOOST: f32 = 33.0;
 
 /// Courbures extremes : rayon de braquage a l'arret puis a pleine vitesse.
-const TURN_SLOW: f32 = 1.0 / 55.0;
-const TURN_FAST: f32 = 1.0 / 210.0;
-const DRIFT_TURN: f32 = 1.85;
+pub const TURN_SLOW: f32 = 1.0 / 55.0;
+pub const TURN_FAST: f32 = 1.0 / 210.0;
+pub const DRIFT_TURN: f32 = 1.85;
 /// Amortissement de la vitesse laterale, par seconde. En appui la voiture
 /// suit son nez en une cinquantaine de millisecondes ; en drift elle met
 /// presque une demi-seconde, et c'est tout le glissement.
-const GRIP: f32 = 18.0;
+pub const GRIP: f32 = 18.0;
 // La derive d'equilibre vaut a peu pres `vitesse de lacet / adherence` : 18
 // donne les dix degres d'une voiture qui tient sa ligne, 6 le gros travers
 // du powerslide. Descendre plus bas part en toupie.
-const GRIP_DRIFT: f32 = 6.0;
+pub const GRIP_DRIFT: f32 = 6.0;
 /// Vitesse a laquelle le nez se realigne sur un muret longe, en rad/s.
-const WALL_ALIGN: f32 = 6.0;
+pub const WALL_ALIGN: f32 = 6.0;
 
 pub const DEMO_TIME: f32 = 3.0;
 /// 230 km/h sur le compteur : au-dela, un contact demolit l'adversaire ;
@@ -118,13 +119,13 @@ impl Car {
         self.vel.len()
     }
 
-    pub fn supersonic(&self) -> bool {
-        self.demo <= 0.0 && self.speed() >= SUPERSONIC
+    pub fn supersonic(&self, t: &Tune) -> bool {
+        self.demo <= 0.0 && self.speed() >= t.supersonic
     }
 
     /// Assez rapide pour detruire l'autre voiture au contact.
-    pub fn lethal(&self) -> bool {
-        self.demo <= 0.0 && self.speed() >= DEMO_SPEED
+    pub fn lethal(&self, t: &Tune) -> bool {
+        self.demo <= 0.0 && self.speed() >= t.demo_speed
     }
 
     /// Angle entre le cap et la trajectoire reelle : c'est lui qu'on voit
@@ -147,32 +148,32 @@ impl Car {
 
     /// Acceleration disponible a cette vitesse : pleine a l'arret, elle
     /// s'effondre en approchant du plafond sans boost.
-    fn throttle_accel(v: f32) -> f32 {
-        let n = (v / DRIVE_MAX).clamp(0.0, 1.0);
+    fn throttle_accel(v: f32, t: &Tune) -> f32 {
+        let n = (v / t.drive_max.max(1.0)).clamp(0.0, 1.0);
         if n >= 1.0 {
             0.0
         } else {
-            THROTTLE_A * (1.0 - 0.9 * n)
+            t.throttle_a * (1.0 - 0.9 * n)
         }
     }
 
     /// Courbure du virage : large a pleine vitesse, serree a l'arret.
-    fn curvature(speed: f32, drift: bool) -> f32 {
-        let n = (speed / SPEED_MAX).clamp(0.0, 1.0);
-        let k = TURN_FAST + (TURN_SLOW - TURN_FAST) * (1.0 - n).powf(1.1);
+    fn curvature(speed: f32, drift: bool, t: &Tune) -> f32 {
+        let n = (speed / t.speed_max.max(1.0)).clamp(0.0, 1.0);
+        let k = t.turn_fast + (t.turn_slow - t.turn_fast) * (1.0 - n).powf(1.1);
         if drift {
-            k * DRIFT_TURN
+            k * t.drift_turn
         } else {
             k
         }
     }
 
-    pub fn step(&mut self, dt: f32) {
+    pub fn step(&mut self, dt: f32, t: &Tune) {
         if self.demo > 0.0 {
             self.demo -= dt;
             if self.demo <= 0.0 {
                 let (p, a) = arena::respawn(self.team, self.rank);
-                self.reset(p, a, KICKOFF_BOOST);
+                self.reset(p, a, t.kickoff_boost);
             }
             return;
         }
@@ -186,25 +187,25 @@ impl Car {
         let speed = self.speed();
         self.drifting = inp.drift && speed > 25.0;
         let heading = self.vel.dot(self.fwd());
-        let k = Self::curvature(speed, self.drifting);
+        let k = Self::curvature(speed, self.drifting, t);
         self.yaw += inp.steer * k * heading * dt;
 
         let f = self.fwd();
-        let t = f.perp();
+        let lat = f.perp();
         let mut vf = self.vel.dot(f);
-        let mut vt = self.vel.dot(t);
+        let mut vt = self.vel.dot(lat);
 
         // Gachettes. Presser la gauche freine tant qu'on avance, puis
         // bascule en marche arriere une fois a l'arret, comme dans le jeu.
         let drive = inp.throttle - inp.brake;
         if drive.abs() > 0.02 {
             if vf * drive < -1.0 {
-                vf += BRAKE_A * dt * drive.signum();
+                vf += t.brake_a * dt * drive.signum();
             } else {
-                vf += Self::throttle_accel(vf.abs()) * dt * drive;
+                vf += Self::throttle_accel(vf.abs(), t) * dt * drive;
             }
         } else if vf.abs() > 1.0 {
-            vf -= COAST_A * dt * vf.signum();
+            vf -= t.coast_a * dt * vf.signum();
         } else {
             vf = 0.0;
         }
@@ -212,35 +213,35 @@ impl Car {
         self.flame = (self.flame - dt).max(0.0);
         let boosting = inp.boost && self.boost > 0.0;
         if boosting {
-            vf += BOOST_A * dt;
-            self.boost = (self.boost - BOOST_USE * dt).max(0.0);
+            vf += t.boost_a * dt;
+            self.boost = (self.boost - t.boost_use * dt).max(0.0);
             self.flame = 0.12;
         }
 
         // Plafond : le boost autorise le supersonique, sinon la vitesse
         // excedentaire retombe en roue libre au lieu d'etre coupee net.
         if boosting {
-            vf = vf.min(SPEED_MAX);
-        } else if vf > DRIVE_MAX {
-            vf = (vf - COAST_A * dt).max(DRIVE_MAX);
+            vf = vf.min(t.speed_max);
+        } else if vf > t.drive_max {
+            vf = (vf - t.coast_a * dt).max(t.drive_max);
         }
-        vf = vf.max(-DRIVE_MAX * 0.45);
+        vf = vf.max(-t.drive_max * 0.45);
 
-        let grip = if self.drifting { GRIP_DRIFT } else { GRIP };
+        let grip = if self.drifting { t.grip_drift } else { t.grip };
         vt *= (-grip * dt).exp();
 
-        self.vel = f.mul(vf).add(t.mul(vt)).clamp_len(SPEED_MAX);
+        self.vel = f.mul(vf).add(lat.mul(vt)).clamp_len(t.speed_max);
         self.pos = self.pos.add(self.vel.mul(dt));
 
-        if let Some(h) = arena::contact(self.pos, RADIUS) {
-            self.ride(&h, dt);
+        if let Some(h) = arena::contact(self.pos, t.car_radius) {
+            self.ride(&h, dt, t);
         }
     }
 
     /// Contact avec l'enceinte. On ne rend pas la vitesse tangentielle et on
     /// pivote le nez vers le muret : la voiture le longe au lieu de rester
     /// plantee dessus, ce qui remplace la montee au mur du jeu d'origine.
-    fn ride(&mut self, h: &arena::Hit, dt: f32) {
+    fn ride(&mut self, h: &arena::Hit, dt: f32, tune: &Tune) {
         arena::bounce(&mut self.pos, &mut self.vel, h, 0.05, 1.0);
         let t = h.n.perp();
         // On se range du cote ou l'on glisse deja ; nez pile perpendiculaire
@@ -248,30 +249,30 @@ impl Car {
         let cue = if self.speed() > 25.0 { self.vel } else { self.fwd() };
         let along = if cue.dot(t) >= 0.0 { t } else { t.mul(-1.0) };
         let err = wrap_angle(along.angle() - self.yaw);
-        let rate = WALL_ALIGN * dt;
+        let rate = tune.wall_align * dt;
         self.yaw += err.clamp(-rate, rate);
     }
 
     /// Point du chassis le plus proche de `p` : la boite orientee rend les
     /// contacts du capot plus francs que ceux des flancs.
-    pub fn nearest(&self, p: V2) -> V2 {
+    pub fn nearest(&self, p: V2, t: &Tune) -> V2 {
         let d = p.sub(self.pos);
         let f = self.fwd();
-        let t = f.perp();
-        let a = d.dot(f).clamp(-HALF_LEN, HALF_LEN);
-        let b = d.dot(t).clamp(-HALF_WID, HALF_WID);
-        self.pos.add(f.mul(a)).add(t.mul(b))
+        let lat = f.perp();
+        let a = d.dot(f).clamp(-t.car_half_len, t.car_half_len);
+        let b = d.dot(lat).clamp(-t.car_half_wid, t.car_half_wid);
+        self.pos.add(f.mul(a)).add(lat.mul(b))
     }
 
-    pub fn add_boost(&mut self, amount: f32) {
-        self.boost = (self.boost + amount).min(BOOST_MAX);
+    pub fn add_boost(&mut self, amount: f32, t: &Tune) {
+        self.boost = (self.boost + amount).min(t.boost_max);
     }
 
     /// La carcasse garde sa position : c'est la que l'hote fait exploser la
     /// voiture. Elle ne gene personne, tous les contacts ignorent une
     /// voiture demolie.
-    pub fn demolish(&mut self) {
-        self.demo = DEMO_TIME;
+    pub fn demolish(&mut self, tune: &Tune) {
+        self.demo = tune.demo_time;
         self.vel = V2::ZERO;
     }
 }

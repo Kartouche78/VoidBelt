@@ -4,7 +4,8 @@ use crate::arena;
 use crate::ball::Ball;
 use crate::boost::Field;
 use crate::bot::Bot;
-use crate::car::{Car, Input, KICKOFF_BOOST};
+use crate::car::{Car, Input};
+use crate::tune::Tune;
 use crate::collide;
 
 /// Nombre de voitures d'un match solo. En ligne, le salon en decide : le
@@ -25,10 +26,10 @@ pub const COUNTDOWN_LEAD: f32 = 1.0;
 pub const CELEBRATE: f32 = 4.6;
 /// Pas d'integration fixe : la physique reste identique quel que soit
 /// le taux de rafraichissement de l'ecran.
-const STEP: f32 = 1.0 / 120.0;
+pub const STEP: f32 = 1.0 / 120.0;
 /// Distance au but en deca de laquelle une frappe degagee compte comme un
 /// arret. Plus loin, c'est du jeu ordinaire.
-const SAVE_RANGE: f32 = 400.0;
+pub const SAVE_RANGE: f32 = 400.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Phase {
@@ -97,6 +98,8 @@ pub struct Game {
     pub overtime: bool,
     pub duration: f32,
     pub events: Vec<(u32, f32)>,
+    /// Reglages de la partie. Modifiables a chaud depuis `/admin`.
+    pub tune: Tune,
     /// Memorise l'etat supersonique pour n'emettre le son qu'au passage.
     boom: Vec<bool>,
     /// L'engagement d'ouverture nait hors d'un pas de simulation : il serait
@@ -129,6 +132,7 @@ impl Game {
             overtime: false,
             duration,
             events: Vec::new(),
+            tune: Tune::default(),
             boom: vec![false; n],
             opening: true,
             carry: 0.0,
@@ -184,10 +188,10 @@ impl Game {
         let sizes = team_sizes(&self.cars);
         for c in self.cars.iter_mut() {
             let (p, a) = arena::kickoff_nth(c.team, c.rank, sizes[c.team as usize]);
-            c.reset(p, a, KICKOFF_BOOST);
+            c.reset(p, a, self.tune.kickoff_boost);
         }
         self.phase = Phase::Countdown;
-        self.timer = COUNTDOWN;
+        self.timer = self.tune.countdown;
         self.boom = vec![false; self.cars.len()];
         self.events.push((ev::KICKOFF, 0.0));
     }
@@ -240,38 +244,40 @@ impl Game {
         }
 
         if self.bot_on {
-            let input = self.bot.think(&self.cars[1], &self.ball, &self.pads, dt);
+            let input = self
+                .bot
+                .think(&self.cars[1], &self.ball, &self.pads, dt, &self.tune);
             self.cars[1].input = input;
         }
 
         for i in 0..self.cars.len() {
-            self.cars[i].step(dt);
-            let sonic = self.cars[i].supersonic();
+            self.cars[i].step(dt, &self.tune);
+            let sonic = self.cars[i].supersonic(&self.tune);
             if sonic && !self.boom[i] {
                 self.events.push((ev::BOOM, i as f32));
             }
             self.boom[i] = sonic;
         }
 
-        let wall = self.ball.step(dt);
+        let wall = self.ball.step(dt, &self.tune);
         if wall > 60.0 {
             self.events.push((ev::WALL, wall));
         }
 
         self.pads.tick(dt);
         for i in 0..self.cars.len() {
-            if let Some(p) = self.pads.collect(&mut self.cars[i]) {
+            if let Some(p) = self.pads.collect(&mut self.cars[i], &self.tune) {
                 self.events.push((ev::PAD, p as f32));
             }
             // On garde la balle d'avant le contact : comparer les deux
             // trajectoires dit si le joueur vient de sortir un tir cadre.
             let before = self.ball;
-            let force = collide::car_ball(&mut self.cars[i], &mut self.ball);
+            let force = collide::car_ball(&mut self.cars[i], &mut self.ball, &self.tune);
             if force > 0.0 {
                 self.events.push((ev::HIT, force));
                 let team = self.cars[i].team;
                 let goal = arena::goal_mouth(team == 0);
-                let close = (before.pos.x - goal).abs() < SAVE_RANGE;
+                let close = (before.pos.x - goal).abs() < self.tune.save_range;
                 if close
                     && before.vel.len() > 170.0
                     && arena::on_target(before.pos, before.vel, team)
@@ -284,10 +290,12 @@ impl Game {
 
         // Toutes les paires : a dix joueurs les contacts se multiplient, et
         // il n'y a plus de « la » collision mais un carambolage a demeler.
+        // Copie locale : `split_at_mut` emprunte `self.cars`, donc `self`.
+        let tune = self.tune;
         for i in 0..self.cars.len() {
             for j in (i + 1)..self.cars.len() {
                 let (lo, hi) = self.cars.split_at_mut(j);
-                let Some(bump) = collide::car_car(&mut lo[i], &mut hi[0]) else {
+                let Some(bump) = collide::car_car(&mut lo[i], &mut hi[0], &tune) else {
                     continue;
                 };
                 if bump.demo_a {
@@ -313,7 +321,7 @@ impl Game {
             }
             self.score[scorer as usize] += 1;
             self.phase = Phase::Goal;
-            self.timer = CELEBRATE;
+            self.timer = self.tune.celebrate;
             return;
         }
 

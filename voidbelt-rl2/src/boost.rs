@@ -2,18 +2,19 @@
 //! exactement la dotation d'un terrain de Rocket League.
 
 use crate::car::Car;
+use crate::tune::Tune;
 use crate::pads::PADS;
 use crate::vec::v2;
 
 pub const COUNT: usize = PADS.len();
-const BIG_AMOUNT: f32 = 100.0;
-const SMALL_AMOUNT: f32 = 12.0;
-const BIG_DELAY: f32 = 10.0;
-const SMALL_DELAY: f32 = 4.0;
+pub const BIG_AMOUNT: f32 = 100.0;
+pub const SMALL_AMOUNT: f32 = 12.0;
+pub const BIG_DELAY: f32 = 10.0;
+pub const SMALL_DELAY: f32 = 4.0;
 /// Rayons de ramassage, calques sur le disque dessine plus un debord de la
 /// largeur d'une voiture : on ramasse en frolant le plot, pas a trois metres.
-const BIG_R: f32 = 28.0;
-const SMALL_R: f32 = 18.0;
+pub const BIG_R: f32 = 28.0;
+pub const SMALL_R: f32 = 18.0;
 
 /// Temps restant avant reapparition, `0` quand le plot est disponible.
 #[derive(Clone)]
@@ -42,8 +43,8 @@ impl Field {
 
     /// Ramasse les plots atteints par la voiture. Renvoie l'index du dernier
     /// plot pris, pour que l'hote declenche le son correspondant.
-    pub fn collect(&mut self, car: &mut Car) -> Option<usize> {
-        if car.demo > 0.0 || car.boost >= crate::car::BOOST_MAX {
+    pub fn collect(&mut self, car: &mut Car, t: &Tune) -> Option<usize> {
+        if car.demo > 0.0 || car.boost >= t.boost_max {
             return None;
         }
         let mut taken = None;
@@ -51,14 +52,14 @@ impl Field {
             if self.cooldown[i] > 0.0 {
                 continue;
             }
-            let r = if big { BIG_R } else { SMALL_R };
+            let r = if big { t.pad_big_radius } else { t.pad_small_radius };
             if car.pos.sub(v2(x, y)).len() > r {
                 continue;
             }
-            car.add_boost(if big { BIG_AMOUNT } else { SMALL_AMOUNT });
-            self.cooldown[i] = if big { BIG_DELAY } else { SMALL_DELAY };
+            car.add_boost(if big { t.pad_big_amount } else { t.pad_small_amount }, t);
+            self.cooldown[i] = if big { t.pad_big_delay } else { t.pad_small_delay };
             taken = Some(i);
-            if car.boost >= crate::car::BOOST_MAX {
+            if car.boost >= t.boost_max {
                 break;
             }
         }

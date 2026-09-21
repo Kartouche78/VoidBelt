@@ -2,9 +2,7 @@
 //! dans la memoire lineaire, sans binding genere ni allocation par image.
 
 use crate::arena;
-use crate::ball;
 use crate::boost;
-use crate::car;
 use crate::game::{Game, Phase};
 use crate::pads::PADS;
 
@@ -57,7 +55,7 @@ pub fn write_state(g: &Game, out: &mut [f32]) {
         out[b + 4] = c.boost;
         out[b + 5] = if c.drifting { 1.0 } else { 0.0 };
         out[b + 6] = c.demo;
-        out[b + 7] = if c.supersonic() { 1.0 } else { 0.0 };
+        out[b + 7] = if c.supersonic(&g.tune) { 1.0 } else { 0.0 };
         out[b + 8] = c.flame;
         out[b + 9] = c.slip();
     }
@@ -90,7 +88,10 @@ pub fn pad_table() -> Vec<f32> {
 }
 
 /// Constantes de terrain, pour que le rendu n'ait pas a les redeclarer.
-pub fn geometry() -> Vec<f32> {
+/// Les valeurs reglables viennent des reglages en cours, pas des defauts :
+/// sinon l'interface d'administration changerait la physique sans que le
+/// dessin ni la jauge suivent.
+pub fn geometry(t: &crate::tune::Tune) -> Vec<f32> {
     vec![
         arena::BOARD_W,
         arena::BOARD_H,
@@ -101,15 +102,15 @@ pub fn geometry() -> Vec<f32> {
         arena::CORNER,
         arena::GOAL_HALF,
         arena::GOAL_DEPTH,
-        ball::RADIUS,
-        car::HALF_LEN,
-        car::HALF_WID,
-        car::BOOST_MAX,
-        car::SPEED_MAX,
+        t.ball_radius,
+        t.car_half_len,
+        t.car_half_wid,
+        t.boost_max,
+        t.speed_max,
         boost::COUNT as f32,
-        car::DEMO_SPEED,
+        t.demo_speed,
         // Instant, dans le decompte, ou le premier chiffre s'affiche : la
         // seconde d'avance reste muette pour coller a la piste sonore.
-        crate::game::COUNTDOWN - crate::game::COUNTDOWN_LEAD,
+        t.count_from(),
     ]
 }

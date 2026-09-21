@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 use voidbelt_rl2::{
     car::Input,
+    tune::Tune,
     game::{CARS, Game, Phase},
     state,
 };
@@ -44,6 +45,8 @@ pub struct Room {
     pub over_for: f32,
     pub empty_for: f32,
     pub seed: u32,
+    /// Reglages a appliquer au prochain echauffement.
+    pub tune: Tune,
     /// Tampons reutilises : a 60 Hz, mieux vaut ne rien allouer par image.
     pub floats: Vec<f32>,
     pub events: Vec<f32>,
@@ -60,6 +63,7 @@ impl Room {
             over_for: 0.0,
             empty_for: 0.0,
             seed,
+            tune: Tune::default(),
             floats: vec![0.0; state::state_len(IDLE_CARS)],
             events: Vec::with_capacity(64),
             bytes: Vec::with_capacity(state::state_len(IDLE_CARS) * 8),
@@ -97,6 +101,16 @@ impl Room {
         slot
     }
 
+    /// Adopte de nouveaux reglages. Une partie en cours les garde pour le
+    /// prochain echauffement : changer la physique en pleine action
+    /// deplacerait les voitures sous les joueurs.
+    pub fn set_tune(&mut self, t: Tune) {
+        self.tune = t;
+        if self.game.phase == Phase::Warmup {
+            self.game.tune = t;
+        }
+    }
+
     /// Refait la partie sur la composition courante. Uniquement au salon :
     /// en plein match, changer l'effectif deplacerait toutes les voitures.
     pub fn resync(&mut self) {
@@ -112,6 +126,7 @@ impl Room {
             .map(|s| s.as_ref().map_or(0, |s| s.team & 1))
             .collect();
         self.game = Game::warmup_with(self.seed, MATCH_SECONDS, &teams);
+        self.game.tune = self.tune;
         self.floats = vec![0.0; state::state_len(self.game.cars.len())];
     }
 

@@ -174,9 +174,25 @@ export class Renderer {
     // Les voitures naissent a la demande : un salon en ligne n'a pas de
     // plafond, et son effectif change quand quelqu'un arrive ou s'en va.
     this.carShadow = shadow;
+    // Tailles au moment de la construction : reference pour la remise a
+    // l'echelle quand `/admin` change un gabarit.
+    this.built = { ballR, carLen, carWid };
     this.cars = [];
     this.roster = [];
     this.names = new Names(this.scene, Z.NAME, TEAM.map((c) => `#${c.toString(16).padStart(6, '0')}`));
+  }
+
+  /** Reprend une geometrie modifiee depuis `/admin`. Plutot que de refaire
+   *  les maillages a chaque curseur, on remet a l'echelle par rapport aux
+   *  tailles d'origine : le rapport se recalcule a chaque appel, donc les
+   *  reglages successifs ne se cumulent pas. */
+  setGeometry(g) {
+    this.geom = g;
+    const b = this.built;
+    this.ball.scale.setScalar(g.ballR / b.ballR);
+    for (const car of this.cars) {
+      car.scale.set(g.carLen / b.carLen, g.carWid / b.carWid, 1);
+    }
   }
 
   /** Cree une voiture de plus, dans la livree de son camp. */

@@ -74,7 +74,7 @@ void main() {
 /** Monte les six flammes d'une voiture dans son groupe et rend de quoi les
  *  animer. `load` est le chargeur de textures du rendu. */
 export function makeFlames(group, geom, load) {
-  const { carLen, carWid, speedMax } = geom;
+  const { carLen, carWid } = geom;
   const unit = (carLen * BASE) / STAGES[0].len;
   const jets = [];
 
@@ -133,7 +133,9 @@ export function makeFlames(group, geom, load) {
       return;
     }
     // Le jet s'allonge un peu avec la vitesse, sans changer d'etat.
-    const stretch = 1 + Math.min(c.speed / speedMax, 1) * 0.3;
+    // `geom` est relu a chaque image : un changement de vitesse maximale
+    // depuis /admin doit se voir sans reconstruire les reacteurs.
+    const stretch = 1 + Math.min(c.speed / Math.max(geom.speedMax, 1), 1) * 0.3;
     for (const p of pivots) p.scale.y = stretch;
     const flicker = 0.92 + Math.sin(time * 37 + c.x) * 0.08;
 

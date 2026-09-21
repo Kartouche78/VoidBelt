@@ -1,15 +1,16 @@
 //! La balle : elle roule, freine peu et rebondit fort sur les murs.
 
 use crate::arena;
+use crate::tune::Tune;
 use crate::vec::{v2, V2};
 
 pub const RADIUS: f32 = 14.0;
 pub const MASS: f32 = 30.0;
 pub const MAX_SPEED: f32 = 1200.0;
 /// Frottement de roulement, en amortissement exponentiel par seconde.
-const DRAG: f32 = 0.42;
-const WALL_REST: f32 = 0.6;
-const WALL_FRIC: f32 = 0.9;
+pub const DRAG: f32 = 0.42;
+pub const WALL_REST: f32 = 0.6;
+pub const WALL_FRIC: f32 = 0.9;
 
 #[derive(Clone, Copy)]
 pub struct Ball {
@@ -39,20 +40,23 @@ impl Ball {
 
     /// Avance la balle et renvoie la vitesse d'impact d'un eventuel mur,
     /// que l'appelant traduit en son de rebond.
-    pub fn step(&mut self, dt: f32) -> f32 {
-        self.vel = self.vel.mul((-DRAG * dt).exp()).clamp_len(MAX_SPEED);
+    pub fn step(&mut self, dt: f32, t: &Tune) -> f32 {
+        self.vel = self.vel.mul((-t.ball_drag * dt).exp()).clamp_len(t.ball_max_speed);
         self.pos = self.pos.add(self.vel.mul(dt));
-        self.roll += self.vel.len() / RADIUS * dt;
-        match arena::contact(self.pos, RADIUS) {
-            Some(h) => arena::bounce(&mut self.pos, &mut self.vel, &h, WALL_REST, WALL_FRIC),
+        self.roll += self.vel.len() / t.ball_radius.max(1.0) * dt;
+        match arena::contact(self.pos, t.ball_radius) {
+            Some(h) => {
+                arena::bounce(&mut self.pos, &mut self.vel, &h, t.ball_wall_rest, t.ball_wall_fric)
+            }
             None => 0.0,
         }
     }
 
     /// Position approximative dans `t` secondes, frottement compris. Le bot
     /// s'en sert pour viser ou la balle sera, pas ou elle est.
-    pub fn predict(&self, t: f32) -> V2 {
-        let k = (1.0 - (-DRAG * t).exp()) / DRAG;
+    pub fn predict(&self, t: f32, tune: &Tune) -> V2 {
+        let drag = tune.ball_drag.max(1e-3);
+        let k = (1.0 - (-drag * t).exp()) / drag;
         let p = self.pos.add(self.vel.mul(k));
         v2(
             p.x.clamp(arena::MIN_X, arena::MAX_X),

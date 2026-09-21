@@ -69,6 +69,7 @@ async fn main() {
     // tout casser.
     let rl2_files = Router::new()
         .merge(page("/rl2", "public/rl2"))
+        .merge(page("/admin", "public/admin"))
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::CACHE_CONTROL,
             HeaderValue::from_static("no-cache"),
@@ -78,6 +79,7 @@ async fn main() {
     // partie, il ne se contente pas de relayer.
     let rl2 = Router::new()
         .route("/api/rl2/rooms", get(rl2::rooms))
+        .route("/api/rl2/tune", get(rl2::tune_get).put(rl2::tune_put))
         .route("/api/rl2/ws", get(rl2::ws))
         .with_state(rl2::Hub::new());
 
@@ -120,7 +122,12 @@ async fn main() {
         .unwrap_or_else(|e| panic!("impossible d'écouter sur {addr}: {e}"));
 
     tracing::info!("VOIDBELT en écoute sur http://127.0.0.1:{port}");
-    axum::serve(listener, app)
+    // Avec l'adresse de l'appelant : `/api/rl2/tune` s'en sert pour
+    // n'accepter les publications que depuis la machine hote.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
         .await
         .expect("le serveur s'est arrêté sur une erreur");
 }

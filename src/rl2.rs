@@ -15,8 +15,10 @@ use axum::{
         Query, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
+    http::StatusCode,
     response::Response,
 };
+use std::net::SocketAddr;
 mod room;
 
 use room::{IDLE_CARS, Room, Seat};
@@ -31,7 +33,11 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::mpsc::unbounded_channel;
-use voidbelt_rl2::{car::Input, state};
+use voidbelt_rl2::{
+    car::Input,
+    state,
+    tune::{self, Tune},
+};
 
 const TICK: Duration = Duration::from_millis(16);
 /// Au-dela, un salon vide est oublie.
@@ -41,6 +47,57 @@ const EMPTY_GRACE: f32 = 20.0;
 pub struct Hub {
     rooms: Mutex<HashMap<String, Room>>,
     next_id: AtomicU32,
+    /// Reglages partages par tous les salons. `/admin` les remplace a chaud ;
+    /// ils sont relus au demarrage depuis `public/rl2/assets/tune.json`, pour
+    /// qu'un reglage publie survive a un redemarrage du serveur.
+    tune: Mutex<Tune>,
+}
+
+/// Ou l'on garde les reglages publies. Le fichier est aussi servi au
+/// navigateur, qui s'en sert pour le solo : une seule source pour les deux.
+const TUNE_FILE: &str = "public/rl2/assets/tune.json";
+
+/// Relit les reglages publies, s'il y en a. Un fichier absent ou abime
+/// laisse simplement les valeurs d'usine.
+fn load_tune() -> Tune {
+    let mut t = Tune::default();
+    let Ok(text) = std::fs::read_to_string(TUNE_FILE) else {
+        return t;
+    };
+    let Ok(v) = serde_json::from_str::<Value>(&text) else {
+        return t;
+    };
+    apply_json(&mut t, &v);
+    t
+}
+
+/// Applique un objet `{ nom: valeur }` aux reglages. On passe par les noms
+/// et non par les positions : un fichier ecrit avant l'ajout d'un reglage
+/// reste lisible, et un nom inconnu est ignore au lieu de tout decaler.
+fn apply_json(t: &mut Tune, v: &Value) -> usize {
+    let Some(obj) = v.as_object() else { return 0 };
+    let mut flat = t.to_vec();
+    let mut n = 0;
+    for (i, key) in tune::KEYS.iter().enumerate() {
+        if let Some(x) = obj.get(*key).and_then(Value::as_f64) {
+            if x.is_finite() {
+                flat[i] = x as f32;
+                n += 1;
+            }
+        }
+    }
+    t.read(&flat);
+    n
+}
+
+/// Les reglages en cours, sous forme d'objet nomme.
+fn tune_json(t: &Tune) -> Value {
+    let flat = t.to_vec();
+    let mut obj = serde_json::Map::new();
+    for (i, key) in tune::KEYS.iter().enumerate() {
+        obj.insert((*key).to_string(), json!(flat[i]));
+    }
+    Value::Object(obj)
 }
 
 impl Hub {
@@ -50,6 +107,7 @@ impl Hub {
         let hub = Arc::new(Hub {
             rooms: Mutex::new(HashMap::new()),
             next_id: AtomicU32::new(1),
+            tune: Mutex::new(load_tune()),
         });
         let ticker = hub.clone();
         tokio::spawn(async move { ticker.run().await });
@@ -90,6 +148,66 @@ pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
         .map(|(code, r)| r.public(code))
         .collect();
     Json(json!({ "rooms": open }))
+}
+
+/// Reglages en cours, avec l'ordre officiel des noms. Le jeu les charge au
+/// demarrage : solo et parties en ligne tournent ainsi sur les memes valeurs.
+pub async fn tune_get(State(hub): State<Arc<Hub>>) -> Json<Value> {
+    let t = *hub.tune.lock().expect("hub empoisonne");
+    Json(json!({ "keys": tune::KEYS, "values": tune_json(&t) }))
+}
+
+/// Publie de nouveaux reglages. Ils s'appliquent aussitot aux salons a
+/// l'echauffement et sont ecrits sur disque pour survivre a un redemarrage.
+///
+/// Reserve a la machine qui heberge le serveur, sauf jeton explicite : sans
+/// cela, n'importe quel visiteur du tunnel public pourrait changer la
+/// physique de tout le monde.
+pub async fn tune_put(
+    State(hub): State<Arc<Hub>>,
+    headers: axum::http::HeaderMap,
+    info: axum::extract::ConnectInfo<SocketAddr>,
+    Json(body): Json<Value>,
+) -> (StatusCode, Json<Value>) {
+    if !allowed(&headers, info.0) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Reglages reserves a l'hote du serveur." })),
+        );
+    }
+    let mut t = hub.tune.lock().expect("hub empoisonne");
+    let n = apply_json(&mut t, &body);
+    let saved = *t;
+    drop(t);
+
+    // Les salons deja lances gardent leurs reglages jusqu'au prochain
+    // echauffement : changer la physique en pleine action serait brutal.
+    {
+        let mut rooms = hub.rooms.lock().expect("hub empoisonne");
+        for room in rooms.values_mut() {
+            room.set_tune(saved);
+        }
+    }
+    let text = serde_json::to_string_pretty(&tune_json(&saved)).unwrap_or_default();
+    let ecrit = std::fs::write(TUNE_FILE, text).is_ok();
+    (
+        StatusCode::OK,
+        Json(json!({ "applied": n, "saved": ecrit, "values": tune_json(&saved) })),
+    )
+}
+
+/// Vrai si la requete vient de la machine hote, ou porte le jeton attendu.
+fn allowed(headers: &axum::http::HeaderMap, who: SocketAddr) -> bool {
+    if let Ok(expected) = std::env::var("RL2_ADMIN_TOKEN") {
+        if !expected.is_empty() {
+            let given = headers
+                .get("x-admin-token")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            return given == expected;
+        }
+    }
+    who.ip().is_loopback()
 }
 
 pub async fn ws(

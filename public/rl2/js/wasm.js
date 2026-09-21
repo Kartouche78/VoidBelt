@@ -94,6 +94,41 @@ export async function loadEngine(url) {
     pads() {
       return view(w.rl_pads_ptr(), w.rl_pads_len()).slice();
     },
+    /// Noms des reglages, dans l'ordre exact du tableau. Ils viennent du
+    /// wasm et non d'une liste recopiee : les deux ne peuvent pas deriver.
+    tuneKeys() {
+      const b = new Uint8Array(w.memory.buffer, w.rl_tune_keys_ptr(), w.rl_tune_keys_len());
+      return new TextDecoder().decode(b).split(String.fromCharCode(10));
+    },
+    /// Reglages en cours, sous forme d'objet nomme.
+    tune() {
+      const v = view(w.rl_tune_ptr(), w.rl_tune_len());
+      const keys = this.tuneKeys();
+      return Object.fromEntries(keys.map((k, i) => [k, v[i]]));
+    },
+    /// Valeurs d'usine.
+    tuneDefaults() {
+      const v = view(w.rl_tune_defaults_ptr(), w.rl_tune_len());
+      const keys = this.tuneKeys();
+      return Object.fromEntries(keys.map((k, i) => [k, v[i]]));
+    },
+    /// Applique des reglages nommes. Les noms inconnus sont ignores, les
+    /// absents gardent leur valeur : un fichier ecrit avant l'ajout d'un
+    /// reglage reste lisible.
+    setTune(values) {
+      const keys = this.tuneKeys();
+      const cur = view(w.rl_tune_ptr(), w.rl_tune_len());
+      const out = Float32Array.from(cur);
+      keys.forEach((k, i) => {
+        const x = Number(values?.[k]);
+        if (Number.isFinite(x)) out[i] = x;
+      });
+      const ptr = w.alloc(out.length * 4);
+      new Float32Array(w.memory.buffer, ptr, out.length).set(out);
+      w.rl_tune_set(ptr, out.length);
+      w.dealloc(ptr, out.length * 4);
+      return this.tune();
+    },
     geometry() {
       const g = view(w.rl_geometry_ptr(), w.rl_geometry_len());
       return {

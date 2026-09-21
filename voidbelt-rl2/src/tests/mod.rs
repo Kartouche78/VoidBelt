@@ -6,9 +6,14 @@ mod rules;
 use crate::arena;
 use crate::car::{Car, Input};
 use crate::game::{Game, Phase};
+use crate::tune::Tune;
 use crate::vec::v2;
 
 pub(super) const DT: f32 = 1.0 / 120.0;
+
+/// Reglages d'usine. Les tests mesurent le jeu tel qu'il sort de fabrique ;
+/// `/admin` peut ensuite s'en ecarter, c'est justement son role.
+pub(super) const T: Tune = Tune::FACTORY;
 
 pub(super) fn drive(t: f32, boost: bool) -> Input {
     Input { throttle: t, brake: 0.0, steer: 0.0, boost, drift: false }
@@ -18,7 +23,7 @@ pub(super) fn drive(t: f32, boost: bool) -> Input {
 /// seul le comportement longitudinal nous interesse ici, pas le trajet.
 pub(super) fn on_bench(c: &mut Car, steps: usize) {
     for _ in 0..steps {
-        c.step(DT);
+        c.step(DT, &T);
         c.pos = v2(arena::CX, arena::CY);
     }
 }
@@ -65,8 +70,8 @@ pub(super) fn hard_turn(steps: usize) -> (Car, Car) {
     grip.input = Input { throttle: 1.0, brake: 0.0, steer: 1.0, boost: false, drift: false };
     drift.input = Input { drift: true, ..grip.input };
     for _ in 0..steps {
-        grip.step(DT);
-        drift.step(DT);
+        grip.step(DT, &T);
+        drift.step(DT, &T);
     }
     (grip, drift)
 }
@@ -81,7 +86,7 @@ pub(super) fn along_wall(yaw: f32, steps: usize) -> (f32, f32) {
     c.yaw = yaw;
     c.vel = crate::vec::V2::dir(yaw).mul(free);
     for _ in 0..steps {
-        c.step(DT);
+        c.step(DT, &T);
         c.pos.x = arena::CX;
         assert!(c.pos.y <= arena::MAX_Y + 0.5, "elle traverse le muret");
     }

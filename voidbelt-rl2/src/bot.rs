@@ -8,14 +8,15 @@ use crate::arena;
 use crate::ball::Ball;
 use crate::boost::Field;
 use crate::car::{Car, Input, BOOST_MAX};
+use crate::tune::Tune;
 use crate::vec::{v2, wrap_angle, V2};
 
 /// Distance a laquelle le bot se place derriere la balle quand il arrive
 /// deja dans le bon axe : juste de quoi loger le capot et le ballon, pour
 /// que changer le gabarit des voitures ne le decale pas.
-const APPROACH: f32 = crate::car::HALF_LEN + crate::ball::RADIUS + 8.0;
+pub const APPROACH: f32 = crate::car::HALF_LEN + crate::ball::RADIUS + 8.0;
 /// Ecart lateral maximal pris pour contourner la balle par le cote.
-const SWING: f32 = 70.0;
+pub const SWING: f32 = 70.0;
 
 #[derive(Clone, Copy)]
 pub struct Skill {
@@ -74,7 +75,7 @@ impl Bot {
         (foe, own)
     }
 
-    pub fn think(&mut self, car: &Car, ball: &Ball, pads: &Field, dt: f32) -> Input {
+    pub fn think(&mut self, car: &Car, ball: &Ball, pads: &Field, dt: f32, t: &Tune) -> Input {
         let mut out = Input::default();
         if car.demo > 0.0 {
             return out;
@@ -91,7 +92,7 @@ impl Bot {
         // Ou sera la balle quand on l'atteindra, plutot qu'ou elle est.
         let reach = car.pos.sub(ball.pos).len();
         let lead = (s.lookahead + reach / 900.0).min(0.8);
-        let aim = ball.predict(lead).add(self.wobble);
+        let aim = ball.predict(lead, t).add(self.wobble);
 
         // La balle est-elle plus pres de notre but que nous ? Dans ce cas on
         // rentre se placer sur l'axe au lieu de la poursuivre.
@@ -120,8 +121,8 @@ impl Bot {
             let miss = (1.0 - align).clamp(0.0, 2.0);
             let side = axis.perp();
             let hand = side.dot(car.pos.sub(aim));
-            let swing = side.mul(if hand >= 0.0 { 1.0 } else { -1.0 } * SWING * miss * 0.5);
-            clamp_field(aim.sub(axis.mul(APPROACH * (1.0 + 1.6 * miss))).add(swing))
+            let swing = side.mul(if hand >= 0.0 { 1.0 } else { -1.0 } * t.bot_swing * miss * 0.5);
+            clamp_field(aim.sub(axis.mul(t.bot_approach() * (1.0 + 1.6 * miss))).add(swing))
         };
 
         let to = target.sub(car.pos);
