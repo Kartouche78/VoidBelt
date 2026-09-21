@@ -122,7 +122,7 @@ nav .count { color: var(--dim); font-weight: 400; }
 
 .field {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 120px 96px 28px;
+  grid-template-columns: minmax(0, 1fr) 110px 128px 28px;
   align-items: center;
   gap: 12px;
   padding: 11px 0;
@@ -160,7 +160,9 @@ input[type=number] {
 }
 input[type=number]:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
 
-.unit { font-size: 10px; color: var(--dim); }
+/* L'unite tient sur une ligne : « km/h par seconde » ferait grandir la
+   rangee et rendrait la colonne irreguliere. */
+.unit { font-size: 10px; color: var(--dim); white-space: nowrap; }
 
 .revert {
   border: none;

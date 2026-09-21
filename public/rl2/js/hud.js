@@ -6,7 +6,7 @@
 const $ = (id) => document.getElementById(id);
 
 /** Convertit une vitesse monde en km/h affichables, calee sur Rocket League. */
-const KMH = 300 / 620;
+import { KMH_PAR_UNITE as KMH } from './wasm.js';
 
 export class Hud {
   constructor(geom) {

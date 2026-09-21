@@ -22,11 +22,23 @@ const state = {
   query: '',
 };
 
-/** Arrondit a la precision du pas : sans cela un braquage s'affiche
- *  « 0,018181818181818184 » et un gain « 1,850000 ». */
-function show(x, step) {
-  const dec = Math.min(6, Math.max(0, Math.ceil(-Math.log10(step || 1))) + 1);
-  return String(Number(Number(x).toFixed(dec)));
+/** Valeur telle qu'on l'ecrit dans un champ : convertie dans l'unite
+ *  d'affichage et arrondie, sans quoi une vitesse s'afficherait au
+ *  millionieme de km/h. */
+function show(engineValue, d) {
+  const v = d.unite.vers(engineValue);
+  return String(Number(v.toFixed(d.unite.decimales)));
+}
+
+/** Meme chose, mais pour le texte lu par l'humain : on garde la virgule
+ *  francaise et on colle le suffixe. */
+function pretty(engineValue, d) {
+  const v = d.unite.vers(engineValue);
+  const txt = v.toLocaleString('fr-FR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: d.unite.decimales,
+  });
+  return d.unite.suffixe ? `${txt} ${d.unite.suffixe}` : txt;
 }
 
 /** Message court sous l'entete. `kind` vaut 'ok', 'bad' ou rien. */
@@ -60,8 +72,14 @@ function visible() {
   });
 }
 
+/** `value` est dans l'unite affichee ; le moteur, lui, ne connait que la
+ *  sienne. La conversion se fait ici, une seule fois, pour que tout le
+ *  reste de l'interface manipule des valeurs moteur. */
 function set(key, value, from) {
-  const x = Number(value);
+  const d = describe(key, state.factory[key]);
+  const shown = Number(value);
+  if (!Number.isFinite(shown)) return;
+  const x = d.unite.depuis(shown);
   if (!Number.isFinite(x)) return;
   state.values[key] = x;
   const row = document.querySelector(`[data-key="${key}"]`);
@@ -69,10 +87,21 @@ function set(key, value, from) {
     row.classList.toggle('changed', changed(key));
     // On ne reecrit pas le champ qu'on est en train de taper : le curseur
     // sauterait a la fin a chaque frappe.
-    const step = Number(row.querySelector('input[type=number]').step) || 1;
     for (const el of row.querySelectorAll('input')) {
-      if (el !== from) el.value = show(x, step);
+      if (el !== from) el.value = show(x, d);
     }
+  }
+  pushToPreview();
+}
+
+/** Remet un reglage a sa valeur d'usine, en unites moteur directement. */
+function revert(key) {
+  state.values[key] = state.factory[key];
+  const d = describe(key, state.factory[key]);
+  const row = document.querySelector(`[data-key="${key}"]`);
+  if (row) {
+    row.classList.remove('changed');
+    for (const el of row.querySelectorAll('input')) el.value = show(state.factory[key], d);
   }
   pushToPreview();
 }
@@ -105,7 +134,7 @@ function drawFields() {
   if (!keys.length) {
     const p = document.createElement('p');
     p.className = 'empty';
-    p.textContent = 'Aucun reglage ne correspond.';
+    p.textContent = 'Aucun réglage ne correspond.';
     box.append(p);
     return;
   }
@@ -135,36 +164,40 @@ function row(key) {
     name.append(help);
   }
 
-  // La plage decrite ne doit jamais empecher d'atteindre une valeur deja
-  // en place : on l'elargit plutot que de la faire mentir.
-  const v = state.values[key];
-  const min = Math.min(d.min, v);
-  const max = Math.max(d.max, v);
+  // Tout ce qui suit est en unite affichee. La plage decrite ne doit jamais
+  // empecher d'atteindre une valeur deja en place : on l'elargit plutot que
+  // de la faire mentir. Le rayon de virage s'inverse, donc les bornes aussi.
+  // Les bornes de la fiche sont deja dans l'unite affichee. On prend leur
+  // minimum et leur maximum car un rayon de virage inverse l'echelle : la
+  // borne « serree » y est le petit nombre.
+  const v = Number(show(state.values[key], d));
+  const min = Math.min(d.min, d.max, v);
+  const max = Math.max(d.min, d.max, v);
 
   const slider = document.createElement('input');
   slider.type = 'range';
   slider.min = String(min);
   slider.max = String(max);
   slider.step = String(d.step);
-  slider.value = show(v, d.step);
+  slider.value = String(v);
   slider.oninput = () => set(key, slider.value, slider);
 
   const box = document.createElement('input');
   box.type = 'number';
   box.step = String(d.step);
-  box.value = show(v, d.step);
+  box.value = String(v);
   box.oninput = () => set(key, box.value, box);
 
   const unit = document.createElement('span');
   unit.className = 'unit';
-  unit.textContent = d.unit;
+  unit.textContent = d.unite.suffixe;
 
   const back = document.createElement('button');
   back.type = 'button';
   back.className = 'revert';
-  back.title = `Revenir a ${show(state.factory[key], d.step)}`;
+  back.title = `Revenir à ${pretty(state.factory[key], d)}`;
   back.textContent = '↺';
-  back.onclick = () => set(key, state.factory[key]);
+  back.onclick = () => revert(key);
 
   const cell = document.createElement('div');
   cell.append(box, unit);
@@ -187,12 +220,12 @@ async function publish() {
       return;
     }
     say(
-      `${data.applied} reglages publies${data.saved ? ' et enregistres' : ''}. `
-      + 'Les salons a l’echauffement les prennent aussitot.',
+      `${data.applied} réglages publiés${data.saved ? ' et enregistrés' : ''}. `
+      + 'Les salons à l’échauffement les prennent aussitôt.',
       'ok',
     );
   } catch {
-    say('Serveur injoignable : exporte le fichier et depose-le sur le serveur.', 'bad');
+    say('Serveur injoignable : exporte le fichier et dépose-le sur le serveur.', 'bad');
   }
 }
 
@@ -203,7 +236,7 @@ function exportJson() {
   a.download = 'tune.json';
   a.click();
   URL.revokeObjectURL(a.href);
-  say('Fichier tune.json telecharge. A deposer dans public/rl2/assets/.', 'ok');
+  say('Fichier tune.json téléchargé. À déposer dans public/rl2/assets/.', 'ok');
 }
 
 function importJson(file) {
@@ -221,7 +254,7 @@ function importJson(file) {
       }
       drawFields();
       pushToPreview();
-      say(`${n} reglages repris du fichier.`, 'ok');
+      say(`${n} réglages repris du fichier.`, 'ok');
     } catch {
       say('Fichier illisible.', 'bad');
     }
@@ -233,7 +266,7 @@ function resetAll() {
   state.values = { ...state.factory };
   drawFields();
   pushToPreview();
-  say('Tous les reglages sont revenus aux valeurs d’usine. Publie pour les appliquer.', 'ok');
+  say('Tous les réglages sont revenus aux valeurs d’usine. Publie pour les appliquer.', 'ok');
 }
 
 // -------------------------------------------------------------- vie -----
@@ -259,12 +292,12 @@ async function boot() {
           n += 1;
         }
       }
-      say(`${state.keys.length} reglages. ${n} valeurs relues du serveur.`);
+      say(`${state.keys.length} réglages. ${n} valeurs relues du serveur.`);
     } else {
-      say(`${state.keys.length} reglages, valeurs d’usine (le serveur a refuse).`);
+      say(`${state.keys.length} réglages, valeurs d’usine (le serveur a refusé).`);
     }
   } catch {
-    say(`${state.keys.length} reglages, valeurs d’usine (pas de serveur).`);
+    say(`${state.keys.length} réglages, valeurs d’usine (pas de serveur).`);
   }
 
   drawTabs();

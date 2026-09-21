@@ -52,6 +52,14 @@ export const EV = {
   SAVE: 10, OVERTIME: 11,
 };
 
+/** Echelle du monde. Le compteur affiche 300 km/h a 620 unites par seconde :
+ *  c'est cette equivalence, et elle seule, qui donne un sens physique aux
+ *  unites du moteur. Le tableau de bord et l'interface de reglage la
+ *  partagent, pour ne jamais annoncer deux vitesses differentes. */
+export const KMH_PAR_UNITE = 300 / 620;
+/** Un metre vaut donc 300 km/h = 83,33 m/s rapportes a 620 unites. */
+export const METRES_PAR_UNITE = 300 / 3.6 / 620;
+
 export const PHASE = { COUNTDOWN: 0, PLAY: 1, GOAL: 2, OVER: 3, WARMUP: 4 };
 
 export async function loadEngine(url) {
