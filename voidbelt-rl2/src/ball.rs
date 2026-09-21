@@ -6,7 +6,10 @@ use crate::vec::{v2, V2};
 
 pub const RADIUS: f32 = 14.0;
 pub const MASS: f32 = 30.0;
-pub const MAX_SPEED: f32 = 1200.0;
+/// Rocket League plafonne la balle a 6000 uu/s pour une voiture a 2300 :
+/// la balle va donc 2,6 fois plus vite que la voiture. A notre echelle,
+/// cela fait 1617 et non 1200, qui bridait les tirs.
+pub const MAX_SPEED: f32 = 1617.0;
 /// Frottement de roulement, en amortissement exponentiel par seconde.
 pub const DRAG: f32 = 0.42;
 pub const WALL_REST: f32 = 0.6;

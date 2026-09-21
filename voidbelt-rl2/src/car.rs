@@ -44,6 +44,11 @@ pub const GRIP_DRIFT: f32 = 6.0;
 /// Vitesse a laquelle le nez se realigne sur un muret longe, en rad/s.
 pub const WALL_ALIGN: f32 = 6.0;
 
+/// Part de la vitesse avant que la marche arriere peut atteindre. Rocket
+/// League ne bride pas la marche arriere : elle plafonne au meme 1410 uu/s
+/// que la marche avant, d'ou 1.
+pub const REVERSE_RATIO: f32 = 1.0;
+
 pub const DEMO_TIME: f32 = 3.0;
 /// 230 km/h sur le compteur : au-dela, un contact demolit l'adversaire ;
 /// en dessous il ne fait que le bousculer, et un coequipier jamais. Le
@@ -148,6 +153,13 @@ impl Car {
 
     /// Acceleration disponible a cette vitesse : pleine a l'arret, elle
     /// s'effondre en approchant du plafond sans boost.
+    /// Ouvre la courbe d'acceleration aux tests, sans l'exposer au reste
+    /// du moteur : c'est un detail interne de `step`.
+    #[cfg(test)]
+    pub fn essai_acceleration(v: f32, t: &Tune) -> f32 {
+        Self::throttle_accel(v, t)
+    }
+
     fn throttle_accel(v: f32, t: &Tune) -> f32 {
         let n = (v / t.drive_max.max(1.0)).clamp(0.0, 1.0);
         if n >= 1.0 {
@@ -225,7 +237,7 @@ impl Car {
         } else if vf > t.drive_max {
             vf = (vf - t.coast_a * dt).max(t.drive_max);
         }
-        vf = vf.max(-t.drive_max * 0.45);
+        vf = vf.max(-t.drive_max * t.reverse_ratio);
 
         let grip = if self.drifting { t.grip_drift } else { t.grip };
         vt *= (-grip * dt).exp();

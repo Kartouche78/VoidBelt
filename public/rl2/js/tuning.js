@@ -117,6 +117,8 @@ export const META = {
     'Un plein dure le réservoir divisé par cette valeur.'],
   kickoff_boost: ['boost', 'Boost à l’engagement', 'jauge', 0, 300, 1,
     'Réserve donnée au coup d’envoi et après une démolition.'],
+  reverse_ratio: ['conduite', 'Marche arrière', 'pourcent', 10, 100, 5,
+    'Part de la vitesse avant qu’on peut atteindre en reculant. Rocket League ne la bride pas : 100 %.'],
 
   // ------------------------------------------------------------ contacts --
   demo_speed: ['contact', 'Seuil de démolition', 'kmh', 50, 600, 1,

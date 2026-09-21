@@ -91,6 +91,7 @@ reglages! {
     boost_max = car::BOOST_MAX,
     boost_use = car::BOOST_USE,
     kickoff_boost = car::KICKOFF_BOOST,
+    reverse_ratio = car::REVERSE_RATIO,
 
     // --------------------------------------------------------- demolition --
     demo_speed = car::DEMO_SPEED,
@@ -214,5 +215,83 @@ mod tests {
         t.read(&[999.0]);
         assert_eq!(t.drive_max, 999.0);
         assert_eq!(t.celebrate, attendu, "la troncature a efface la suite");
+    }
+}
+
+#[cfg(test)]
+mod rocket_league {
+    use super::*;
+
+    /// Une unite de notre terrain, en unites Unreal de Rocket League. Elle
+    /// se deduit de la seule correspondance qu'on s'impose : notre vitesse
+    /// maximale est la leur.
+    fn uu_par_unite() -> f32 {
+        2300.0 / Tune::FACTORY.speed_max
+    }
+
+    fn comme_rl(rl_uu: f32, chez_nous: f32) -> bool {
+        let attendu = rl_uu / uu_par_unite();
+        (chez_nous - attendu).abs() / attendu < 0.02
+    }
+
+    #[test]
+    fn les_vitesses_gardent_les_proportions_du_vrai_jeu() {
+        let t = Tune::FACTORY;
+        assert!(comme_rl(1410.0, t.drive_max), "vitesse au moteur seul");
+        assert!(comme_rl(2200.0, t.supersonic), "seuil supersonique");
+        assert!(comme_rl(2300.0, t.speed_max), "vitesse maximale");
+        assert!(comme_rl(6000.0, t.ball_max_speed), "plafond de la balle");
+        // La marche arriere n'est pas bridee dans Rocket League.
+        assert!(
+            comme_rl(1410.0, t.drive_max * t.reverse_ratio),
+            "marche arriere",
+        );
+    }
+
+    #[test]
+    fn les_accelerations_gardent_les_proportions_du_vrai_jeu() {
+        let t = Tune::FACTORY;
+        assert!(comme_rl(991.7, t.boost_a), "poussee du boost");
+        assert!(comme_rl(3500.0, t.brake_a), "freinage");
+        assert!(comme_rl(525.0, t.coast_a), "roue libre");
+        // Sommet de la courbe d'acceleration, voiture a l'arret.
+        assert!(comme_rl(1600.0, t.throttle_a), "acceleration a l'arret");
+    }
+
+    #[test]
+    fn les_valeurs_sans_echelle_sont_celles_du_vrai_jeu() {
+        // Boost, plots et reapparition ne dependent d'aucune echelle : ils
+        // doivent valoir exactement les chiffres de Rocket League.
+        let t = Tune::FACTORY;
+        assert_eq!(t.boost_use, 33.3, "consommation du boost");
+        assert_eq!(t.boost_max, 100.0, "reservoir");
+        assert_eq!(t.pad_small_amount, 12.0, "petit plot");
+        assert_eq!(t.pad_small_delay, 4.0, "recharge du petit plot");
+        assert_eq!(t.pad_big_amount, 100.0, "gros plot");
+        assert_eq!(t.pad_big_delay, 10.0, "recharge du gros plot");
+        assert_eq!(t.demo_time, 3.0, "reapparition apres demolition");
+    }
+
+    #[test]
+    fn un_plein_de_boost_dure_bien_trois_secondes() {
+        let t = Tune::FACTORY;
+        let duree = t.boost_max / t.boost_use;
+        assert!((duree - 3.0).abs() < 0.01, "un plein dure {duree} s");
+    }
+
+    #[test]
+    fn la_courbe_d_acceleration_s_effondre_comme_dans_le_vrai_jeu() {
+        // Rocket League : 1600 uu/s2 a l'arret, 160 juste avant le plafond,
+        // soit un dixieme. La notre doit suivre la meme pente.
+        let t = Tune::FACTORY;
+        let a0 = crate::car::Car::essai_acceleration(0.0, &t);
+        let a_haut = crate::car::Car::essai_acceleration(t.drive_max * 0.993, &t);
+        assert!((a0 - t.throttle_a).abs() < 1.0, "sommet de la courbe");
+        let part = a_haut / a0;
+        assert!(
+            (part - 0.10).abs() < 0.03,
+            "pres du plafond il reste {:.0} % de la poussee, contre 10 % attendus",
+            part * 100.0,
+        );
     }
 }
