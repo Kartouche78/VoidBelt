@@ -67,9 +67,13 @@ pub extern "C" fn dealloc(ptr: *mut u8, len: u32) {
 /// `level` : 0 debutant, 1 confirme, 2 impitoyable. `duration` en secondes.
 #[no_mangle]
 pub extern "C" fn rl_new(seed: u32, level: u32, duration: f32) {
+    // Le navigateur ne simule que le solo, donc toujours deux voitures : en
+    // ligne c'est le serveur qui fait tourner le moteur et diffuse l'etat.
+    let game = Game::new(seed, level, duration);
+    let game_cars = game.cars.len();
     let c = Ctx {
-        game: Game::new(seed, level, duration),
-        state: vec![0.0; state::STATE_LEN],
+        game,
+        state: vec![0.0; state::state_len(game_cars)],
         events: Vec::with_capacity(64),
         table: state::pad_table(),
         geom: state::geometry(),
@@ -127,7 +131,7 @@ pub extern "C" fn rl_state_ptr() -> *const f32 {
 
 #[no_mangle]
 pub extern "C" fn rl_state_len() -> u32 {
-    state::STATE_LEN as u32
+    state::state_len(ctx().game.cars.len()) as u32
 }
 
 #[no_mangle]

@@ -72,7 +72,8 @@ export class Hud {
     this.el.kickoff.textContent = lobby.host
       ? (solo ? 'En attente d’un adversaire' : 'Lancer la partie')
       : 'En attente de l’hôte';
-    this.el.lobbyInfo.textContent = `SALON ${lobby.code} · ${lobby.players}/${lobby.seats} · ECHAUFFEMENT`;
+    const n = lobby.players;
+    this.el.lobbyInfo.textContent = `SALON ${lobby.code} · ${n} JOUEUR${n > 1 ? 'S' : ''} · ECHAUFFEMENT`;
   }
 
   _message(state, phase, player) {

@@ -19,10 +19,26 @@ export const STATE = {
   BALL_VY: 9,
   BALL_ROLL: 10,
   LAST_TOUCH: 11,
-  CAR_BASE: 12,
+  /// Effectif de la partie : il change quand quelqu'un rejoint un salon,
+  /// et c'est lui qui dit ou commencent les plots.
+  CAR_COUNT: 12,
+  CAR_BASE: 13,
   CAR_STRIDE: 10,
-  PAD_BASE: 32,
 };
+
+/** Debut des plots, derriere les voitures. */
+export function padBase(cars) {
+  return STATE.CAR_BASE + cars * STATE.CAR_STRIDE;
+}
+
+export function stateLen(cars, padCount) {
+  return padBase(cars) + padCount;
+}
+
+/** Effectif annonce par une image d'etat. */
+export function carsIn(state) {
+  return Math.max(1, state[STATE.CAR_COUNT] | 0);
+}
 
 /** Decalages dans un bloc voiture. */
 export const CAR = {

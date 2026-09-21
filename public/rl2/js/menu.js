@@ -212,24 +212,29 @@ export class Menu {
     this.status('');
     // Les salons ou l'on peut entrer passent devant : c'est ce qu'on vient
     // chercher, les parties pleines ne sont la que pour information.
-    rooms.sort((a, b) => (a.players.length >= a.seats) - (b.players.length >= b.seats));
+    // Plus de salon complet : aucun effectif n'est plafonne. Les parties
+    // en cours passent derriere celles qui attendent encore au salon.
+    rooms.sort((a, b) => (a.phase !== 'warmup') - (b.phase !== 'warmup'));
     for (const r of rooms) box.append(this._roomRow(r));
   }
 
   _roomRow(room) {
     const el = document.createElement('div');
-    const full = room.players.length >= room.seats;
-    el.className = full ? 'salon full' : 'salon';
+    const started = room.phase !== 'warmup';
+    el.className = started ? 'salon full' : 'salon';
     const left = document.createElement('div');
     const code = document.createElement('b');
     code.textContent = room.code;
     const who = document.createElement('small');
     const names = room.players.map((p) => p.name).join(', ') || 'vide';
-    who.textContent = `${room.players.length}/${room.seats} · ${names} · ${PHASE_FR[room.phase] || room.phase}`;
+    const n = room.players.length;
+    who.textContent = `${n} joueur${n > 1 ? 's' : ''} · ${names} · ${PHASE_FR[room.phase] || room.phase}`;
     left.append(code, who);
     const go = document.createElement('button');
-    go.textContent = full ? 'Complet' : 'Rejoindre';
-    go.disabled = full;
+    // On rejoint meme une partie lancee : on attend au bord jusqu'au
+    // prochain retour au salon.
+    go.textContent = started ? 'En cours' : 'Rejoindre';
+    go.disabled = false;
     go.onclick = () => this.hooks.join(room.code);
     el.append(left, go);
     return el;

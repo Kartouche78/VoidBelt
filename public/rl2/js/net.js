@@ -5,6 +5,8 @@
 // exact du moteur local, pour que la boucle de jeu n'ait rien a savoir du
 // reseau : elle change juste de fournisseur.
 
+import { STATE, carsIn, stateLen } from './wasm.js';
+
 /** Le jeu parle au serveur qui le sert. Seule exception : le site statique
  *  de Cloudflare n'heberge aucune API, ses salons sont sur `api.voidbelt.com`.
  *  Tout le reste — poste local, adresse du reseau, tunnel de demonstration —
@@ -20,14 +22,18 @@ const WS = `${SECURE ? 'wss' : 'ws'}://${HOST}`;
 const DELAY = 0.07;
 
 /** Champs a interpoler : tout ce qui bouge en continu. Le reste (phase,
- *  score, chronos, plots) se prend tel quel dans la derniere image. */
-function smoothFields(stateLen, carBase, carStride, cars) {
+ *  score, chronos, plots) se prend tel quel dans la derniere image.
+ *  L'effectif change quand quelqu'un rejoint le salon : la table est donc
+ *  refaite a chaque changement plutot que calculee une fois pour toutes. */
+function smoothFields(cars) {
   const idx = [6, 7, 8, 9, 10];
+  const angles = [];
   for (let c = 0; c < cars; c += 1) {
-    const b = carBase + c * carStride;
+    const b = STATE.CAR_BASE + c * STATE.CAR_STRIDE;
     idx.push(b, b + 1, b + 3, b + 4);
+    angles.push(b + 2);
   }
-  return { idx, angles: [...Array(cars).keys()].map((c) => carBase + c * carStride + 2), stateLen };
+  return { idx, angles };
 }
 
 export async function listRooms() {
@@ -46,8 +52,9 @@ function lerpAngle(a, b, k) {
 
 export class Net {
   /** `layout` vient de `wasm.js` : le meme decoupage des deux cotes. */
-  constructor(layout) {
-    this.layout = layout;
+  constructor(padCount) {
+    this.padCount = padCount;
+    this.cars = 2;
     this.sock = null;
     this.you = 0;
     this.slot = 0;
@@ -122,6 +129,17 @@ export class Net {
     if (this.connected) this.sock.send(JSON.stringify({ t: 'start' }));
   }
 
+  /** Change de camp. Aucun equilibre n'est impose : on peut tous jouer
+   *  du meme cote si on veut. */
+  setTeam(team) {
+    if (this.connected) this.sock.send(JSON.stringify({ t: 'team', team: team & 1 }));
+  }
+
+  /** Camp actuel du joueur, d'apres la derniere composition recue. */
+  get team() {
+    return this.room?.players?.find((p) => p.id === this.you)?.team ?? 0;
+  }
+
   send(c) {
     if (!this.connected) return;
     this.cmd[0] = c.throttle;
@@ -133,8 +151,19 @@ export class Net {
 
   _frame(buffer) {
     const all = new Float32Array(buffer);
-    const len = this.layout.stateLen;
+    // L'image dit elle-meme combien de voitures elle porte : c'est ce qui
+    // permet a un salon de grandir sans que le client perde le fil.
+    if (all.length <= STATE.CAR_BASE) return;
+    const cars = carsIn(all);
+    const len = stateLen(cars, this.padCount);
     if (all.length < len) return;
+    if (cars !== this.cars) {
+      this.cars = cars;
+      this._fields = null;
+      this.prev = null;
+      this.curr = null;
+      this.out = null;
+    }
     const data = all.slice(0, len);
     // Les evenements s'empilent jusqu'a la prochaine image affichee : a
     // 60 Hz des deux cotes il en arrive parfois deux entre deux rendus, et
@@ -165,10 +194,7 @@ export class Net {
   }
 
   fields() {
-    if (!this._fields) {
-      const l = this.layout;
-      this._fields = smoothFields(l.stateLen, l.carBase, l.carStride, l.cars);
-    }
+    if (!this._fields) this._fields = smoothFields(this.cars);
     return this._fields;
   }
 

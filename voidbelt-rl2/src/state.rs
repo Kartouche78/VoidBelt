@@ -10,9 +10,22 @@ use crate::pads::PADS;
 
 /// Nombre de champs par voiture dans le tampon d'etat.
 pub const CAR_STRIDE: usize = 10;
-pub const CAR_BASE: usize = 12;
-pub const PAD_BASE: usize = CAR_BASE + crate::game::CARS * CAR_STRIDE;
-pub const STATE_LEN: usize = PAD_BASE + boost::COUNT;
+/// Effectif de la partie, en tete de l'etat : il change des qu'un joueur
+/// rejoint un salon, et c'est lui qui dit ou commencent les plots. Le mettre
+/// ici rend chaque image auto-descriptive, sans que l'hote ait a deviner.
+pub const CAR_COUNT: usize = 12;
+pub const CAR_BASE: usize = 13;
+
+/// Les plots sont ranges derriere les voitures : leur depart depend donc de
+/// l'effectif, qu'un salon en ligne fixe librement. L'hote lit ce depart
+/// dans l'entete de l'etat plutot que de le supposer.
+pub fn pad_base(cars: usize) -> usize {
+    CAR_BASE + cars * CAR_STRIDE
+}
+
+pub fn state_len(cars: usize) -> usize {
+    pad_base(cars) + boost::COUNT
+}
 
 pub fn write_state(g: &Game, out: &mut [f32]) {
     out[0] = match g.phase {
@@ -33,6 +46,7 @@ pub fn write_state(g: &Game, out: &mut [f32]) {
     out[9] = g.ball.vel.y;
     out[10] = g.ball.roll;
     out[11] = g.ball.last_touch as f32;
+    out[CAR_COUNT] = g.cars.len() as f32;
 
     for (i, c) in g.cars.iter().enumerate() {
         let b = CAR_BASE + i * CAR_STRIDE;
@@ -48,8 +62,9 @@ pub fn write_state(g: &Game, out: &mut [f32]) {
         out[b + 9] = c.slip();
     }
 
+    let base = pad_base(g.cars.len());
     for (i, cd) in g.pads.cooldown.iter().enumerate() {
-        out[PAD_BASE + i] = *cd;
+        out[base + i] = *cd;
     }
 }
 

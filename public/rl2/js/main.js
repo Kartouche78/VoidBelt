@@ -37,12 +37,23 @@ async function boot() {
     last: performance.now(),
   };
 
-  const net = new Net({
-    stateLen: STATE.PAD_BASE + geom.padCount,
-    carBase: STATE.CAR_BASE,
-    carStride: STATE.CAR_STRIDE,
-    cars: 2,
-  });
+  const net = new Net(geom.padCount);
+
+  /** Composition a afficher : un `{ name, team }` par siege. En ligne elle
+   *  vient du salon, en solo c'est le joueur contre la machine. Un siege
+   *  libere en plein match garde sa voiture mais perd son pseudo. */
+  function roster() {
+    if (app.mode !== 'online' || !net.room) {
+      return [
+        { name: settings.name || 'Vous', team: 0 },
+        { name: 'Bot', team: 1 },
+      ];
+    }
+    const seats = Math.max(net.cars, ...net.room.players.map((p) => p.slot + 1), 1);
+    const out = Array.from({ length: seats }, (_, i) => ({ name: '', team: i % 2 }));
+    for (const p of net.room.players) out[p.slot] = { name: p.name, team: p.team & 1 };
+    return out;
+  }
 
   const menu = new Menu(settings, input, {
     play: () => startMatch(),
@@ -71,6 +82,8 @@ async function boot() {
   });
 
   net.onRoom = () => {
+    view.setRoster(roster());
+    showTeams(net.room, net.you);
     if (menu.screen === 'online') menu.refreshRooms();
   };
   net.onClose = () => {
@@ -114,6 +127,22 @@ async function boot() {
   const kickoff = document.getElementById('btn-kickoff');
   kickoff.onclick = () => net.start();
 
+  const teamBtn = [document.getElementById('btn-team-0'), document.getElementById('btn-team-1')];
+  const teamSplit = document.getElementById('team-split');
+  teamBtn.forEach((b, t) => {
+    b.onclick = () => net.setTeam(t);
+  });
+
+  /** Reflete la composition du salon sur le selecteur de camp. */
+  function showTeams(room, you) {
+    if (!room) return;
+    const mine = room.players.find((p) => p.id === you)?.team ?? 0;
+    const n = [0, 0];
+    for (const p of room.players) n[p.team & 1] += 1;
+    teamSplit.textContent = `${n[0]} v ${n[1]}`;
+    teamBtn.forEach((b, t) => b.classList.toggle('mine', t === mine));
+  }
+
   /** Menu ouvert : la manette le parcourt. Sinon, dans le salon en ligne,
    *  le bouton de validation lance la partie sans passer par la souris. */
   function padMenu() {
@@ -133,6 +162,7 @@ async function boot() {
 
   function startMatch() {
     app.mode = 'solo';
+    view.setRoster(roster());
     audio.unlock();
     audio.applyLevels(settings.audio);
     audio.stopAll();
@@ -177,7 +207,7 @@ async function boot() {
     return {
       code: net.room.code,
       players: net.room.players.length,
-      seats: net.room.seats,
+      seats: net.room.players.length,
       host: net.isHost,
     };
   }

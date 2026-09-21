@@ -68,6 +68,9 @@ pub struct Car {
     pub yaw: f32,
     pub boost: f32,
     pub team: u8,
+    /// Rang dans son camp : sert a etaler engagements et reapparitions
+    /// quand une equipe compte plus d'une voiture.
+    pub rank: usize,
     pub input: Input,
     pub drifting: bool,
     pub demo: f32,
@@ -77,13 +80,19 @@ pub struct Car {
 
 impl Car {
     pub fn new(team: u8) -> Car {
-        let (pos, yaw) = arena::kickoff(team);
+        Car::nth(team, 0, 1)
+    }
+
+    /// `rank`-ieme voiture d'un camp qui en compte `count`.
+    pub fn nth(team: u8, rank: usize, count: usize) -> Car {
+        let (pos, yaw) = arena::kickoff_nth(team, rank, count);
         Car {
             pos,
             vel: V2::ZERO,
             yaw,
             boost: KICKOFF_BOOST,
             team,
+            rank,
             input: Input::default(),
             drifting: false,
             demo: 0.0,
@@ -162,7 +171,7 @@ impl Car {
         if self.demo > 0.0 {
             self.demo -= dt;
             if self.demo <= 0.0 {
-                let (p, a) = arena::respawn(self.team);
+                let (p, a) = arena::respawn(self.team, self.rank);
                 self.reset(p, a, KICKOFF_BOOST);
             }
             return;

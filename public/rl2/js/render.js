@@ -6,11 +6,10 @@
 // de reference a ete composee.
 
 import * as THREE from '../vendor/three.module.js';
-import { STATE } from './wasm.js';
+import { STATE, carsIn, padBase } from './wasm.js';
 import { Effects } from './effects.js';
 import { makeFlames } from './flame.js';
-
-const PAD_BASE = STATE.PAD_BASE;
+import { Names } from './names.js';
 
 // Les planches se superposent a l'echelle 1:1 : `terrain.png` et
 // `stade.png` sont toutes deux dessinees dans le meme repere 1672 x 941,
@@ -19,7 +18,7 @@ const PAD_BASE = STATE.PAD_BASE;
 export const TEAM = [0x2f7ce0, 0xf07a25];
 /** Carrosseries, dans l'ordre des equipes. `car_white.png` reste en reserve. */
 const CAR_ART = ['assets/car_bleue.png', 'assets/car_orange.png'];
-const Z = { TERRAIN: 0, PAD: 1, STADE: 2, SKID: 3, CAR: 4, BALL: 6, BLAST: 8 };
+const Z = { TERRAIN: 0, PAD: 1, STADE: 2, SKID: 3, CAR: 4, BALL: 6, NAME: 7, BLAST: 8 };
 
 function plane(w, h, material) {
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
@@ -172,23 +171,51 @@ export class Renderer {
     this.ball.position.z = Z.BALL;
     this.scene.add(this.ball);
 
-    this.cars = [0, 1].map((team) => {
-      const g = new THREE.Group();
-      const sh = plane(carLen * 1.5, carWid * 2.2, flat(shadow, { opacity: 0.75 }));
-      sh.position.set(-2, -3, -1);
-      // Les planches sont dessinees nez vers le haut alors que le monde met
-      // le cap sur +x : le chassis porte donc un quart de tour a lui seul,
-      // par-dessus la rotation du groupe.
-      const body = plane(carWid, carLen, flat(this.load(CAR_ART[team])));
-      body.rotation.z = -Math.PI / 2;
-      g.add(sh, body);
-      // Les reacteurs se montent apres le chassis : ils s'accrochent aux
-      // pots releves sur la planche, pas a un point choisi a la main.
-      g.userData = { body, flames: makeFlames(g, this.geom, this.load) };
-      g.position.z = Z.CAR;
-      this.scene.add(g);
-      return g;
-    });
+    // Les voitures naissent a la demande : un salon en ligne n'a pas de
+    // plafond, et son effectif change quand quelqu'un arrive ou s'en va.
+    this.carShadow = shadow;
+    this.cars = [];
+    this.roster = [];
+    this.names = new Names(this.scene, Z.NAME, TEAM.map((c) => `#${c.toString(16).padStart(6, '0')}`));
+  }
+
+  /** Cree une voiture de plus, dans la livree de son camp. */
+  _addCar(team) {
+    const { carLen, carWid } = this.geom;
+    const g = new THREE.Group();
+    const sh = plane(carLen * 1.5, carWid * 2.2, flat(this.carShadow, { opacity: 0.75 }));
+    sh.position.set(-2, -3, -1);
+    // Les planches sont dessinees nez vers le haut alors que le monde met
+    // le cap sur +x : le chassis porte donc un quart de tour a lui seul,
+    // par-dessus la rotation du groupe.
+    const body = plane(carWid, carLen, flat(this.load(CAR_ART[team & 1])));
+    body.rotation.z = -Math.PI / 2;
+    g.add(sh, body);
+    // Les reacteurs se montent apres le chassis : ils s'accrochent aux
+    // pots releves sur la planche, pas a un point choisi a la main.
+    g.userData = { body, team: team & 1, flames: makeFlames(g, this.geom, this.load) };
+    g.position.z = Z.CAR;
+    this.scene.add(g);
+    this.cars.push(g);
+    return g;
+  }
+
+  /** Composition du salon : un `{ name, team }` par siege. Refait les
+   *  carrosseries dont le camp a change et les etiquettes. */
+  setRoster(list) {
+    this.roster = list;
+    for (let i = 0; i < list.length; i += 1) {
+      const team = list[i].team & 1;
+      const g = this.cars[i];
+      if (!g) {
+        this._addCar(team);
+      } else if (g.userData.team !== team) {
+        g.userData.team = team;
+        g.userData.body.material.map = this.load(CAR_ART[team]);
+        g.userData.body.material.needsUpdate = true;
+      }
+    }
+    this.names.set(list);
   }
 
   /** Gomme laissee par une voiture en travers, aux quatre roues. */
@@ -266,18 +293,31 @@ export class Renderer {
     this.ball.position.set(state[6], -state[7], Z.BALL);
     this.ballDisc.rotation.z = -state[10] * 0.25;
 
+    // L'effectif est annonce par l'image elle-meme : il grandit quand
+    // quelqu'un rejoint le salon.
+    const count = carsIn(state);
+    while (this.cars.length < count) {
+      this._addCar(this.roster[this.cars.length]?.team ?? this.cars.length % 2);
+    }
     for (let i = 0; i < this.cars.length; i += 1) {
-      const c = readCar(state, i);
       const g = this.cars[i];
-      g.visible = c.demo <= 0;
+      if (i >= count) {
+        g.visible = false;
+        this.names.place(i, 0, 0, false);
+        continue;
+      }
+      const c = readCar(state, i);
+      const alive = c.demo <= 0;
+      g.visible = alive;
       g.position.set(c.x, -c.y, Z.CAR);
       g.rotation.z = -c.yaw;
       g.userData.flames(c, dt, now);
+      this.names.place(i, c.x, -c.y, alive);
       this._skid(c, i, dt);
     }
 
     for (const p of this.pads) {
-      const ready = state[PAD_BASE + p.slot] <= 0;
+      const ready = state[padBase(count) + p.slot] <= 0;
       // L'orbe repousse au lieu d'apparaitre d'un coup a la reapparition.
       p.grow = ready ? Math.min(1, p.grow + dt * 4.5) : 0;
       p.orb.visible = ready;

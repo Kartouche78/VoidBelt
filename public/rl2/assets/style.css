@@ -104,6 +104,39 @@ html, body {
   font-weight: 400;
   cursor: default;
 }
+/* Choix du camp : on bascule d'un cote ou de l'autre, sans limite de
+   nombre. Le compte au milieu dit ou vont les autres. */
+#teams {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#teams .team {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: 2px solid transparent;
+  background: #0b1018cc;
+  color: var(--dim);
+  cursor: pointer;
+  transition: color .12s, border-color .12s, background .12s;
+}
+#teams .team.blue:hover, #teams .team.blue.mine { color: #fff; border-color: var(--blue); background: #2f7ce055; }
+#teams .team.orange:hover, #teams .team.orange.mine { color: #fff; border-color: var(--orange); background: #f07a2555; }
+#teams .team:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+#team-split {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .14em;
+  color: var(--dim);
+  min-width: 56px;
+}
+
 #lobby-info {
   margin: 8px 0 0;
   font-size: 10px;
@@ -394,6 +427,39 @@ button.primary:hover, button.primary:focus-visible { background: #ff8c39; }
   font-weight: 400;
   cursor: default;
 }
+/* Choix du camp : on bascule d'un cote ou de l'autre, sans limite de
+   nombre. Le compte au milieu dit ou vont les autres. */
+#teams {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#teams .team {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  padding: 7px 14px;
+  border-radius: 7px;
+  border: 2px solid transparent;
+  background: #0b1018cc;
+  color: var(--dim);
+  cursor: pointer;
+  transition: color .12s, border-color .12s, background .12s;
+}
+#teams .team.blue:hover, #teams .team.blue.mine { color: #fff; border-color: var(--blue); background: #2f7ce055; }
+#teams .team.orange:hover, #teams .team.orange.mine { color: #fff; border-color: var(--orange); background: #f07a2555; }
+#teams .team:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+#team-split {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .14em;
+  color: var(--dim);
+  min-width: 56px;
+}
+
 #lobby-info {
   margin: 8px 0 0;
   font-size: 10px;

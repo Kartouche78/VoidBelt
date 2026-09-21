@@ -17,6 +17,9 @@ use axum::{
     },
     response::Response,
 };
+mod room;
+
+use room::{IDLE_CARS, Room, Seat};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -27,154 +30,13 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
-use voidbelt_rl2::{
-    car::Input,
-    game::{CARS, Game, Phase},
-    state,
-};
+use tokio::sync::mpsc::unbounded_channel;
+use voidbelt_rl2::{car::Input, state};
 
-/// Un match RL2 se joue a deux, comme le moteur.
-pub const SEATS: usize = CARS;
 const TICK: Duration = Duration::from_millis(16);
-const MATCH_SECONDS: f32 = 300.0;
-/// Delai avant de renvoyer tout le monde au salon, match termine.
-const REMATCH_AFTER: f32 = 8.0;
 /// Au-dela, un salon vide est oublie.
 const EMPTY_GRACE: f32 = 20.0;
-/// Sans nouvelle commande pendant ce delai, on relache les gaz du joueur.
-/// Un onglet passe en arriere-plan cesse d'emettre : sans ca sa voiture
-/// continuerait tout droit sur sa derniere consigne.
-const INPUT_GRACE: f32 = 0.6;
 
-struct Seat {
-    id: u32,
-    name: String,
-    /// Temps ecoule depuis la derniere commande recue.
-    idle: f32,
-    tx: UnboundedSender<Message>,
-}
-
-struct Room {
-    code: String,
-    game: Game,
-    seats: [Option<Seat>; SEATS],
-    host: u32,
-    over_for: f32,
-    empty_for: f32,
-    /// Tampons reutilises : a 60 Hz, mieux vaut ne rien allouer par image.
-    floats: Vec<f32>,
-    events: Vec<f32>,
-    bytes: Vec<u8>,
-}
-
-impl Room {
-    fn new(code: String, seed: u32) -> Room {
-        Room {
-            code,
-            game: Game::warmup(seed, MATCH_SECONDS),
-            seats: [const { None }; SEATS],
-            host: 0,
-            over_for: 0.0,
-            empty_for: 0.0,
-            floats: vec![0.0; state::STATE_LEN],
-            events: Vec::with_capacity(64),
-            bytes: Vec::with_capacity(state::STATE_LEN * 8),
-        }
-    }
-
-    fn taken(&self) -> usize {
-        self.seats.iter().filter(|s| s.is_some()).count()
-    }
-
-    fn free_seat(&self) -> Option<usize> {
-        self.seats.iter().position(|s| s.is_none())
-    }
-
-    fn step(&mut self, dt: f32) {
-        if self.taken() == 0 {
-            self.empty_for += dt;
-            return;
-        }
-        self.empty_for = 0.0;
-        for (slot, seat) in self.seats.iter_mut().enumerate() {
-            let Some(seat) = seat else { continue };
-            seat.idle += dt;
-            if seat.idle > INPUT_GRACE {
-                self.game.set_input(slot, Input::default());
-            }
-        }
-        self.game.step(dt);
-
-        // Match fini : on laisse le tableau s'afficher, puis retour au salon
-        // pour enchainer sans avoir a recreer la partie.
-        if self.game.phase == Phase::Over {
-            self.over_for += dt;
-            if self.over_for >= REMATCH_AFTER {
-                self.over_for = 0.0;
-                self.game.back_to_warmup();
-                self.announce();
-            }
-        } else {
-            self.over_for = 0.0;
-        }
-
-        self.broadcast_state();
-    }
-
-    /// Etat + evenements de l'image, concatenes en un seul bloc de `f32`.
-    /// Le client connait `STATE_LEN` et coupe au bon endroit.
-    fn broadcast_state(&mut self) {
-        state::write_state(&self.game, &mut self.floats);
-        state::write_events(&self.game, &mut self.events);
-        self.bytes.clear();
-        for f in self.floats.iter().chain(self.events.iter()) {
-            self.bytes.extend_from_slice(&f.to_le_bytes());
-        }
-        let frame = Message::Binary(self.bytes.clone().into());
-        for seat in self.seats.iter().flatten() {
-            let _ = seat.tx.send(frame.clone());
-        }
-    }
-
-    fn public(&self, code: &str) -> Value {
-        let players: Vec<Value> = self
-            .seats
-            .iter()
-            .enumerate()
-            .filter_map(|(slot, s)| {
-                s.as_ref()
-                    .map(|s| json!({ "id": s.id, "name": s.name, "slot": slot }))
-            })
-            .collect();
-        json!({
-            "code": code,
-            "host": self.host,
-            "phase": phase_name(self.game.phase),
-            "seats": SEATS,
-            "players": players,
-        })
-    }
-
-    /// Previent tout le monde que la composition ou la phase a bouge.
-    fn announce(&self) {
-        let msg = json!({ "t": "room", "room": self.public(&self.code) }).to_string();
-        let frame = Message::Text(msg.into());
-        for seat in self.seats.iter().flatten() {
-            let _ = seat.tx.send(frame.clone());
-        }
-    }
-}
-
-fn phase_name(p: Phase) -> &'static str {
-    match p {
-        Phase::Warmup => "warmup",
-        Phase::Countdown => "countdown",
-        Phase::Play => "play",
-        Phase::Goal => "goal",
-        Phase::Over => "over",
-    }
-}
 
 pub struct Hub {
     rooms: Mutex<HashMap<String, Room>>,
@@ -270,14 +132,18 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
         if wanted.len() == 4 {
             match rooms.get_mut(&wanted) {
                 None => Err("Aucun salon ne correspond a ce code."),
-                Some(room) => match room.free_seat() {
-                    None => Err("Ce salon est complet."),
-                    Some(slot) => {
-                        room.seats[slot] =
-                            Some(Seat { id, name: name.clone(), idle: 0.0, tx: tx.clone() });
-                        Ok((wanted, slot))
-                    }
-                },
+                Some(room) => {
+                    // Aucun refus possible : le salon s'agrandit.
+                    let team = room.lighter_team();
+                    let slot = room.seat(Seat {
+                        id,
+                        name: name.clone(),
+                        team,
+                        idle: 0.0,
+                        tx: tx.clone(),
+                    });
+                    Ok((wanted, slot))
+                }
             }
         } else {
             let mut code = make_code(id);
@@ -286,9 +152,15 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
             }
             let mut room = Room::new(code.clone(), id);
             room.host = id;
-            room.seats[0] = Some(Seat { id, name: name.clone(), idle: 0.0, tx: tx.clone() });
+            let slot = room.seat(Seat {
+                id,
+                name: name.clone(),
+                team: 0,
+                idle: 0.0,
+                tx: tx.clone(),
+            });
             rooms.insert(code.clone(), room);
-            Ok((code, 0))
+            Ok((code, slot))
         }
     };
 
@@ -311,7 +183,12 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                 "t": "hello",
                 "you": id,
                 "slot": slot,
-                "stateLen": state::STATE_LEN,
+                // L'effectif bouge quand on rejoint : le client le relit dans
+                // l'entete de chaque image plutot que de s'en tenir a ceci.
+                "stateLen": state::state_len(IDLE_CARS),
+                "carBase": state::CAR_BASE,
+                "carStride": state::CAR_STRIDE,
+                "carCount": state::CAR_COUNT,
                 "room": room.public(&code),
             });
             let _ = tx.send(Message::Text(hello.to_string().into()));
@@ -364,6 +241,9 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
     if let Some(room) = rooms.get_mut(&code) {
         room.seats[slot] = None;
         room.game.set_input(slot, Input::default());
+        // Au salon, le depart libere vraiment la place ; en plein match la
+        // voiture reste, immobile, jusqu'au retour au salon.
+        room.resync();
         if room.host == id {
             room.host = room.seats.iter().flatten().map(|s| s.id).next().unwrap_or(0);
         }
@@ -407,6 +287,30 @@ fn handle_text(room: &mut Room, id: u32, text: &str) -> bool {
     match msg.get("t").and_then(Value::as_str) {
         Some("start") if room.host == id => {
             room.game.begin();
+            true
+        }
+        // Chacun choisit son camp, librement : rien n'impose d'equilibre, et
+        // la partie se refait aussitot pour replacer tout le monde.
+        Some("team") => {
+            let Some(team) = msg.get("team").and_then(Value::as_u64) else {
+                return false;
+            };
+            let team = (team & 1) as u8;
+            let Some(seat) = room
+                .seats
+                .iter_mut()
+                .flatten()
+                .find(|s| s.id == id)
+            else {
+                return false;
+            };
+            if seat.team == team {
+                return false;
+            }
+            seat.team = team;
+            // En plein match on enregistre le choix pour le prochain salon,
+            // sans deplacer les voitures en cours de jeu.
+            room.resync();
             true
         }
         _ => false,

@@ -99,19 +99,42 @@ pub fn conceded(p: V2, r: f32) -> Option<u8> {
 
 /// Position de reprise d'engagement d'une equipe : dos au but, face au centre.
 pub fn kickoff(team: u8) -> (V2, f32) {
-    if team == 0 {
-        (v2(MIN_X + 300.0, CY), 0.0)
+    kickoff_nth(team, 0, 1)
+}
+
+/// Placement d'engagement de la `rank`-ieme voiture d'un camp qui en compte
+/// `count`. Seule sur son camp elle prend l'axe, comme en un contre un ;
+/// a plusieurs le camp s'etale en hauteur et se met en quinconce, pour que
+/// personne ne demarre dans le pare-chocs du voisin.
+pub fn kickoff_nth(team: u8, rank: usize, count: usize) -> (V2, f32) {
+    let room = (MAX_Y - MIN_Y) * 0.5 - 70.0;
+    let spread = room.min(70.0 * count as f32);
+    let off = if count <= 1 {
+        0.0
     } else {
-        (v2(MAX_X - 300.0, CY), std::f32::consts::PI)
+        (rank as f32 / (count - 1) as f32 - 0.5) * 2.0
+    };
+    let y = CY + off * spread;
+    let back = 300.0 + (rank % 2) as f32 * 70.0;
+    if team == 0 {
+        (v2(MIN_X + back, y), 0.0)
+    } else {
+        (v2(MAX_X - back, y), std::f32::consts::PI)
     }
 }
 
 /// Point de reapparition apres une demolition : au fond de son camp.
-pub fn respawn(team: u8) -> (V2, f32) {
+pub fn respawn(team: u8, rank: usize) -> (V2, f32) {
+    // Decale le long du fond : a dix joueurs, plusieurs carcasses peuvent
+    // revenir en meme temps et ne doivent pas reapparaitre l'une dans l'autre.
+    let room = (MAX_Y - MIN_Y) * 0.5 - 60.0;
+    let step = 90.0 * (rank / 2) as f32;
+    let side = if rank % 2 == 0 { -1.0 } else { 1.0 };
+    let y = (CY + side * (210.0 + step).min(room)).clamp(MIN_Y + 60.0, MAX_Y - 60.0);
     if team == 0 {
-        (v2(MIN_X + 70.0, CY - 210.0), 0.0)
+        (v2(MIN_X + 70.0, y), 0.0)
     } else {
-        (v2(MAX_X - 70.0, CY + 210.0), std::f32::consts::PI)
+        (v2(MAX_X - 70.0, y), std::f32::consts::PI)
     }
 }
 

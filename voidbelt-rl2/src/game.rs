@@ -7,6 +7,8 @@ use crate::bot::Bot;
 use crate::car::{Car, Input, KICKOFF_BOOST};
 use crate::collide;
 
+/// Nombre de voitures d'un match solo. En ligne, le salon en decide : le
+/// moteur n'impose aucune limite, chaque camp s'etale a l'engagement.
 pub const CARS: usize = 2;
 // Cales sur les pistes de l'habillage, mesurees et non estimees.
 // `countdown.mp3` tient une seconde de silence puis frappe a 1, 2, 3 et
@@ -54,8 +56,35 @@ pub mod ev {
     pub const OVERTIME: u32 = 11;
 }
 
+/// Compte les voitures de chaque camp.
+fn team_sizes(cars: &[Car]) -> [usize; 2] {
+    let mut n = [0usize; 2];
+    for c in cars {
+        n[(c.team & 1) as usize] += 1;
+    }
+    n
+}
+
+/// Fabrique les voitures en donnant a chacune son rang dans son camp.
+fn build_cars(teams: &[u8]) -> Vec<Car> {
+    let mut sizes = [0usize; 2];
+    for &t in teams {
+        sizes[(t & 1) as usize] += 1;
+    }
+    let mut rank = [0usize; 2];
+    teams
+        .iter()
+        .map(|&t| {
+            let side = (t & 1) as usize;
+            let c = Car::nth(t & 1, rank[side], sizes[side]);
+            rank[side] += 1;
+            c
+        })
+        .collect()
+}
+
 pub struct Game {
-    pub cars: [Car; CARS],
+    pub cars: Vec<Car>,
     pub ball: Ball,
     pub pads: Field,
     pub bot: Bot,
@@ -69,7 +98,7 @@ pub struct Game {
     pub duration: f32,
     pub events: Vec<(u32, f32)>,
     /// Memorise l'etat supersonique pour n'emettre le son qu'au passage.
-    boom: [bool; CARS],
+    boom: Vec<bool>,
     /// L'engagement d'ouverture nait hors d'un pas de simulation : il serait
     /// efface avant que l'hote ait pu le lire, on le reporte donc sur la
     /// premiere image.
@@ -79,8 +108,16 @@ pub struct Game {
 
 impl Game {
     pub fn new(seed: u32, level: u32, duration: f32) -> Game {
+        Game::with_teams(seed, level, duration, &[0, 1])
+    }
+
+    /// Partie a effectif libre : `teams` donne le camp de chaque voiture,
+    /// et sa longueur le nombre de joueurs. Rien ne borne cet effectif.
+    pub fn with_teams(seed: u32, level: u32, duration: f32, teams: &[u8]) -> Game {
+        let teams: Vec<u8> = if teams.is_empty() { vec![0, 1] } else { teams.to_vec() };
+        let n = teams.len();
         let mut g = Game {
-            cars: [Car::new(0), Car::new(1)],
+            cars: build_cars(&teams),
             ball: Ball::new(),
             pads: Field::new(),
             bot: Bot::new(level, seed),
@@ -92,7 +129,7 @@ impl Game {
             overtime: false,
             duration,
             events: Vec::new(),
-            boom: [false; CARS],
+            boom: vec![false; n],
             opening: true,
             carry: 0.0,
         };
@@ -103,7 +140,12 @@ impl Game {
     /// Partie en ligne : on demarre dans le salon, sans machine aux
     /// commandes, et c'est l'hote qui declenche le vrai match.
     pub fn warmup(seed: u32, duration: f32) -> Game {
-        let mut g = Game::new(seed, 1, duration);
+        Game::warmup_with(seed, duration, &[0, 1])
+    }
+
+    /// Salon a effectif libre : `teams` donne le camp de chacun.
+    pub fn warmup_with(seed: u32, duration: f32, teams: &[u8]) -> Game {
+        let mut g = Game::with_teams(seed, 1, duration, teams);
         g.bot_on = false;
         g.phase = Phase::Warmup;
         g.opening = false;
@@ -139,13 +181,14 @@ impl Game {
     fn kickoff(&mut self) {
         self.ball.reset();
         self.pads.reset();
-        for (i, c) in self.cars.iter_mut().enumerate() {
-            let (p, a) = arena::kickoff(i as u8);
+        let sizes = team_sizes(&self.cars);
+        for c in self.cars.iter_mut() {
+            let (p, a) = arena::kickoff_nth(c.team, c.rank, sizes[c.team as usize]);
             c.reset(p, a, KICKOFF_BOOST);
         }
         self.phase = Phase::Countdown;
         self.timer = COUNTDOWN;
-        self.boom = [false; CARS];
+        self.boom = vec![false; self.cars.len()];
         self.events.push((ev::KICKOFF, 0.0));
     }
 
@@ -201,7 +244,7 @@ impl Game {
             self.cars[1].input = input;
         }
 
-        for i in 0..CARS {
+        for i in 0..self.cars.len() {
             self.cars[i].step(dt);
             let sonic = self.cars[i].supersonic();
             if sonic && !self.boom[i] {
@@ -216,7 +259,7 @@ impl Game {
         }
 
         self.pads.tick(dt);
-        for i in 0..CARS {
+        for i in 0..self.cars.len() {
             if let Some(p) = self.pads.collect(&mut self.cars[i]) {
                 self.events.push((ev::PAD, p as f32));
             }
@@ -239,16 +282,23 @@ impl Game {
             }
         }
 
-        let (a, b) = self.cars.split_at_mut(1);
-        if let Some(bump) = collide::car_car(&mut a[0], &mut b[0]) {
-            if bump.demo_a {
-                self.events.push((ev::DEMO, 0.0));
-            }
-            if bump.demo_b {
-                self.events.push((ev::DEMO, 1.0));
-            }
-            if !bump.any_demo() && bump.force > 35.0 {
-                self.events.push((ev::BUMP, bump.force));
+        // Toutes les paires : a dix joueurs les contacts se multiplient, et
+        // il n'y a plus de « la » collision mais un carambolage a demeler.
+        for i in 0..self.cars.len() {
+            for j in (i + 1)..self.cars.len() {
+                let (lo, hi) = self.cars.split_at_mut(j);
+                let Some(bump) = collide::car_car(&mut lo[i], &mut hi[0]) else {
+                    continue;
+                };
+                if bump.demo_a {
+                    self.events.push((ev::DEMO, i as f32));
+                }
+                if bump.demo_b {
+                    self.events.push((ev::DEMO, j as f32));
+                }
+                if !bump.any_demo() && bump.force > 35.0 {
+                    self.events.push((ev::BUMP, bump.force));
+                }
             }
         }
 

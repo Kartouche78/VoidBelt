@@ -301,13 +301,65 @@ fn la_simulation_est_deterministe() {
 
 #[test]
 fn le_tampon_d_etat_a_la_bonne_taille() {
+    use crate::state;
     let g = Game::new(1, 1, 300.0);
-    let mut out = vec![0.0; crate::state::STATE_LEN];
-    crate::state::write_state(&g, &mut out);
-    assert_eq!(crate::state::STATE_LEN, 32 + 34);
+    let mut out = vec![0.0; state::state_len(2)];
+    state::write_state(&g, &mut out);
+    assert_eq!(state::state_len(2), 33 + 34);
     assert_eq!(out[6], arena::CX);
-    assert_eq!(crate::state::pad_table().len(), 34 * 3);
-    assert_eq!(crate::state::geometry().len(), 17);
+    assert_eq!(out[state::CAR_COUNT], 2.0, "l'effectif n'est pas annonce");
+    assert_eq!(state::pad_table().len(), 34 * 3);
+    assert_eq!(state::geometry().len(), 17);
+}
+
+#[test]
+fn le_tampon_suit_l_effectif() {
+    use crate::state;
+    // Six joueurs : les plots reculent d'autant, et l'entete annonce le
+    // nouvel effectif pour que l'hote sache ou les relire.
+    let teams = [0u8, 0, 0, 1, 1, 1];
+    let g = Game::with_teams(1, 1, 300.0, &teams);
+    assert_eq!(g.cars.len(), 6);
+    let mut out = vec![0.0; state::state_len(6)];
+    state::write_state(&g, &mut out);
+    assert_eq!(out[state::CAR_COUNT], 6.0);
+    assert_eq!(state::pad_base(6), state::CAR_BASE + 6 * state::CAR_STRIDE);
+    assert_eq!(state::state_len(6), state::pad_base(6) + 34);
+    // Les six voitures sont bien ecrites, aucune a l'origine.
+    for i in 0..6 {
+        let b = state::CAR_BASE + i * state::CAR_STRIDE;
+        assert!(out[b] != 0.0, "voiture {i} non ecrite");
+    }
+}
+
+#[test]
+fn chaque_camp_s_etale_a_l_engagement() {
+    // Cinq contre cinq : personne ne doit demarrer sur son voisin.
+    let teams = [0u8, 0, 0, 0, 0, 1, 1, 1, 1, 1];
+    let g = Game::with_teams(1, 1, 300.0, &teams);
+    for i in 0..g.cars.len() {
+        for j in (i + 1)..g.cars.len() {
+            let d = g.cars[i].pos.sub(g.cars[j].pos).len();
+            assert!(d > 28.0, "voitures {i} et {j} imbriquees a l'engagement: {d}");
+        }
+    }
+    // Et chaque camp reste dans sa moitie.
+    for c in &g.cars {
+        if c.team == 0 {
+            assert!(c.pos.x < arena::CX, "une bleue depasse le rond central");
+        } else {
+            assert!(c.pos.x > arena::CX, "une orange depasse le rond central");
+        }
+    }
+}
+
+#[test]
+fn un_contre_un_garde_son_engagement_dans_l_axe() {
+    // L'effectif variable ne doit pas deplacer le depart du solo.
+    let g = Game::new(1, 1, 300.0);
+    for c in &g.cars {
+        assert!((c.pos.y - arena::CY).abs() < 0.01, "engagement hors axe");
+    }
 }
 
 #[test]
