@@ -44,8 +44,10 @@ const GRIP_DRIFT: f32 = 6.0;
 const WALL_ALIGN: f32 = 6.0;
 
 pub const DEMO_TIME: f32 = 3.0;
-/// 90 km/h sur le compteur : au-dela, un contact demolit l'adversaire.
-pub const DEMO_SPEED: f32 = 186.0;
+/// 150 km/h sur le compteur : au-dela, un contact demolit l'adversaire ;
+/// en dessous il ne fait que le bousculer. Le compteur affiche
+/// `vitesse * 300 / 620`, d'ou ces 310 unites pour 150 km/h.
+pub const DEMO_SPEED: f32 = 310.0;
 
 #[derive(Clone, Copy, Default)]
 pub struct Input {

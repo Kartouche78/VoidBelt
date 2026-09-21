@@ -7,11 +7,15 @@ use crate::car::{self, Car};
 /// place une poussee dediee (ci-dessous) pour donner du punch aux frappes.
 const BALL_REST: f32 = 0.05;
 const CAR_REST: f32 = 0.25;
-/// Part de la vitesse de rapprochement rendue en poussee : une bourrade doit
-/// s'entendre et se voir, meme a vitesse moderee.
-const BUMP_GAIN: f32 = 0.95;
+/// Part de la vitesse de rapprochement rendue en poussee. La bousculade doit
+/// se sentir sans catapulter : au-dela du seuil c'est une demolition, en
+/// dessous cela reste une epaule dans l'epaule.
+const BUMP_GAIN: f32 = 0.30;
 /// Poussee plancher, pour qu'un contact au ralenti ecarte quand meme.
-const BUMP_FLOOR: f32 = 45.0;
+const BUMP_FLOOR: f32 = 30.0;
+/// Plafond de la bousculade. Sans lui, un choc juste sous le seuil de
+/// demolition enverrait la voiture a l'autre bout du terrain.
+const BUMP_CAP: f32 = 120.0;
 const CAR_R: f32 = 14.0;
 
 /// Poussee supplementaire d'une frappe selon la vitesse du chassis, reprise
@@ -120,6 +124,11 @@ pub fn car_car(a: &mut Car, b: &mut Car) -> Option<Bump> {
     // suit ralentit justement celui qui arrive, et masquerait le contact.
     let a_hits = a.lethal() && a.vel.dot(n) > 0.0;
     let b_hits = b.lethal() && b.vel.dot(n) < 0.0;
+    // Elan que chacun amene dans le choc, lu lui aussi avant l'impulsion :
+    // apres, les deux vitesses ont deja ete echangees et ne disent plus qui
+    // fonçait sur qui.
+    let into_a = a.vel.dot(n).max(0.0);
+    let into_b = (-b.vel.dot(n)).max(0.0);
 
     let j = -(1.0 + CAR_REST) * vn * 0.5;
     a.vel = a.vel.sub(n.mul(j));
@@ -134,9 +143,19 @@ pub fn car_car(a: &mut Car, b: &mut Car) -> Option<Bump> {
         b.demolish();
     }
     if !a_hits && !b_hits {
-        let kick = ((-vn) * BUMP_GAIN).max(BUMP_FLOOR);
-        a.vel = a.vel.sub(n.mul(kick * 0.5));
-        b.vel = b.vel.add(n.mul(kick * 0.5));
+        let kick = ((-vn) * BUMP_GAIN).clamp(BUMP_FLOOR, BUMP_CAP);
+        // La bousculade part sur celui qui l'encaisse. Partagee en deux, elle
+        // renverrait l'assaillant en arriere autant que sa victime en avant ;
+        // on la repartit donc a l'inverse de l'elan que chacun amene dans le
+        // choc, pour que ce soit bien la direction de l'impact qui pousse.
+        let total = into_a + into_b;
+        let (share_a, share_b) = if total > 1e-4 {
+            (into_b / total, into_a / total)
+        } else {
+            (0.5, 0.5)
+        };
+        a.vel = a.vel.sub(n.mul(kick * share_a));
+        b.vel = b.vel.add(n.mul(kick * share_b));
     }
     Some(Bump {
         force: -vn,

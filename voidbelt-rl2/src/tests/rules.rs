@@ -46,7 +46,7 @@ fn six_gros_plots_et_vingt_huit_petits() {
 }
 
 #[test]
-fn au_dela_de_quatre_vingt_dix_le_choc_demolit() {
+fn au_dela_de_cent_cinquante_le_choc_demolit() {
     let mut a = Car::new(0);
     let mut b = Car::new(1);
     a.pos = v2(arena::CX - 10.0, arena::CY);
@@ -351,4 +351,66 @@ fn un_arret_loin_du_but_n_en_est_pas_un() {
     g.cars[0].yaw = 0.0;
     let seen = harvest(&mut g, 0.3);
     assert!(!seen.iter().any(|e| e.0 == ev::SAVE), "arret signale au milieu");
+}
+
+#[test]
+fn le_seuil_de_demolition_vaut_bien_cent_cinquante_au_compteur() {
+    // Le HUD affiche `vitesse * 300 / SPEED_MAX`. Si l'un des deux bouge
+    // sans l'autre, le seuil annonce au joueur cesse d'etre celui du moteur.
+    let kmh = car::DEMO_SPEED * 300.0 / car::SPEED_MAX;
+    assert!((kmh - 150.0).abs() < 0.5, "seuil a {kmh} km/h au lieu de 150");
+}
+
+#[test]
+fn la_bousculade_pousse_celui_qui_l_encaisse() {
+    // A fonce sur B a l'arret, sous le seuil : B part dans la direction du
+    // choc, et A garde son elan au lieu de rebondir en arriere.
+    let mut a = Car::new(0);
+    let mut b = Car::new(1);
+    a.pos = v2(500.0, 400.0);
+    b.pos = v2(526.0, 400.0);
+    a.vel = v2(car::DEMO_SPEED - 60.0, 0.0);
+    b.vel = v2(0.0, 0.0);
+    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    assert!(!bump.any_demo(), "il demolit sous le seuil");
+    assert!(b.vel.x > 100.0, "la victime n'est pas poussee: {}", b.vel.x);
+    assert!(a.vel.x > 0.0, "l'assaillant repart en arriere: {}", a.vel.x);
+    assert!(b.vel.x > a.vel.x, "la victime doit partir devant l'assaillant");
+}
+
+#[test]
+fn un_frontal_sous_le_seuil_repousse_les_deux_a_parts_egales() {
+    let mut a = Car::new(0);
+    let mut b = Car::new(1);
+    a.pos = v2(500.0, 400.0);
+    b.pos = v2(526.0, 400.0);
+    let v = car::DEMO_SPEED - 80.0;
+    a.vel = v2(v, 0.0);
+    b.vel = v2(-v, 0.0);
+    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    assert!(!bump.any_demo(), "il demolit sous le seuil");
+    assert!(a.vel.x < 0.0 && b.vel.x > 0.0, "ils ne se repoussent pas");
+    assert!(
+        (a.vel.x + b.vel.x).abs() < 1.0,
+        "repartition asymetrique: {} / {}",
+        a.vel.x,
+        b.vel.x
+    );
+}
+
+#[test]
+fn la_bousculade_reste_une_bousculade_juste_sous_le_seuil() {
+    // Sans plafond, un choc a 149 km/h catapulterait la victime.
+    let mut a = Car::new(0);
+    let mut b = Car::new(1);
+    a.pos = v2(500.0, 400.0);
+    b.pos = v2(526.0, 400.0);
+    a.vel = v2(car::DEMO_SPEED - 2.0, 0.0);
+    b.vel = v2(0.0, 0.0);
+    collide::car_car(&mut a, &mut b).expect("pas de contact");
+    assert!(
+        b.vel.x < car::DEMO_SPEED,
+        "la victime part plus vite que l'assaillant: {}",
+        b.vel.x
+    );
 }
