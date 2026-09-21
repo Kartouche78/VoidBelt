@@ -5,11 +5,15 @@
 // exact du moteur local, pour que la boucle de jeu n'ait rien a savoir du
 // reseau : elle change juste de fournisseur.
 
-const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
-const HTTP = LOCAL ? location.origin : 'https://api.voidbelt.com';
-const WS = LOCAL
-  ? `${location.protocol === 'https:' ? 'wss://' : 'ws://'}${location.host}`
-  : 'wss://api.voidbelt.com';
+/** Le jeu parle au serveur qui le sert. Seule exception : le site statique
+ *  de Cloudflare n'heberge aucune API, ses salons sont sur `api.voidbelt.com`.
+ *  Tout le reste — poste local, adresse du reseau, tunnel de demonstration —
+ *  marche alors sans rien regler. */
+const STATIC = /(^|\.)voidbelt\.com$|\.pages\.dev$/.test(location.hostname);
+const HOST = STATIC ? 'api.voidbelt.com' : location.host;
+const SECURE = STATIC || location.protocol === 'https:';
+const HTTP = `${SECURE ? 'https' : 'http'}://${HOST}`;
+const WS = `${SECURE ? 'wss' : 'ws'}://${HOST}`;
 
 /** On affiche le monde legerement dans le passe, pour avoir toujours deux
  *  images encadrant l'instant rendu et lisser la gigue du reseau. */

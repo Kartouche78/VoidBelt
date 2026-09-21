@@ -111,9 +111,25 @@ cesse d'emettre (onglet passe en arriere-plan) voit sa voiture relacher les
 gaz au bout de six dixiemes, au lieu de filer tout droit sur sa derniere
 consigne.
 
-Les salons vivent en memoire, comme ceux de Jump'n Bump : en local la page
-parle au serveur qui la sert, en ligne a `api.voidbelt.com`, qui doit donc
-faire tourner ce meme binaire.
+Les salons vivent en memoire. Le jeu parle au serveur qui le sert, quel
+qu'il soit ; seul le site statique de Cloudflare fait exception, ses salons
+etant sur `api.voidbelt.com`, qui doit donc faire tourner ce meme binaire.
+
+### Jouer a plusieurs sans rien deployer
+
+Le serveur local a deja tout, site et salons compris : il ne lui manque
+qu'une adresse publique.
+
+```bash
+npm start     # un terminal : le serveur
+npm run share # un autre : ouvre un tunnel et affiche l'adresse a partager
+```
+
+`partager.sh` recupere `cloudflared` a la volee et en tire une adresse
+`trycloudflare.com` valable le temps de la session, sans compte ni
+installation. Les invites ouvrent cette adresse suivie de `/rl2/` et
+rejoignent les salons directement. L'adresse change a chaque lancement, et
+tout se ferme avec le tunnel.
 
 Un salon tient deux pilotes, puisque le moteur joue en un contre un.
 
