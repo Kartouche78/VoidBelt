@@ -1,2 +1,4 @@
 /target
 *.log
+/voidbelt-factory/target
+/voidbelt-rl2/target

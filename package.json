@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "start": "cargo run",
-    "dev": "cargo run"
+    "dev": "cargo run",
+    "build:factory": "powershell -ExecutionPolicy Bypass -File voidbelt-factory/build.ps1",
+    "test:factory": "cargo test --manifest-path voidbelt-factory/Cargo.toml --release",
+    "build:rl2": "powershell -ExecutionPolicy Bypass -File voidbelt-rl2/build.ps1",
+    "test:rl2": "cargo test --manifest-path voidbelt-rl2/Cargo.toml --release"
   }
 }

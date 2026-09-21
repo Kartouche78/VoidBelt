@@ -2,6 +2,7 @@
 
 mod jumpnbump;
 mod multiplayer;
+mod rl2;
 mod transmissions;
 
 use axum::{
@@ -45,6 +46,24 @@ async fn main() {
         .route("/api/jnb/ws", get(jumpnbump::ws))
         .with_state(jnb_hub.clone());
 
+    // Le jeu evolue vite : on force la revalidation de ses fichiers. Sans
+    // en-tete, le navigateur applique sa propre heuristique et peut servir
+    // un module d'hier a cote d'un module d'aujourd'hui — un seul suffit a
+    // tout casser.
+    let rl2_files = Router::new()
+        .nest_service("/rl2", ServeDir::new("public/rl2"))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            axum::http::header::CACHE_CONTROL,
+            HeaderValue::from_static("no-cache"),
+        ));
+
+    // Les salons RL2 vivent dans leur propre hub : le serveur y simule la
+    // partie, il ne se contente pas de relayer.
+    let rl2 = Router::new()
+        .route("/api/rl2/rooms", get(rl2::rooms))
+        .route("/api/rl2/ws", get(rl2::ws))
+        .with_state(rl2::Hub::new());
+
     let multiplayer = Router::new()
         .route("/api/multiplayer/rooms", get(multiplayer::rooms))
         .route("/api/multiplayer/ws", get(multiplayer::ws))
@@ -60,6 +79,8 @@ async fn main() {
         .route("/api/transmissions", get(transmissions::list))
         .merge(shared)
         .merge(jnb)
+        .merge(rl2)
+        .merge(rl2_files)
         .merge(multiplayer)
         .nest_service("/home", ServeDir::new("public/home"))
         .nest_service("/arena", ServeDir::new("public/arena"))

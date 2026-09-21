@@ -1096,6 +1096,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "voidbelt-rl2"
+version = "0.1.0"
+
+[[package]]
 name = "voidbelt-server"
 version = "0.1.0"
 dependencies = [
@@ -1106,6 +1110,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "voidbelt-rl2",
 ]
 
 [[package]]

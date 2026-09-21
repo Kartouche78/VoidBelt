@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RL2 &middot; VOIDBELT</title>
+<meta name="description" content="Football motorise vu de dessus. Moteur Rust compile en WebAssembly, rendu three.js.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='5' fill='%230B1018'/%3E%3Crect x='4' y='11' width='6' height='10' rx='1.5' fill='%232F7CE0'/%3E%3Crect x='22' y='11' width='6' height='10' rx='1.5' fill='%23F07A25'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23F2F0EA'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div id="shell">
+  <canvas id="scene"></canvas>
+
+  <!-- Tableau de bord, visible uniquement pendant le match -->
+  <div id="hud">
+    <div id="scoreboard">
+      <div class="side blue"><span id="score-blue">0</span></div>
+      <div class="middle">
+        <div id="clock">5:00</div>
+        <div id="clock-tag" hidden></div>
+      </div>
+      <div class="side orange"><span id="score-orange">0</span></div>
+    </div>
+
+    <div id="message" hidden></div>
+
+    <!-- Salon en ligne : remplace le tableau de score en attendant le coup d'envoi -->
+    <div id="lobby" hidden>
+      <button id="btn-kickoff">Lancer la partie</button>
+      <p id="lobby-info"></p>
+    </div>
+
+    <div id="gauge">
+      <div id="sonic" hidden>SUPERSONIQUE</div>
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="track" cx="60" cy="60" r="50"></circle>
+        <circle id="boost-arc" cx="60" cy="60" r="50"></circle>
+      </svg>
+      <div class="readout">
+        <strong id="boost-value">33</strong>
+        <small>BOOST</small>
+      </div>
+      <div class="speed"><strong id="speed-value">0</strong><small>KM/H</small></div>
+    </div>
+  </div>
+
+  <!-- Accueil -->
+  <section id="screen-title" class="screen" hidden>
+    <div class="panel">
+      <p class="eyebrow">VOIDBELT &middot; ARCADE</p>
+      <h1>RL<span>2</span></h1>
+      <p class="tagline">Football motorise vu de dessus. 1 contre 1 face a la machine.</p>
+      <div class="actions">
+        <button id="btn-play" class="primary">Jouer</button>
+        <button id="btn-online">Multijoueur</button>
+        <button id="btn-settings">Parametres</button>
+        <a class="link" href="/">Retour au site</a>
+      </div>
+      <p class="note">Manette recommandee &middot; RT accelere, LT recule, B boost, X drift.</p>
+    </div>
+  </section>
+
+  <!-- Multijoueur -->
+  <section id="screen-online" class="screen" hidden>
+    <div class="panel wide">
+      <h2>Multijoueur</h2>
+      <div class="row">
+        <div class="row-label">Ton pseudo</div>
+        <div class="row-control">
+          <input id="online-name" type="text" maxlength="16" placeholder="Pilote" autocomplete="off">
+        </div>
+      </div>
+      <div id="online-list"></div>
+      <p id="online-status" class="note"></p>
+      <div class="actions row-actions">
+        <button id="btn-online-create" class="primary">Creer un salon</button>
+        <button id="btn-online-refresh">Actualiser</button>
+        <button id="btn-online-back">Retour</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Parametres -->
+  <section id="screen-settings" class="screen" hidden>
+    <div class="panel wide">
+      <h2>Parametres</h2>
+      <nav class="tabs">
+        <button data-tab="controls" class="active">Commandes</button>
+        <button data-tab="audio">Son</button>
+        <button data-tab="match">Match</button>
+      </nav>
+      <div id="settings-body"></div>
+      <div class="actions row-actions">
+        <button id="btn-settings-back" class="primary">Retour</button>
+        <button id="btn-settings-reset">Reinitialiser</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pause -->
+  <section id="screen-pause" class="screen" hidden>
+    <div class="panel">
+      <h2>Pause</h2>
+      <div class="actions">
+        <button id="btn-resume" class="primary">Reprendre</button>
+        <button id="btn-pause-settings">Parametres</button>
+        <button id="btn-pause-restart">Rejouer</button>
+        <button id="btn-pause-quit">Quitter</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fin de match -->
+  <section id="screen-result" class="screen" hidden>
+    <div class="panel">
+      <h2 id="result-title">Victoire</h2>
+      <p id="result-score">0 - 0</p>
+      <div class="actions">
+        <button id="btn-result-again" class="primary">Rejouer</button>
+        <button id="btn-result-menu">Menu</button>
+      </div>
+    </div>
+  </section>
+
+  <p id="fatal" hidden></p>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
