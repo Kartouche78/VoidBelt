@@ -122,8 +122,11 @@ pub fn car_car(a: &mut Car, b: &mut Car) -> Option<Bump> {
 
     // Le verdict se lit sur les vitesses d'avant le choc : l'impulsion qui
     // suit ralentit justement celui qui arrive, et masquerait le contact.
-    let a_hits = a.lethal() && a.vel.dot(n) > 0.0;
-    let b_hits = b.lethal() && b.vel.dot(n) < 0.0;
+    // On ne demolit pas son propre camp : entre coequipiers, meme lances,
+    // le contact se contente de bousculer.
+    let foes = a.team != b.team;
+    let a_hits = foes && a.lethal() && a.vel.dot(n) > 0.0;
+    let b_hits = foes && b.lethal() && b.vel.dot(n) < 0.0;
     // Elan que chacun amene dans le choc, lu lui aussi avant l'impulsion :
     // apres, les deux vitesses ont deja ete echangees et ne disent plus qui
     // fonçait sur qui.

@@ -328,10 +328,11 @@ export class Menu {
   }
 
   _audio(body) {
+    // Pas de curseur musique : aucune piste ne l'alimente pour l'instant,
+    // un reglage sans effet vaut moins qu'un reglage absent.
     const levels = [
       ['master', 'Volume general'],
       ['sfx', 'Effets'],
-      ['music', 'Musique'],
     ];
     for (const [key, label] of levels) {
       const c = this._row(body, label);

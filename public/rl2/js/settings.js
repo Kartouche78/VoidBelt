@@ -33,7 +33,7 @@ export const DEFAULTS = {
     drift: { kind: 'button', index: 2 },
     pause: { kind: 'button', index: 9 },
   },
-  audio: { master: 80, sfx: 90, music: 40 },
+  audio: { master: 80, sfx: 90 },
   match: { duration: 300, level: 1 },
   camera: 'arena',
   deadzone: 15,

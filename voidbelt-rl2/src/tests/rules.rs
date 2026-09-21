@@ -46,7 +46,7 @@ fn six_gros_plots_et_vingt_huit_petits() {
 }
 
 #[test]
-fn au_dela_de_cent_cinquante_le_choc_demolit() {
+fn au_dela_de_deux_cent_trente_le_choc_demolit() {
     let mut a = Car::new(0);
     let mut b = Car::new(1);
     a.pos = v2(arena::CX - 10.0, arena::CY);
@@ -406,11 +406,11 @@ fn un_arret_loin_du_but_n_en_est_pas_un() {
 }
 
 #[test]
-fn le_seuil_de_demolition_vaut_bien_cent_cinquante_au_compteur() {
+fn le_seuil_de_demolition_vaut_bien_deux_cent_trente_au_compteur() {
     // Le HUD affiche `vitesse * 300 / SPEED_MAX`. Si l'un des deux bouge
     // sans l'autre, le seuil annonce au joueur cesse d'etre celui du moteur.
     let kmh = car::DEMO_SPEED * 300.0 / car::SPEED_MAX;
-    assert!((kmh - 150.0).abs() < 0.5, "seuil a {kmh} km/h au lieu de 150");
+    assert!((kmh - 230.0).abs() < 0.5, "seuil a {kmh} km/h au lieu de 230");
 }
 
 #[test]
@@ -465,4 +465,44 @@ fn la_bousculade_reste_une_bousculade_juste_sous_le_seuil() {
         "la victime part plus vite que l'assaillant: {}",
         b.vel.x
     );
+}
+
+#[test]
+fn un_coequipier_ne_demolit_jamais() {
+    // Meme lance bien au-dela du seuil, un allie ne fait que bousculer.
+    let mut a = Car::new(0);
+    let mut b = Car::new(0);
+    a.pos = v2(500.0, 400.0);
+    b.pos = v2(526.0, 400.0);
+    a.vel = v2(car::DEMO_SPEED + 80.0, 0.0);
+    b.vel = v2(0.0, 0.0);
+    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    assert!(!bump.any_demo(), "un allie a ete demoli");
+    assert!(b.vel.x > 100.0, "l allie n'est meme pas pousse");
+}
+
+#[test]
+fn un_frontal_entre_allies_ne_fait_pas_de_victime() {
+    let mut a = Car::new(1);
+    let mut b = Car::new(1);
+    a.pos = v2(500.0, 400.0);
+    b.pos = v2(526.0, 400.0);
+    let v = car::DEMO_SPEED + 60.0;
+    a.vel = v2(v, 0.0);
+    b.vel = v2(-v, 0.0);
+    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    assert!(!bump.any_demo(), "frontal fratricide");
+}
+
+#[test]
+fn un_adversaire_reste_demolissable_au_dela_du_seuil() {
+    // Le garde-fou de l'immunite entre allies ne doit pas eteindre la regle.
+    let mut a = Car::new(0);
+    let mut b = Car::new(1);
+    a.pos = v2(500.0, 400.0);
+    b.pos = v2(526.0, 400.0);
+    a.vel = v2(car::DEMO_SPEED + 20.0, 0.0);
+    b.vel = v2(0.0, 0.0);
+    let bump = collide::car_car(&mut a, &mut b).expect("pas de contact");
+    assert!(bump.demo_b && !bump.demo_a, "l adversaire survit au-dela du seuil");
 }

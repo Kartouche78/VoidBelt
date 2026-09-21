@@ -62,7 +62,6 @@ async function boot() {
     resume: () => {
       app.paused = false;
       menu.hide();
-      audio.setMusic(false);
     },
     restart: () => (app.mode === 'online' ? net.start() : startMatch()),
     quit: () => {
@@ -71,7 +70,6 @@ async function boot() {
       app.paused = false;
       app.finished = false;
       audio.stopAll();
-      audio.setMusic(true);
       return menu.show('title');
     },
     change: (s) => {
@@ -98,7 +96,6 @@ async function boot() {
     app.paused = false;
     app.finished = false;
     audio.stopAll();
-    audio.setMusic(true);
     menu.show(screen);
     if (message) menu.status(message);
   }
@@ -115,7 +112,6 @@ async function boot() {
     audio.unlock();
     audio.applyLevels(settings.audio);
     audio.stopAll();
-    audio.setMusic(false);
     app.mode = 'online';
     app.running = true;
     app.paused = false;
@@ -166,7 +162,6 @@ async function boot() {
     audio.unlock();
     audio.applyLevels(settings.audio);
     audio.stopAll();
-    audio.setMusic(false);
     engine.start(seed(), settings.match.level, settings.match.duration);
     app.running = true;
     app.paused = false;
@@ -191,7 +186,6 @@ async function boot() {
   const wake = () => {
     audio.unlock();
     audio.applyLevels(settings.audio);
-    if (!app.running) audio.setMusic(true);
   };
   addEventListener('pointerdown', wake, { once: true });
   addEventListener('keydown', wake, { once: true });
@@ -252,11 +246,6 @@ async function boot() {
       const player = readCar(state, me);
       view.update(state, readCar, dt);
       hud.update(state, player, state[STATE.PHASE] | 0, geom.boostMax, lobbyInfo());
-      audio.setEngine(
-        Math.min(player.speed / geom.speedMax, 1),
-        player.flame > 0,
-        live && player.demo <= 0,
-      );
       // Le crissement suit la glissade reelle, pas le bouton : on n'entend
       // rien tant que les roues tiennent, meme frein a main tire.
       const sliding = live && player.demo <= 0 && Math.abs(player.slip) > 0.22 && player.speed > 90;
@@ -269,8 +258,6 @@ async function boot() {
       if (app.mode === 'solo' && app.running && !app.finished && over) {
         app.finished = true;
         audio.stopAll();
-        audio.end();
-        audio.setMusic(true);
         menu.result(state[STATE.SCORE_BLUE] | 0, state[STATE.SCORE_ORANGE] | 0);
       }
   }
@@ -301,35 +288,20 @@ async function boot() {
     for (const e of readEvents(buf)) {
       switch (e.code) {
         case EV.HIT:
-          audio.hit(e.value);
           if (e.value > 120) view.kick(e.value / 90);
           break;
-        case EV.WALL:
-          audio.wall(e.value);
-          break;
-        case EV.PAD:
-          audio.pad(padTable[(e.value | 0) * 3 + 2] > 0.5);
-          break;
         case EV.BUMP:
-          audio.bump();
           view.kick(4);
           break;
         case EV.DEMO: {
           // La carcasse n'a pas bouge : c'est la qu'on fait sauter la bombe.
           const victim = readCar(state, e.value | 0);
-          audio.demo();
           view.explode(victim.x, victim.y, e.value | 0);
           break;
         }
         case EV.GOAL:
           audio.goal();
           view.kick(18);
-          break;
-        case EV.COUNT:
-          audio.count(e.value);
-          break;
-        case EV.BOOM:
-          audio.boom();
           break;
         case EV.SAVE:
           audio.save();
@@ -338,7 +310,7 @@ async function boot() {
           audio.overtime();
           break;
         case EV.KICKOFF:
-          if (!audio.countdown()) audio.whistle();
+          audio.countdown();
           view.clearEffects();
           break;
         default:
