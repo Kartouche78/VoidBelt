@@ -8,19 +8,18 @@ use crate::car::{Car, Input, KICKOFF_BOOST};
 use crate::collide;
 
 pub const CARS: usize = 2;
-// Cales sur les deux pistes de l'habillage. `countdown.mp3` tient une
-// seconde de silence puis egrene 3, 2, 1 et le depart a la quatrieme :
-// d'ou quatre secondes de decompte, la premiere sans chiffre affiche.
-// `goal-sound.mp3` dure 5,6 s ; la fete en couvre 4,6 et la queue du son
-// deborde sur le silence d'entree du decompte, sans jamais se marcher
-// dessus.
-pub const COUNTDOWN: f32 = 3.0;
-/// Avance muette et sans chiffre en tete du decompte. A remonter le jour ou
-/// une piste sonore en aura besoin, comme l'ancienne qui gardait une seconde
-/// de silence avant d'egrener ses chiffres.
-pub const COUNTDOWN_LEAD: f32 = 0.0;
-/// Laisse la place a `goal.ogg`, qui tient l'essentiel de son souffle sur
-/// ses trois premieres secondes.
+// Cales sur les pistes de l'habillage, mesurees et non estimees.
+// `countdown.mp3` tient une seconde de silence puis frappe a 1, 2, 3 et
+// 4 secondes : d'ou quatre secondes de decompte, la premiere sans chiffre
+// affiche, et le depart qui tombe pile sur le dernier temps. La plus
+// longue des prises de but dure 5,5 s ; la fete en couvre 4,6 et la queue
+// deborde sur le silence d'entree du decompte, sans se marcher dessus.
+pub const COUNTDOWN: f32 = 4.0;
+/// Avance muette et sans chiffre en tete du decompte : `countdown.mp3`
+/// garde une seconde de silence avant son premier chiffre.
+pub const COUNTDOWN_LEAD: f32 = 1.0;
+/// Laisse la place aux commentaires de but, dont le plus long tient
+/// l'essentiel de son souffle sur ses quatre premieres secondes.
 pub const CELEBRATE: f32 = 4.6;
 /// Pas d'integration fixe : la physique reste identique quel que soit
 /// le taux de rafraichissement de l'ecran.

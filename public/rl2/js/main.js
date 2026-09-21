@@ -231,6 +231,7 @@ async function boot() {
       // rien tant que les roues tiennent, meme frein a main tire.
       const sliding = live && player.demo <= 0 && Math.abs(player.slip) > 0.22 && player.speed > 90;
       audio.setDrift(sliding, (Math.abs(player.slip) - 0.22) * 1.6);
+      audio.setBoost(live && player.demo <= 0 && player.flame > 0, dt);
 
       // L'ecran de fin n'existe qu'en solo : en ligne le serveur renvoie tout
       // le monde a l'echauffement, on reste donc dans la partie.

@@ -1,19 +1,51 @@
-// Habillage sonore. Les bruits de jeu sont synthetises au vol ; l'ovation,
-// la prolongation, l'arret et le crissement du drift viennent de pistes
-// fournies, avec repli sur une version synthetisee si elles manquent.
+// Habillage sonore. Les bruits de jeu sont synthetises au vol ; le decompte,
+// les commentaires, le souffle du boost et le crissement du drift viennent de
+// pistes fournies, avec repli sur une version synthetisee si elles manquent.
 //
 // Trois bus independants (general, effets, musique) pour que les curseurs
 // des parametres agissent vraiment, et un moteur qui suit la vitesse.
 
-/** Pistes de l'habillage, telechargees au demarrage et decodees a l'ouverture
- *  du contexte audio. */
+/** Pistes uniques, telechargees au demarrage et decodees a l'ouverture du
+ *  contexte audio. */
 const CLIPS = {
-  goal: 'assets/audio/goal.ogg',
-  goal2: 'assets/audio/goal_02.ogg',
-  overtime: 'assets/audio/overtime.ogg',
-  save: 'assets/audio/save.ogg',
+  countdown: 'assets/audio/countdown.mp3',
   drift: 'assets/audio/drift.ogg',
+  boostStart: 'assets/audio/boost_start.ogg',
+  boostMax: 'assets/audio/boost_max.ogg',
 };
+
+/** Evenements a plusieurs prises : on en tire une au hasard, pour qu'un match
+ *  serre ne rejoue pas six fois la meme. Chaque prise est rangee sous
+ *  `nom#rang`, et toutes partagent une voix : un second but coupe le
+ *  commentaire du premier au lieu de s'empiler dessus. */
+const VARIANTS = {
+  goal: [
+    'goal/SFX_GoalEvent_0001.ogg',
+    'goal/VO_Champions_0001.ogg',
+    'goal/VO_Champions_0012.ogg',
+    'goal/VO_Champions_0015.ogg',
+    'goal/VO_NeoTokyo_0003.ogg',
+    'goal/VO_ScoreGoal_0001.ogg',
+  ],
+  save: [
+    'save/VO_Champions_0006.ogg',
+    'save/VO_Champions_0009.ogg',
+    'save/VO_NeoTokyo_0004.ogg',
+  ],
+  overtime: ['overtime/VO_Champions_0003.ogg'],
+};
+
+/** Tout ce qu'il y a a telecharger, prises numerotees comprises. */
+const SOURCES = { ...CLIPS };
+for (const [name, takes] of Object.entries(VARIANTS)) {
+  takes.forEach((file, i) => {
+    SOURCES[`${name}#${i}`] = `assets/audio/${file}`;
+  });
+}
+
+/** Secondes de boost tenu avant que la nappe ne remplace l'attaque.
+ *  `boost_start` dure une seconde et s'est deja tue aux deux tiers ici. */
+const BOOST_TAKEOVER = 0.55;
 
 export class Audio {
   constructor(levels) {
@@ -23,14 +55,15 @@ export class Audio {
     this.raw = {};
     this.clips = {};
     this.voices = {};
-    this.driftVoice = null;
-    this.lastGoal = 0;
+    this.loops = {};
+    this.boostOn = false;
+    this.boostHeld = 0;
   }
 
   /** Recupere les pistes sans attendre de geste : seul le decodage a besoin
    *  du contexte, pas le telechargement. */
   async preload() {
-    await Promise.all(Object.entries(CLIPS).map(async ([name, url]) => {
+    await Promise.all(Object.entries(SOURCES).map(async ([name, url]) => {
       try {
         this.raw[name] = await (await fetch(url)).arrayBuffer();
       } catch {
@@ -52,21 +85,29 @@ export class Audio {
     }
   }
 
-  /** Lance une piste, en coupant la precedente du meme nom. */
-  play(name, volume = 1) {
+  /** Lance une piste, en coupant la precedente du meme nom. `as` permet a
+   *  plusieurs prises d'un meme evenement de se partager une seule voix. */
+  play(name, volume = 1, as = name) {
     if (!this.ready || !this.clips[name]) return false;
-    this.stop(name);
+    this.stop(as);
     const src = this.ctx.createBufferSource();
     src.buffer = this.clips[name];
     const g = this.ctx.createGain();
     g.gain.value = volume;
     src.connect(g).connect(this.sfx);
     src.start();
-    this.voices[name] = { src, gain: g };
+    this.voices[as] = { src, gain: g };
     src.onended = () => {
-      if (this.voices[name]?.src === src) delete this.voices[name];
+      if (this.voices[as]?.src === src) delete this.voices[as];
     };
     return true;
+  }
+
+  /** Joue une prise au hasard parmi celles qui ont pu etre decodees. */
+  playAny(name, volume = 1) {
+    const takes = Object.keys(this.clips).filter((k) => k.startsWith(`${name}#`));
+    if (!takes.length) return false;
+    return this.play(takes[Math.floor(Math.random() * takes.length)], volume, name);
   }
 
   /** Coupe une piste en fondu, pour ne pas claquer. */
@@ -87,30 +128,50 @@ export class Audio {
 
   stopAll() {
     for (const name of Object.keys(this.voices)) this.stop(name);
-    // La boucle du drift ne passe pas par `voices` : elle tourne en continu
-    // et ne se coupe que par son volume.
-    this.setDrift(false);
+    // Les boucles ne passent pas par `voices` : elles tournent en continu et
+    // ne se referment que par leur volume.
+    for (const name of Object.keys(this.loops)) this._loop(name, false, 0, 0, 0.12);
+    this.boostOn = false;
+    this.boostHeld = 0;
   }
 
-  /** Crissement du drift. `drift.ogg` tient un niveau constant sur cinq
-   *  secondes : plutot que de la relancer a chaque glissade, on la laisse
-   *  tourner en boucle et on ouvre son volume. */
-  setDrift(on, force = 1) {
-    if (!this.ready || !this.clips.drift) return;
-    // Tant qu'on n'a pas glisse une fois, rien a ouvrir ni a refermer.
-    if (!on && !this.driftVoice) return;
-    if (!this.driftVoice) {
+  /** Ouvre ou ferme une piste qui tourne en boucle. Plutot que de la relancer
+   *  a chaque fois, on la laisse tourner et on joue sur son volume : c'est ce
+   *  qui permet a un crissement ou a un souffle de s'installer sans claquer. */
+  _loop(name, on, volume, attack, release) {
+    if (!this.ready || !this.clips[name]) return;
+    // Tant qu'on ne l'a pas ouverte une fois, il n'y a rien a refermer.
+    if (!on && !this.loops[name]) return;
+    if (!this.loops[name]) {
       const src = this.ctx.createBufferSource();
-      src.buffer = this.clips.drift;
+      src.buffer = this.clips[name];
       src.loop = true;
       const g = this.ctx.createGain();
       g.gain.value = 0;
       src.connect(g).connect(this.sfx);
       src.start();
-      this.driftVoice = { src, gain: g };
+      this.loops[name] = { src, gain: g };
     }
-    const target = on ? 0.2 + Math.min(force, 1) * 0.4 : 0;
-    this.driftVoice.gain.gain.setTargetAtTime(target, this.ctx.currentTime, on ? 0.04 : 0.1);
+    const t = this.ctx.currentTime;
+    this.loops[name].gain.gain.setTargetAtTime(on ? volume : 0, t, on ? attack : release);
+  }
+
+  /** Crissement du drift. `drift.ogg` tient un niveau constant sur cinq
+   *  secondes : elle est faite pour tourner. */
+  setDrift(on, force = 1) {
+    this._loop('drift', on, 0.2 + Math.min(Math.max(force, 0), 1) * 0.4, 0.04, 0.1);
+  }
+
+  /** Souffle du boost : une attaque a l'appui, puis une nappe qui prend le
+   *  relais si on reste dessus. `boost_start` s'eteint de lui-meme en une
+   *  seconde, `boost_max` a un niveau plat fait pour boucler. On croise les
+   *  deux une fois l'attaque tue, pour qu'a fond il n'en reste bien qu'une. */
+  setBoost(on, dt = 0) {
+    if (!this.ready) return;
+    if (on && !this.boostOn) this.play('boostStart', 0.7);
+    this.boostOn = on;
+    this.boostHeld = on ? this.boostHeld + dt : 0;
+    this._loop('boostMax', on && this.boostHeld > BOOST_TAKEOVER, 0.45, 0.18, 0.12);
   }
 
   /** Le navigateur exige un geste de l'utilisateur avant tout son. */
@@ -262,12 +323,9 @@ export class Audio {
     this._blip({ freq: 260, to: 30, type: 'sawtooth', dur: 0.5, vol: 0.4 });
   }
 
-  /** Ovation du but. Deux prises alternent, pour qu'un match serre ne
-   *  rejoue pas six fois la meme. La piste tient dans la celebration. */
+  /** Ovation du but : une prise au hasard parmi celles fournies. */
   goal() {
-    this.lastGoal = this.clips.goal2 ? 1 - this.lastGoal : 0;
-    const take = this.lastGoal ? 'goal2' : 'goal';
-    if (this.play(take, 0.9) || this.play('goal', 0.9)) return;
+    if (this.playAny('goal', 0.9)) return;
     for (const [i, f] of [220, 277, 330, 440].entries()) {
       this._blip({ freq: f, to: f, type: 'sawtooth', dur: 1.1, vol: 0.22, delay: i * 0.06 });
     }
@@ -276,7 +334,7 @@ export class Audio {
 
   /** Entree en prolongation. */
   overtime() {
-    if (this.play('overtime', 0.9)) return;
+    if (this.playAny('overtime', 0.9)) return;
     for (const [i, f] of [330, 392, 494].entries()) {
       this._blip({ freq: f, to: f, type: 'sawtooth', dur: 0.5, vol: 0.26, delay: i * 0.14 });
     }
@@ -284,12 +342,14 @@ export class Audio {
 
   /** Arret devant la ligne. */
   save() {
-    if (this.play('save', 0.85)) return;
+    if (this.playAny('save', 0.85)) return;
     this._blip({ freq: 700, to: 1100, dur: 0.22, vol: 0.28 });
   }
 
-  /** Piste du decompte, lancee a l'engagement. Aucune n'est fournie
-   *  aujourd'hui : `count()` egrene alors ses bips seconde par seconde. */
+  /** Piste du decompte, lancee a l'engagement. Ses quatre temps tombent a
+   *  1, 2, 3 et 4 secondes, apres une seconde de silence : c'est ce que
+   *  `COUNTDOWN` et `COUNTDOWN_LEAD` reproduisent cote moteur. Si elle
+   *  manque, `count()` egrene ses bips a la place. */
   countdown() {
     return this.play('countdown', 0.85);
   }
