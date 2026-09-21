@@ -1,6 +1,6 @@
-// Habillage sonore. Les bruits de jeu sont synthetises au vol ; l'ovation
-// du but et le decompte viennent de deux pistes fournies, avec repli sur
-// une version synthetisee si elles manquent.
+// Habillage sonore. Les bruits de jeu sont synthetises au vol ; l'ovation,
+// la prolongation, l'arret et le crissement du drift viennent de pistes
+// fournies, avec repli sur une version synthetisee si elles manquent.
 //
 // Trois bus independants (general, effets, musique) pour que les curseurs
 // des parametres agissent vraiment, et un moteur qui suit la vitesse.
@@ -8,8 +8,11 @@
 /** Pistes de l'habillage, telechargees au demarrage et decodees a l'ouverture
  *  du contexte audio. */
 const CLIPS = {
-  goal: 'assets/goal-sound.mp3',
-  countdown: 'assets/countdown.mp3',
+  goal: 'assets/audio/goal.ogg',
+  goal2: 'assets/audio/goal_02.ogg',
+  overtime: 'assets/audio/overtime.ogg',
+  save: 'assets/audio/save.ogg',
+  drift: 'assets/audio/drift.ogg',
 };
 
 export class Audio {
@@ -20,6 +23,8 @@ export class Audio {
     this.raw = {};
     this.clips = {};
     this.voices = {};
+    this.driftVoice = null;
+    this.lastGoal = 0;
   }
 
   /** Recupere les pistes sans attendre de geste : seul le decodage a besoin
@@ -82,6 +87,30 @@ export class Audio {
 
   stopAll() {
     for (const name of Object.keys(this.voices)) this.stop(name);
+    // La boucle du drift ne passe pas par `voices` : elle tourne en continu
+    // et ne se coupe que par son volume.
+    this.setDrift(false);
+  }
+
+  /** Crissement du drift. `drift.ogg` tient un niveau constant sur cinq
+   *  secondes : plutot que de la relancer a chaque glissade, on la laisse
+   *  tourner en boucle et on ouvre son volume. */
+  setDrift(on, force = 1) {
+    if (!this.ready || !this.clips.drift) return;
+    // Tant qu'on n'a pas glisse une fois, rien a ouvrir ni a refermer.
+    if (!on && !this.driftVoice) return;
+    if (!this.driftVoice) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.clips.drift;
+      src.loop = true;
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      src.connect(g).connect(this.sfx);
+      src.start();
+      this.driftVoice = { src, gain: g };
+    }
+    const target = on ? 0.2 + Math.min(force, 1) * 0.4 : 0;
+    this.driftVoice.gain.gain.setTargetAtTime(target, this.ctx.currentTime, on ? 0.04 : 0.1);
   }
 
   /** Le navigateur exige un geste de l'utilisateur avant tout son. */
@@ -233,17 +262,34 @@ export class Audio {
     this._blip({ freq: 260, to: 30, type: 'sawtooth', dur: 0.5, vol: 0.4 });
   }
 
-  /** Ovation du but. La piste couvre toute la celebration ; sa fin deborde
-   *  sur le silence d'entree du decompte, donc rien a couper. */
+  /** Ovation du but. Deux prises alternent, pour qu'un match serre ne
+   *  rejoue pas six fois la meme. La piste tient dans la celebration. */
   goal() {
-    if (this.play('goal', 0.9)) return;
+    this.lastGoal = this.clips.goal2 ? 1 - this.lastGoal : 0;
+    const take = this.lastGoal ? 'goal2' : 'goal';
+    if (this.play(take, 0.9) || this.play('goal', 0.9)) return;
     for (const [i, f] of [220, 277, 330, 440].entries()) {
       this._blip({ freq: f, to: f, type: 'sawtooth', dur: 1.1, vol: 0.22, delay: i * 0.06 });
     }
     this._burst(0.8, 0.28, 3200);
   }
 
-  /** Piste du decompte, lancee a l'engagement. */
+  /** Entree en prolongation. */
+  overtime() {
+    if (this.play('overtime', 0.9)) return;
+    for (const [i, f] of [330, 392, 494].entries()) {
+      this._blip({ freq: f, to: f, type: 'sawtooth', dur: 0.5, vol: 0.26, delay: i * 0.14 });
+    }
+  }
+
+  /** Arret devant la ligne. */
+  save() {
+    if (this.play('save', 0.85)) return;
+    this._blip({ freq: 700, to: 1100, dur: 0.22, vol: 0.28 });
+  }
+
+  /** Piste du decompte, lancee a l'engagement. Aucune n'est fournie
+   *  aujourd'hui : `count()` egrene alors ses bips seconde par seconde. */
   countdown() {
     return this.play('countdown', 0.85);
   }

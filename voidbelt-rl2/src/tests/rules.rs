@@ -1,12 +1,12 @@
 //! Regles du match : plots, demolitions, buts, chrono, bot.
 
-use super::{drive, run, started, DT};
+use super::{drive, harvest, run, started, DT};
 use crate::arena;
 use crate::ball::{self, Ball};
 use crate::boost::Field;
 use crate::car::{self, Car};
 use crate::collide;
-use crate::game::{ev, Game, Phase};
+use crate::game::{self, ev, Game, Phase};
 use crate::vec::v2;
 
 #[test]
@@ -175,11 +175,12 @@ fn l_engagement_d_ouverture_est_annonce() {
 
 #[test]
 fn les_phases_collent_aux_pistes_sonores() {
-    // `countdown.mp3` egrene ses chiffres sur quatre secondes, dont une
-    // d'avance muette ; `goal-sound.mp3` en dure 5,6. Changer ces durees
-    // desynchronise l'habillage.
+    // L'habillage sonore se cale sur ces deux durees : la fete doit tenir
+    // `goal.ogg` en entier, et le decompte s'entend jusqu'au coup d'envoi.
+    // On les mesure ici plutot que de les recopier, pour que le jour ou une
+    // piste change le test suive la constante au lieu de mentir.
     let mut g = Game::new(1, 1, 300.0);
-    run(&mut g, 3.9);
+    run(&mut g, game::COUNTDOWN - 0.1);
     assert_eq!(g.phase, Phase::Countdown, "decompte trop court");
     run(&mut g, 0.3);
     assert_eq!(g.phase, Phase::Play);
@@ -188,9 +189,9 @@ fn les_phases_collent_aux_pistes_sonores() {
     g.ball.vel = v2(900.0, 0.0);
     run(&mut g, 0.2);
     assert_eq!(g.phase, Phase::Goal);
-    run(&mut g, 4.4);
+    run(&mut g, game::CELEBRATE - 0.4);
     assert_eq!(g.phase, Phase::Goal, "fete trop courte pour l'ovation");
-    run(&mut g, 0.4);
+    run(&mut g, 0.5);
     assert_eq!(g.phase, Phase::Countdown);
 }
 
@@ -307,4 +308,47 @@ fn le_tampon_d_etat_a_la_bonne_taille() {
     assert_eq!(out[6], arena::CX);
     assert_eq!(crate::state::pad_table().len(), 34 * 3);
     assert_eq!(crate::state::geometry().len(), 17);
+}
+
+#[test]
+fn un_degagement_sur_la_ligne_compte_comme_un_arret() {
+    // Balle cadree, lancee vers le but bleu, et une voiture bleue qui vient
+    // la chercher : c'est un arret.
+    let mut g = started(0);
+    let goal = arena::goal_mouth(true);
+    g.ball.pos = v2(goal + 180.0, arena::CY + 10.0);
+    g.ball.vel = v2(-700.0, 0.0);
+    g.cars[0].pos = v2(goal + 150.0, arena::CY + 10.0);
+    g.cars[0].vel = v2(300.0, 0.0);
+    g.cars[0].yaw = 0.0;
+    let seen = harvest(&mut g, 0.3);
+    assert!(seen.iter().any(|e| e.0 == ev::SAVE), "aucun arret signale");
+}
+
+#[test]
+fn une_balle_non_cadree_ne_donne_pas_d_arret() {
+    // Meme geste, mais la balle filait a cote du poteau : c'est du jeu.
+    let mut g = started(0);
+    let goal = arena::goal_mouth(true);
+    g.ball.pos = v2(goal + 180.0, arena::CY + arena::GOAL_HALF + 90.0);
+    g.ball.vel = v2(-700.0, 0.0);
+    g.cars[0].pos = v2(goal + 150.0, arena::CY + arena::GOAL_HALF + 90.0);
+    g.cars[0].vel = v2(300.0, 0.0);
+    g.cars[0].yaw = 0.0;
+    let seen = harvest(&mut g, 0.3);
+    assert!(!seen.iter().any(|e| e.0 == ev::SAVE), "arret signale a tort");
+}
+
+#[test]
+fn un_arret_loin_du_but_n_en_est_pas_un() {
+    // Cadree mais prise au milieu du terrain : trop loin pour un arret.
+    let mut g = started(0);
+    let goal = arena::goal_mouth(true);
+    g.ball.pos = v2(goal + 700.0, arena::CY);
+    g.ball.vel = v2(-700.0, 0.0);
+    g.cars[0].pos = v2(goal + 670.0, arena::CY);
+    g.cars[0].vel = v2(300.0, 0.0);
+    g.cars[0].yaw = 0.0;
+    let seen = harvest(&mut g, 0.3);
+    assert!(!seen.iter().any(|e| e.0 == ev::SAVE), "arret signale au milieu");
 }

@@ -14,13 +14,20 @@ pub const CARS: usize = 2;
 // `goal-sound.mp3` dure 5,6 s ; la fete en couvre 4,6 et la queue du son
 // deborde sur le silence d'entree du decompte, sans jamais se marcher
 // dessus.
-pub const COUNTDOWN: f32 = 4.0;
-/// Premiere seconde du decompte, muette et sans chiffre.
-pub const COUNTDOWN_LEAD: f32 = 1.0;
-const CELEBRATE: f32 = 4.6;
+pub const COUNTDOWN: f32 = 3.0;
+/// Avance muette et sans chiffre en tete du decompte. A remonter le jour ou
+/// une piste sonore en aura besoin, comme l'ancienne qui gardait une seconde
+/// de silence avant d'egrener ses chiffres.
+pub const COUNTDOWN_LEAD: f32 = 0.0;
+/// Laisse la place a `goal.ogg`, qui tient l'essentiel de son souffle sur
+/// ses trois premieres secondes.
+pub const CELEBRATE: f32 = 4.6;
 /// Pas d'integration fixe : la physique reste identique quel que soit
 /// le taux de rafraichissement de l'ecran.
 const STEP: f32 = 1.0 / 120.0;
+/// Distance au but en deca de laquelle une frappe degagee compte comme un
+/// arret. Plus loin, c'est du jeu ordinaire.
+const SAVE_RANGE: f32 = 400.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Phase {
@@ -44,6 +51,8 @@ pub mod ev {
     pub const BOOM: u32 = 7;
     pub const KICKOFF: u32 = 8;
     pub const END: u32 = 9;
+    pub const SAVE: u32 = 10;
+    pub const OVERTIME: u32 = 11;
 }
 
 pub struct Game {
@@ -212,9 +221,22 @@ impl Game {
             if let Some(p) = self.pads.collect(&mut self.cars[i]) {
                 self.events.push((ev::PAD, p as f32));
             }
+            // On garde la balle d'avant le contact : comparer les deux
+            // trajectoires dit si le joueur vient de sortir un tir cadre.
+            let before = self.ball;
             let force = collide::car_ball(&mut self.cars[i], &mut self.ball);
             if force > 0.0 {
                 self.events.push((ev::HIT, force));
+                let team = self.cars[i].team;
+                let goal = arena::goal_mouth(team == 0);
+                let close = (before.pos.x - goal).abs() < SAVE_RANGE;
+                if close
+                    && before.vel.len() > 170.0
+                    && arena::on_target(before.pos, before.vel, team)
+                    && !arena::on_target(self.ball.pos, self.ball.vel, team)
+                {
+                    self.events.push((ev::SAVE, team as f32));
+                }
             }
         }
 
@@ -251,7 +273,7 @@ impl Game {
             if self.clock <= 0.0 {
                 if self.score[0] == self.score[1] {
                     self.overtime = true;
-                    self.events.push((ev::COUNT, -1.0));
+                    self.events.push((ev::OVERTIME, 0.0));
                 } else {
                     self.finish();
                 }

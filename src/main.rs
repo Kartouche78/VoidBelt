@@ -8,6 +8,7 @@ mod transmissions;
 use axum::{
     Json, Router,
     http::{HeaderValue, Method, header},
+    response::Redirect,
     routing::get,
 };
 use std::net::SocketAddr;
@@ -15,6 +16,22 @@ use tower_http::{
     compression::CompressionLayer, cors::CorsLayer, services::ServeDir,
     set_header::SetResponseHeaderLayer, trace::TraceLayer,
 };
+
+/// Monte un dossier de page a `path`, avec la redirection que `nest_service`
+/// n'emet pas de lui-meme.
+///
+/// Sur `/rl2` sans barre finale, il sert bien `index.html`, mais le navigateur
+/// garde alors `/` comme base : `js/main.js` part chercher `/js/main.js`, la
+/// page arrive sans style ni script et le jeu ne demarre jamais. On redirige
+/// donc explicitement vers `/rl2/`, ou les chemins relatifs retombent juste.
+fn page(path: &'static str, dir: &'static str) -> Router {
+    Router::new()
+        .route(
+            path,
+            get(move || async move { Redirect::permanent(&format!("{path}/")) }),
+        )
+        .nest_service(&format!("{path}/"), ServeDir::new(dir))
+}
 
 #[tokio::main]
 async fn main() {
@@ -51,7 +68,7 @@ async fn main() {
     // un module d'hier a cote d'un module d'aujourd'hui — un seul suffit a
     // tout casser.
     let rl2_files = Router::new()
-        .nest_service("/rl2", ServeDir::new("public/rl2"))
+        .merge(page("/rl2", "public/rl2"))
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::CACHE_CONTROL,
             HeaderValue::from_static("no-cache"),
@@ -82,11 +99,11 @@ async fn main() {
         .merge(rl2)
         .merge(rl2_files)
         .merge(multiplayer)
-        .nest_service("/home", ServeDir::new("public/home"))
-        .nest_service("/arena", ServeDir::new("public/arena"))
-        .nest_service("/skilltree", ServeDir::new("public/skilltree"))
-        .nest_service("/jumpnbump", ServeDir::new("public/jumpnbump"))
-        .nest_service("/multiplayer", ServeDir::new("public/multiplayer"))
+        .merge(page("/home", "public/home"))
+        .merge(page("/arena", "public/arena"))
+        .merge(page("/skilltree", "public/skilltree"))
+        .merge(page("/jumpnbump", "public/jumpnbump"))
+        .merge(page("/multiplayer", "public/multiplayer"))
         .fallback_service(ServeDir::new("public"))
         .layer(cors)
         .layer(CompressionLayer::new())

@@ -32,9 +32,23 @@ pub(super) fn run(g: &mut Game, seconds: f32) {
 }
 
 /// Fait avancer un match jusqu'a la fin du decompte d'engagement.
+/// Joue `secs` en ramassant les evenements au passage : `Game::events` se
+/// vide a chaque pas, un test qui le lit apres coup ne voit plus rien.
+pub(super) fn harvest(g: &mut Game, secs: f32) -> Vec<(u32, f32)> {
+    let mut out = Vec::new();
+    let steps = (secs / DT).round() as usize;
+    for _ in 0..steps {
+        g.step(DT);
+        out.extend_from_slice(&g.events);
+    }
+    out
+}
+
 pub(super) fn started(level: u32) -> Game {
     let mut g = Game::new(7, level, 300.0);
-    run(&mut g, 4.2);
+    // Juste apres le decompte, quelle que soit sa duree : en figer une ici
+    // donnait au bot une avance d'une seconde le jour ou elle a change.
+    run(&mut g, crate::game::COUNTDOWN + 0.2);
     assert_eq!(g.phase, Phase::Play);
     g
 }

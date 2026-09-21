@@ -227,6 +227,10 @@ async function boot() {
         player.flame > 0,
         live && player.demo <= 0,
       );
+      // Le crissement suit la glissade reelle, pas le bouton : on n'entend
+      // rien tant que les roues tiennent, meme frein a main tire.
+      const sliding = live && player.demo <= 0 && Math.abs(player.slip) > 0.22 && player.speed > 90;
+      audio.setDrift(sliding, (Math.abs(player.slip) - 0.22) * 1.6);
 
       // L'ecran de fin n'existe qu'en solo : en ligne le serveur renvoie tout
       // le monde a l'echauffement, on reste donc dans la partie.
@@ -295,6 +299,12 @@ async function boot() {
           break;
         case EV.BOOM:
           audio.boom();
+          break;
+        case EV.SAVE:
+          audio.save();
+          break;
+        case EV.OVERTIME:
+          audio.overtime();
           break;
         case EV.KICKOFF:
           if (!audio.countdown()) audio.whistle();

@@ -8,6 +8,7 @@
 import * as THREE from '../vendor/three.module.js';
 import { STATE } from './wasm.js';
 import { Effects } from './effects.js';
+import { makeFlames } from './flame.js';
 
 const PAD_BASE = STATE.PAD_BASE;
 
@@ -161,7 +162,6 @@ export class Renderer {
 
   _buildActors() {
     const shadow = blobTexture('rgba(0,0,0,0.55)');
-    const flame = blobTexture('rgba(255,170,60,0.95)');
     const { ballR, carLen, carWid } = this.geom;
 
     this.ball = new THREE.Group();
@@ -181,11 +181,10 @@ export class Renderer {
       // par-dessus la rotation du groupe.
       const body = plane(carWid, carLen, flat(this.load(CAR_ART[team])));
       body.rotation.z = -Math.PI / 2;
-      const fire = plane(carLen * 0.9, carWid * 1.2, flat(flame, { blending: THREE.AdditiveBlending }));
-      fire.position.set(-carLen * 0.75, 0, -0.5);
-      fire.visible = false;
-      g.add(sh, body, fire);
-      g.userData = { fire, body };
+      g.add(sh, body);
+      // Les reacteurs se montent apres le chassis : ils s'accrochent aux
+      // pots releves sur la planche, pas a un point choisi a la main.
+      g.userData = { body, flames: makeFlames(g, this.geom, this.load) };
       g.position.z = Z.CAR;
       this.scene.add(g);
       return g;
@@ -262,6 +261,7 @@ export class Renderer {
   }
 
   update(state, readCar, dt) {
+    const now = performance.now() / 1000;
     const { boardW, boardH } = this.geom;
     this.ball.position.set(state[6], -state[7], Z.BALL);
     this.ballDisc.rotation.z = -state[10] * 0.25;
@@ -272,15 +272,7 @@ export class Renderer {
       g.visible = c.demo <= 0;
       g.position.set(c.x, -c.y, Z.CAR);
       g.rotation.z = -c.yaw;
-      // La flamme s'allonge avec la vitesse, comme la trainee du jeu.
-      const fire = g.userData.fire;
-      fire.visible = c.flame > 0;
-      if (fire.visible) {
-        const ratio = Math.min(c.speed / this.geom.speedMax, 1);
-        const stretch = 1 + ratio * 2.4 + Math.random() * 0.18;
-        fire.scale.set(stretch, 1 + ratio * 0.35, 1);
-        fire.position.x = -this.geom.carLen * (0.5 + 0.45 * stretch);
-      }
+      g.userData.flames(c, dt, now);
       this._skid(c, i, dt);
     }
 

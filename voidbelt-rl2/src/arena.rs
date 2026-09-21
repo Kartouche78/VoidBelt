@@ -51,6 +51,23 @@ fn side_wall(y: f32, left: bool) -> f32 {
     wall + (mouth - wall) * t
 }
 
+/// Le tir allait-il au but de cette equipe ? On prolonge la trajectoire
+/// jusqu'au plan de but et on regarde si elle passe dans la bouche. Sert a
+/// reconnaitre un arret : une balle cadree qui ne l'est plus.
+pub fn on_target(p: V2, v: V2, team: u8) -> bool {
+    let mouth = goal_mouth(team == 0);
+    let dx = mouth - p.x;
+    // Il faut aller vers ce but, et assez vite pour que ce soit un tir.
+    if dx * v.x <= 0.0 || v.x.abs() < 60.0 {
+        return false;
+    }
+    let t = dx / v.x;
+    if !(0.0..=2.5).contains(&t) {
+        return false;
+    }
+    (p.y + v.y * t - CY).abs() < GOAL_HALF
+}
+
 /// Plan de la bouche de but d'un cote ou de l'autre.
 pub fn goal_mouth(left: bool) -> f32 {
     if left {

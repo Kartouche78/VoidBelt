@@ -33,6 +33,7 @@ export const CAR = {
 export const EV = {
   WALL: 0, HIT: 1, PAD: 2, BUMP: 3, DEMO: 4,
   GOAL: 5, COUNT: 6, BOOM: 7, KICKOFF: 8, END: 9,
+  SAVE: 10, OVERTIME: 11,
 };
 
 export const PHASE = { COUNTDOWN: 0, PLAY: 1, GOAL: 2, OVER: 3, WARMUP: 4 };
