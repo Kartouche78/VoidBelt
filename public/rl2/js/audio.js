@@ -215,6 +215,14 @@ export class Audio {
 
   // ------------------------------------------------------------ signaux ---
 
+  /** Fait taire les annonces en cours sans toucher aux boucles. La plus
+   *  longue prise de but dure 5,5 s alors que la celebration en compte 4,6 :
+   *  sans cela, l'ovation deborderait sur le decompte suivant. */
+  hush(seconds = 0.35) {
+    for (const name of Object.keys(this.voices)) this.stop(name, seconds);
+    this.waiting = {};
+  }
+
   /** Piste du decompte, lancee a l'engagement. Ses quatre temps tombent a
    *  1, 2, 3 et 4 secondes, apres une seconde de silence : c'est ce que
    *  `COUNTDOWN` et `COUNTDOWN_LEAD` reproduisent cote moteur. */

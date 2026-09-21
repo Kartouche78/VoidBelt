@@ -310,8 +310,11 @@ async function boot() {
           audio.overtime();
           break;
         case EV.KICKOFF:
-          audio.countdown();
+          // Page blanche avant le decompte : l'ovation du but precedent, ses
+          // braises et ses traces de gomme n'ont plus rien a faire ici.
+          audio.hush();
           view.clearEffects();
+          audio.countdown();
           break;
         default:
           break;
