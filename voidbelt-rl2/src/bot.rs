@@ -98,16 +98,21 @@ impl Bot {
         // rentre se placer sur l'axe au lieu de la poursuivre.
         let ball_side = (aim.x - own_goal.x).abs();
         let car_side = (car.pos.x - own_goal.x).abs();
-        let threatened = ball_side < car_side - 40.0;
+        // Marges exprimees en tailles de balle : elles suivent ainsi le
+        // reglage. Figees, elles devenaient trop etroites des que la balle
+        // grossissait, et le bot la poussait dans ses propres filets.
+        let threatened = ball_side < car_side - t.ball_radius * 2.0;
 
         let target = if threatened {
             // Repli : point entre la balle et le but, legerement decale pour
             // ne pas pousser la balle dans ses propres filets.
             let axis = own_goal.sub(aim).norm();
-            let mut p = aim.add(axis.mul(140.0));
-            p.y += (aim.y - arena::CY).signum() * 30.0;
+            let mut p = aim.add(axis.mul(t.bot_approach() * 3.0));
+            // Ecart lateral : il faut contourner la balle, donc franchir son
+            // diametre, sinon le repli la percute vers sa propre cage.
+            p.y += (aim.y - arena::CY).signum() * t.ball_radius * 2.2;
             clamp_field(p)
-        } else if car.boost < s.greed && reach > 320.0 {
+        } else if car.boost < s.greed && reach > t.bot_approach() * 6.5 {
             pads.best_for(car.pos, car.boost < BOOST_MAX * 0.25)
                 .unwrap_or(aim)
         } else {

@@ -17,7 +17,7 @@ pub const BUMP_FLOOR: f32 = 30.0;
 /// Plafond de la bousculade. Sans lui, un choc juste sous le seuil de
 /// demolition enverrait la voiture a l'autre bout du terrain.
 pub const BUMP_CAP: f32 = 120.0;
-pub const CAR_R: f32 = 14.0;
+pub const CAR_R: f32 = 12.40;
 
 /// Poussee supplementaire d'une frappe selon la vitesse du chassis, reprise
 /// de la table du jeu (0, 500, 1000, 1500, 1750, 2300 uu/s) ramenee a notre

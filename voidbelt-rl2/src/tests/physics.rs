@@ -179,12 +179,22 @@ fn la_balle_rebondit_sur_le_mur_du_fond() {
 
 #[test]
 fn la_balle_ralentit_toute_seule() {
+    // Rocket League freine tres peu la balle : une trainee de 0,0306 par
+    // seconde, soit environ 3 % de vitesse perdue en une seconde. On verifie
+    // l'ordre de grandeur plutot qu'un chiffre, pour que le test suive le
+    // reglage si on le change.
     let mut b = Ball::new();
     b.vel = v2(500.0, 0.0);
     for _ in 0..120 {
         b.step(DT, &T);
     }
-    assert!(b.vel.x < 450.0 && b.vel.x > 100.0, "amortissement irrealiste: {}", b.vel.x);
+    let attendu = 500.0 * (-T.ball_drag).exp();
+    assert!(
+        (b.vel.x - attendu).abs() < 2.0,
+        "apres une seconde : {} au lieu de {attendu}",
+        b.vel.x,
+    );
+    assert!(b.vel.x > 470.0, "la balle freine bien trop : {}", b.vel.x);
 }
 
 #[test]

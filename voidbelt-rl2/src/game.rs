@@ -5,6 +5,7 @@ use crate::ball::Ball;
 use crate::boost::Field;
 use crate::bot::Bot;
 use crate::car::{Car, Input};
+use crate::score::{self, Scoring};
 use crate::tune::Tune;
 use crate::collide;
 
@@ -55,6 +56,13 @@ pub mod ev {
     pub const END: u32 = 9;
     pub const SAVE: u32 = 10;
     pub const OVERTIME: u32 = 11;
+    pub const TOUCH: u32 = 12;
+    pub const SHOT: u32 = 13;
+    pub const CLEAR: u32 = 14;
+    pub const EPIC_SAVE: u32 = 15;
+    pub const ASSIST: u32 = 16;
+    pub const SCORER: u32 = 17;
+    pub const EXTERMINATION: u32 = 18;
 }
 
 /// Compte les voitures de chaque camp.
@@ -100,6 +108,9 @@ pub struct Game {
     pub events: Vec<(u32, f32)>,
     /// Reglages de la partie. Modifiables a chaud depuis `/admin`.
     pub tune: Tune,
+    /// Points individuels, sur le bareme de Rocket League. Ils vivent a
+    /// cote du score par equipe, sans se melanger a lui.
+    pub scoring: Scoring,
     /// Memorise l'etat supersonique pour n'emettre le son qu'au passage.
     boom: Vec<bool>,
     /// L'engagement d'ouverture nait hors d'un pas de simulation : il serait
@@ -133,6 +144,7 @@ impl Game {
             duration,
             events: Vec::new(),
             tune: Tune::default(),
+            scoring: Scoring::new(n),
             boom: vec![false; n],
             opening: true,
             carry: 0.0,
@@ -162,6 +174,7 @@ impl Game {
             return;
         }
         self.score = [0, 0];
+        self.scoring.reset();
         self.clock = self.duration;
         self.overtime = false;
         self.kickoff();
@@ -171,6 +184,7 @@ impl Game {
     pub fn back_to_warmup(&mut self) {
         self.kickoff();
         self.score = [0, 0];
+        self.scoring.reset();
         self.clock = self.duration;
         self.overtime = false;
         self.phase = Phase::Warmup;
@@ -199,6 +213,7 @@ impl Game {
     /// Avance le match de `dt` secondes, par pas fixes.
     pub fn step(&mut self, dt: f32) {
         self.events.clear();
+        self.scoring.tick(dt);
         if self.opening {
             self.opening = false;
             self.events.push((ev::KICKOFF, 0.0));
@@ -276,14 +291,31 @@ impl Game {
             if force > 0.0 {
                 self.events.push((ev::HIT, force));
                 let team = self.cars[i].team;
+                if self.scoring.touch(i) {
+                    self.events.push((ev::TOUCH, i as f32));
+                }
                 let goal = arena::goal_mouth(team == 0);
-                let close = (before.pos.x - goal).abs() < self.tune.save_range;
+                let dist = (before.pos.x - goal).abs();
+                let close = dist < self.tune.save_range;
                 if close
                     && before.vel.len() > 170.0
                     && arena::on_target(before.pos, before.vel, team)
                     && !arena::on_target(self.ball.pos, self.ball.vel, team)
                 {
-                    self.events.push((ev::SAVE, team as f32));
+                    // Proximite du but, de 0 au bord de la zone a 1 sur la
+                    // ligne : c'est elle qui distingue l'arret spectaculaire.
+                    let pres = 1.0 - (dist / self.tune.save_range).clamp(0.0, 1.0);
+                    let epic = self.scoring.save(i, pres);
+                    self.events.push((ev::SAVE, i as f32));
+                    if epic {
+                        self.events.push((ev::EPIC_SAVE, i as f32));
+                    }
+                } else if score::is_shot(team, self.ball.pos, self.ball.vel) {
+                    self.scoring.shot(i);
+                    self.events.push((ev::SHOT, i as f32));
+                } else if score::is_clear(team, before.pos, self.ball.vel, &self.tune) {
+                    self.scoring.clear(i);
+                    self.events.push((ev::CLEAR, i as f32));
                 }
             }
         }
@@ -300,9 +332,15 @@ impl Game {
                 };
                 if bump.demo_a {
                     self.events.push((ev::DEMO, i as f32));
+                    if self.scoring.demo(j) {
+                        self.events.push((ev::EXTERMINATION, j as f32));
+                    }
                 }
                 if bump.demo_b {
                     self.events.push((ev::DEMO, j as f32));
+                    if self.scoring.demo(i) {
+                        self.events.push((ev::EXTERMINATION, i as f32));
+                    }
                 }
                 if !bump.any_demo() && bump.force > 35.0 {
                     self.events.push((ev::BUMP, bump.force));
@@ -310,9 +348,26 @@ impl Game {
             }
         }
 
-        if let Some(team) = arena::conceded(self.ball.pos, crate::ball::RADIUS) {
+        if let Some(team) = arena::conceded(self.ball.pos, self.tune.ball_radius) {
             let scorer = 1 - team;
             self.events.push((ev::GOAL, scorer as f32));
+            // Le buteur est le dernier a avoir touche, quel que soit son
+            // camp : un contre son camp ne rapporte donc rien a personne.
+            if let Some(auteur) = self.scoring.last_touch() {
+                if self.cars.get(auteur).map(|c| c.team) == Some(scorer) {
+                    let but = arena::goal_mouth(scorer == 1);
+                    let loin = (self.ball.pos.x - but).abs();
+                    let teams: Vec<u8> = self.cars.iter().map(|c| c.team).collect();
+                    let champ = arena::MAX_X - arena::MIN_X;
+                    let passeur =
+                        self.scoring
+                            .goal(auteur, self.overtime, loin, champ, &teams);
+                    self.events.push((ev::SCORER, auteur as f32));
+                    if let Some(p) = passeur {
+                        self.events.push((ev::ASSIST, p as f32));
+                    }
+                }
+            }
             if self.phase == Phase::Warmup {
                 // A l'echauffement le but ne compte pas : la balle repart
                 // du centre sans figer la scene, on continue de jouer.

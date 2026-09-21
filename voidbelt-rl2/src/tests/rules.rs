@@ -305,7 +305,8 @@ fn le_tampon_d_etat_a_la_bonne_taille() {
     let g = Game::new(1, 1, 300.0);
     let mut out = vec![0.0; state::state_len(2)];
     state::write_state(&g, &mut out);
-    assert_eq!(state::state_len(2), 33 + 34);
+    // 13 d'entete, 16 par voiture, 34 plots.
+    assert_eq!(state::state_len(2), 13 + 2 * 16 + 34);
     assert_eq!(out[6], arena::CX);
     assert_eq!(out[state::CAR_COUNT], 2.0, "l'effectif n'est pas annonce");
     assert_eq!(state::pad_table().len(), 34 * 3);
@@ -406,11 +407,15 @@ fn un_arret_loin_du_but_n_en_est_pas_un() {
 }
 
 #[test]
-fn le_seuil_de_demolition_vaut_bien_deux_cent_trente_au_compteur() {
-    // Le HUD affiche `vitesse * 300 / SPEED_MAX`. Si l'un des deux bouge
-    // sans l'autre, le seuil annonce au joueur cesse d'etre celui du moteur.
-    let kmh = car::DEMO_SPEED * 300.0 / car::SPEED_MAX;
-    assert!((kmh - 230.0).abs() < 0.5, "seuil a {kmh} km/h au lieu de 230");
+fn on_ne_demolit_qu_en_supersonique_comme_dans_le_vrai_jeu() {
+    // Rocket League exige le supersonique pour detruire : les deux seuils
+    // n'en font qu'un, et non deux chiffres a tenir separement.
+    let t = crate::tune::Tune::FACTORY;
+    assert_eq!(t.demo_speed, t.supersonic, "le seuil s'est detache du supersonique");
+    // Et ce supersonique vaut bien les 2200 uu/s du vrai jeu, soit 79,2 km/h.
+    let uu = 2300.0 / t.speed_max;
+    let kmh = t.demo_speed * uu * 0.036;
+    assert!((kmh - 79.2).abs() < 1.0, "supersonique a {kmh} km/h au lieu de 79,2");
 }
 
 #[test]
@@ -420,7 +425,7 @@ fn la_bousculade_pousse_celui_qui_l_encaisse() {
     let mut a = Car::new(0);
     let mut b = Car::new(1);
     a.pos = v2(500.0, 400.0);
-    b.pos = v2(526.0, 400.0);
+    b.pos = v2(500.0 + T.contact_radius * 1.9, 400.0);
     a.vel = v2(car::DEMO_SPEED - 60.0, 0.0);
     b.vel = v2(0.0, 0.0);
     let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
@@ -435,7 +440,7 @@ fn un_frontal_sous_le_seuil_repousse_les_deux_a_parts_egales() {
     let mut a = Car::new(0);
     let mut b = Car::new(1);
     a.pos = v2(500.0, 400.0);
-    b.pos = v2(526.0, 400.0);
+    b.pos = v2(500.0 + T.contact_radius * 1.9, 400.0);
     let v = car::DEMO_SPEED - 80.0;
     a.vel = v2(v, 0.0);
     b.vel = v2(-v, 0.0);
@@ -456,7 +461,7 @@ fn la_bousculade_reste_une_bousculade_juste_sous_le_seuil() {
     let mut a = Car::new(0);
     let mut b = Car::new(1);
     a.pos = v2(500.0, 400.0);
-    b.pos = v2(526.0, 400.0);
+    b.pos = v2(500.0 + T.contact_radius * 1.9, 400.0);
     a.vel = v2(car::DEMO_SPEED - 2.0, 0.0);
     b.vel = v2(0.0, 0.0);
     collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
@@ -473,7 +478,7 @@ fn un_coequipier_ne_demolit_jamais() {
     let mut a = Car::new(0);
     let mut b = Car::new(0);
     a.pos = v2(500.0, 400.0);
-    b.pos = v2(526.0, 400.0);
+    b.pos = v2(500.0 + T.contact_radius * 1.9, 400.0);
     a.vel = v2(car::DEMO_SPEED + 80.0, 0.0);
     b.vel = v2(0.0, 0.0);
     let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
@@ -486,7 +491,7 @@ fn un_frontal_entre_allies_ne_fait_pas_de_victime() {
     let mut a = Car::new(1);
     let mut b = Car::new(1);
     a.pos = v2(500.0, 400.0);
-    b.pos = v2(526.0, 400.0);
+    b.pos = v2(500.0 + T.contact_radius * 1.9, 400.0);
     let v = car::DEMO_SPEED + 60.0;
     a.vel = v2(v, 0.0);
     b.vel = v2(-v, 0.0);
@@ -500,9 +505,112 @@ fn un_adversaire_reste_demolissable_au_dela_du_seuil() {
     let mut a = Car::new(0);
     let mut b = Car::new(1);
     a.pos = v2(500.0, 400.0);
-    b.pos = v2(526.0, 400.0);
+    b.pos = v2(500.0 + T.contact_radius * 1.9, 400.0);
     a.vel = v2(car::DEMO_SPEED + 20.0, 0.0);
     b.vel = v2(0.0, 0.0);
     let bump = collide::car_car(&mut a, &mut b, &T).expect("pas de contact");
     assert!(bump.demo_b && !bump.demo_a, "l adversaire survit au-dela du seuil");
+}
+
+#[test]
+fn un_but_rapporte_cent_points_au_buteur() {
+    // Le score d'equipe et les points personnels vivent cote a cote : un but
+    // ajoute 1 au tableau et 100 au compteur du joueur.
+    let mut g = started(0);
+    // La voiture rattrape la balle : c'est elle qui frappe, pas l'inverse.
+    g.cars[0].pos = v2(arena::CX, arena::CY);
+    g.cars[0].yaw = 0.0;
+    g.cars[0].vel = v2(200.0, 0.0);
+    g.ball.pos = v2(arena::CX + 45.0, arena::CY);
+    g.ball.vel = v2(0.0, 0.0);
+    let vus0 = harvest(&mut g, 0.4);
+    assert!(vus0.iter().any(|e| e.0 == ev::HIT), "aucune frappe");
+    let auteur = g.scoring.last_touch().expect("personne n'a touche la balle");
+    let avant = g.scoring.stats[auteur].points;
+    g.ball.pos = v2(arena::goal_mouth(false) - 4.0, arena::CY);
+    g.ball.vel = v2(900.0, 0.0);
+    let vus = harvest(&mut g, 0.3);
+    assert!(vus.iter().any(|e| e.0 == ev::GOAL), "pas de but");
+    // La balle entre dans la cage de droite, celle des orange : c'est donc
+    // l'equipe bleue, celle de la voiture 0, qui marque.
+    assert_eq!(g.score[0], 1, "le tableau d'equipe n'a pas bouge");
+    assert!(
+        g.scoring.stats[auteur].points >= avant + 100,
+        "le buteur n'a pas ses cent points : {} -> {}",
+        avant,
+        g.scoring.stats[auteur].points,
+    );
+    assert_eq!(g.scoring.stats[auteur].goals, 1);
+}
+
+#[test]
+fn une_touche_ne_rapporte_pas_deux_points_par_image() {
+    // Sans delai, rouler contre la balle rapporterait des points en continu.
+    let mut g = started(0);
+    g.cars[0].pos = v2(arena::CX - 30.0, arena::CY);
+    g.cars[0].yaw = 0.0;
+    g.cars[0].vel = v2(120.0, 0.0);
+    g.ball.pos = v2(arena::CX, arena::CY);
+    g.ball.vel = v2(0.0, 0.0);
+    harvest(&mut g, 0.9);
+    let pts = g.scoring.stats[0].touches;
+    assert!(pts <= 1, "{pts} touches comptees en moins d'une seconde");
+}
+
+#[test]
+fn le_bareme_suit_celui_de_rocket_league() {
+    use crate::score::points;
+    assert_eq!(points::TOUCH, 2);
+    assert_eq!(points::SHOT, 10);
+    assert_eq!(points::CLEAR, 20);
+    assert_eq!(points::SAVE, 50);
+    assert_eq!(points::EPIC_SAVE, 75);
+    assert_eq!(points::ASSIST, 50);
+    assert_eq!(points::GOAL, 100);
+    assert_eq!(points::DEMOLITION, 0);
+    assert_eq!(points::EXTERMINATION, 20);
+    assert_eq!(points::HAT_TRICK, 25);
+    assert_eq!(points::PLAYMAKER, 25);
+    assert_eq!(points::SAVIOR, 25);
+    assert_eq!(points::OVERTIME_GOAL, 25);
+    assert_eq!(points::LONG_GOAL, 20);
+}
+
+#[test]
+fn une_passe_decisive_va_au_coequipier_et_pas_a_l_adversaire() {
+    use crate::score::Scoring;
+    let teams = [0u8, 0, 1];
+    let mut sc = Scoring::new(3);
+    // Le coequipier touche, puis le buteur : passe decisive.
+    sc.touch(1);
+    sc.touch(0);
+    let passeur = sc.goal(0, false, 0.0, 1000.0, &teams);
+    assert_eq!(passeur, Some(1), "la passe n'est pas allee au coequipier");
+    assert_eq!(sc.stats[1].points, 2 + 50, "touche plus passe decisive");
+
+    // Un adversaire avant le buteur ne donne aucune passe.
+    let mut sc = Scoring::new(3);
+    sc.touch(2);
+    sc.touch(0);
+    assert_eq!(sc.goal(0, false, 0.0, 1000.0, &teams), None);
+}
+
+#[test]
+fn les_series_se_declenchent_au_franchissement_du_seuil() {
+    use crate::score::Scoring;
+    let teams = [0u8, 1];
+    let mut sc = Scoring::new(2);
+    for _ in 0..2 {
+        sc.goal(0, false, 0.0, 1000.0, &teams);
+    }
+    let avant = sc.stats[0].points;
+    sc.goal(0, false, 0.0, 1000.0, &teams);
+    assert_eq!(
+        sc.stats[0].points - avant,
+        100 + 25,
+        "le triple n'a pas ajoute son bonus au troisieme but",
+    );
+    let avant = sc.stats[0].points;
+    sc.goal(0, false, 0.0, 1000.0, &teams);
+    assert_eq!(sc.stats[0].points - avant, 100, "le bonus s'est repete");
 }

@@ -66,7 +66,60 @@ html, body {
 }
 /* Meme piege que pour les ecrans : un `display` explicite l'emporte sur la
    regle `[hidden]` du navigateur, il faut donc la redire ici. */
-#scoreboard[hidden], #lobby[hidden] { display: none; }
+#scoreboard[hidden], #lobby[hidden], #scores[hidden] { display: none; }
+
+/* Tableau des joueurs. Il se tient enfonce, donc il couvre l'ecran sans
+   bloquer le jeu qui continue derriere. */
+#scores {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 4vh 3vw;
+  background: #04060ac8;
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+  font-family: var(--mono);
+}
+#scores .camp {
+  flex: 1 1 0;
+  max-width: 560px;
+  border-radius: 10px;
+  border: 2px solid;
+  background: #0b1018e8;
+  overflow: hidden;
+}
+#scores .camp.blue { border-color: var(--blue); }
+#scores .camp.orange { border-color: var(--orange); }
+#scores .tete {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 9px 14px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  font-size: clamp(11px, 1.1vw, 14px);
+}
+#scores .camp.blue .tete { background: #2f7ce033; color: #cfe2ff; }
+#scores .camp.orange .tete { background: #f07a2533; color: #ffddc4; }
+#scores .total { font-size: .85em; opacity: .85; }
+#scores table { width: 100%; border-collapse: collapse; }
+#scores th, #scores td {
+  padding: 6px 8px;
+  text-align: right;
+  font-size: clamp(10px, .95vw, 13px);
+}
+#scores th {
+  font-size: 9px;
+  letter-spacing: .14em;
+  color: var(--dim);
+  border-bottom: 1px solid #1d2836;
+}
+#scores .nom { text-align: left; font-weight: 700; }
+#scores tbody tr:nth-child(even) { background: #ffffff08; }
+#scores .vide { text-align: center; color: var(--dim); font-weight: 400; }
 
 #clock { font-size: clamp(20px, 2.2vw, 31px); letter-spacing: .01em; }
 #clock.urgent { color: #ff6a55; }

@@ -5,6 +5,7 @@ import { Renderer } from './render.js';
 import { Input } from './input.js';
 import { Audio } from './audio.js';
 import { Hud } from './hud.js';
+import { Scores } from './scores.js';
 import { Menu } from './menu.js';
 import { load as loadSettings, save as saveSettings } from './settings.js';
 import { Net } from './net.js';
@@ -52,6 +53,7 @@ async function boot() {
   const audio = new Audio(settings.audio);
   audio.preload();
   const hud = new Hud(geom);
+  const scores = new Scores(document.getElementById('scores'));
   const input = new Input(settings);
 
   const app = {
@@ -107,7 +109,9 @@ async function boot() {
   });
 
   net.onRoom = () => {
-    view.setRoster(roster());
+    const compo = roster();
+    view.setRoster(compo);
+    scores.setRoster(compo);
     showTeams(net.room, net.you);
     if (menu.screen === 'online') menu.refreshRooms();
   };
@@ -200,7 +204,9 @@ async function boot() {
 
   function startMatch() {
     app.mode = 'solo';
-    view.setRoster(roster());
+    const compo = roster();
+    view.setRoster(compo);
+    scores.setRoster(compo);
     audio.unlock();
     audio.applyLevels(settings.audio);
     audio.stopAll();
@@ -288,6 +294,9 @@ async function boot() {
       const player = readCar(state, me);
       view.update(state, readCar, dt);
       hud.update(state, player, state[STATE.PHASE] | 0, geom.boostMax, lobbyInfo());
+      // Le tableau se tient enfonce : on le montre tant que la touche l'est.
+      scores.show(!!cmd.scores && app.running && !app.paused);
+      scores.update(state);
       // Le crissement suit la glissade reelle, pas le bouton : on n'entend
       // rien tant que les roues tiennent, meme frein a main tire.
       const sliding = live && player.demo <= 0 && Math.abs(player.slip) > 0.22 && player.speed > 90;

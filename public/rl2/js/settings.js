@@ -12,6 +12,7 @@ export const ACTIONS = [
   { id: 'boost', label: 'Boost', analog: false },
   { id: 'drift', label: 'Drift', analog: false },
   { id: 'pause', label: 'Pause', analog: false },
+  { id: 'scores', label: 'Tableau des scores', analog: false },
 ];
 
 /** Manette Xbox en mapping standard : RT accelere, LT freine, B boost, X drift. */
@@ -24,6 +25,7 @@ export const DEFAULTS = {
     boost: 'ShiftLeft',
     drift: 'Space',
     pause: 'Escape',
+    scores: 'Tab',
   },
   pad: {
     accel: { kind: 'button', index: 7 },
@@ -32,6 +34,8 @@ export const DEFAULTS = {
     boost: { kind: 'button', index: 1 },
     drift: { kind: 'button', index: 2 },
     pause: { kind: 'button', index: 9 },
+    // Back / Select : la touche qui montre le tableau dans Rocket League.
+    scores: { kind: 'button', index: 8 },
   },
   audio: { master: 80, sfx: 90 },
   match: { duration: 300, level: 1 },

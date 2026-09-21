@@ -11,10 +11,10 @@ use crate::vec::{wrap_angle, V2};
 
 // Gabarit cale sur les planches `car_*.png`, au format 2:3 : la boite de
 // collision a donc exactement les proportions de la voiture dessinee.
-pub const HALF_LEN: f32 = 18.0;
-pub const HALF_WID: f32 = 12.0;
+pub const HALF_LEN: f32 = 15.91;
+pub const HALF_WID: f32 = 11.35;
 /// Rayon du disque equivalent, utilise pour les contacts rapides.
-pub const RADIUS: f32 = 15.0;
+pub const RADIUS: f32 = 13.63;
 pub const MASS: f32 = 180.0;
 
 pub const DRIVE_MAX: f32 = 380.0;
@@ -30,8 +30,8 @@ pub const BOOST_USE: f32 = 33.3;
 pub const KICKOFF_BOOST: f32 = 33.0;
 
 /// Courbures extremes : rayon de braquage a l'arret puis a pleine vitesse.
-pub const TURN_SLOW: f32 = 1.0 / 55.0;
-pub const TURN_FAST: f32 = 1.0 / 210.0;
+pub const TURN_SLOW: f32 = 0.023;
+pub const TURN_FAST: f32 = 0.003275;
 pub const DRIFT_TURN: f32 = 1.85;
 /// Amortissement de la vitesse laterale, par seconde. En appui la voiture
 /// suit son nez en une cinquantaine de millisecondes ; en drift elle met
@@ -44,16 +44,25 @@ pub const GRIP_DRIFT: f32 = 6.0;
 /// Vitesse a laquelle le nez se realigne sur un muret longe, en rad/s.
 pub const WALL_ALIGN: f32 = 6.0;
 
+/// Exposant de la courbe de virage, ajuste sur la table de rayons de
+/// Rocket League : 2,51 m a 18 km/h, 11,36 m a 82,8 km/h. A 1,1, la courbe
+/// tournait trop court au milieu du domaine.
+pub const TURN_CURVE: f32 = 2.25;
+/// Rotation maximale de la voiture, en rad/s. Rocket League la plafonne a
+/// 5,5 ; au sol la courbe de virage reste bien en dessous, mais le plafond
+/// protege des reglages extremes.
+pub const YAW_MAX: f32 = 5.5;
+
 /// Part de la vitesse avant que la marche arriere peut atteindre. Rocket
 /// League ne bride pas la marche arriere : elle plafonne au meme 1410 uu/s
 /// que la marche avant, d'ou 1.
 pub const REVERSE_RATIO: f32 = 1.0;
 
 pub const DEMO_TIME: f32 = 3.0;
-/// 230 km/h sur le compteur : au-dela, un contact demolit l'adversaire ;
-/// en dessous il ne fait que le bousculer, et un coequipier jamais. Le
-/// compteur affiche `vitesse * 300 / 620`, d'ou ces 475,33 unites.
-pub const DEMO_SPEED: f32 = 475.33;
+/// Rocket League exige le supersonique pour demolir : le seuil est donc le
+/// meme, et non un chiffre a part. Un coequipier n'est jamais detruit, et
+/// le sens du contact compte aussi (voir `collide`).
+pub const DEMO_SPEED: f32 = SUPERSONIC;
 
 #[derive(Clone, Copy, Default)]
 pub struct Input {
@@ -172,7 +181,7 @@ impl Car {
     /// Courbure du virage : large a pleine vitesse, serree a l'arret.
     fn curvature(speed: f32, drift: bool, t: &Tune) -> f32 {
         let n = (speed / t.speed_max.max(1.0)).clamp(0.0, 1.0);
-        let k = t.turn_fast + (t.turn_slow - t.turn_fast) * (1.0 - n).powf(1.1);
+        let k = t.turn_fast + (t.turn_slow - t.turn_fast) * (1.0 - n).powf(t.turn_curve);
         if drift {
             k * t.drift_turn
         } else {
@@ -200,7 +209,8 @@ impl Car {
         self.drifting = inp.drift && speed > 25.0;
         let heading = self.vel.dot(self.fwd());
         let k = Self::curvature(speed, self.drifting, t);
-        self.yaw += inp.steer * k * heading * dt;
+        let rate = (inp.steer * k * heading).clamp(-t.yaw_max, t.yaw_max);
+        self.yaw += rate * dt;
 
         let f = self.fwd();
         let lat = f.perp();

@@ -7,7 +7,9 @@ use crate::game::{Game, Phase};
 use crate::pads::PADS;
 
 /// Nombre de champs par voiture dans le tampon d'etat.
-pub const CAR_STRIDE: usize = 10;
+/// Dix champs de jeu, puis six compteurs personnels : points, buts, passes,
+/// arrets, tirs, demolitions. Le tableau des joueurs les lit tels quels.
+pub const CAR_STRIDE: usize = 16;
 /// Effectif de la partie, en tete de l'etat : il change des qu'un joueur
 /// rejoint un salon, et c'est lui qui dit ou commencent les plots. Le mettre
 /// ici rend chaque image auto-descriptive, sans que l'hote ait a deviner.
@@ -58,6 +60,18 @@ pub fn write_state(g: &Game, out: &mut [f32]) {
         out[b + 7] = if c.supersonic(&g.tune) { 1.0 } else { 0.0 };
         out[b + 8] = c.flame;
         out[b + 9] = c.slip();
+        let st = g
+            .scoring
+            .stats
+            .get(i)
+            .copied()
+            .unwrap_or_default();
+        out[b + 10] = st.points as f32;
+        out[b + 11] = st.goals as f32;
+        out[b + 12] = st.assists as f32;
+        out[b + 13] = st.saves as f32;
+        out[b + 14] = st.shots as f32;
+        out[b + 15] = st.demos as f32;
     }
 
     let base = pad_base(g.cars.len());

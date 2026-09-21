@@ -23,7 +23,7 @@ export const STATE = {
   /// et c'est lui qui dit ou commencent les plots.
   CAR_COUNT: 12,
   CAR_BASE: 13,
-  CAR_STRIDE: 10,
+  CAR_STRIDE: 16,
 };
 
 /** Debut des plots, derriere les voitures. */
@@ -43,6 +43,8 @@ export function carsIn(state) {
 /** Decalages dans un bloc voiture. */
 export const CAR = {
   X: 0, Y: 1, YAW: 2, SPEED: 3, BOOST: 4, DRIFT: 5, DEMO: 6, SONIC: 7, FLAME: 8, SLIP: 9,
+  // Compteurs personnels, sur le bareme de Rocket League.
+  POINTS: 10, GOALS: 11, ASSISTS: 12, SAVES: 13, SHOTS: 14, DEMOS: 15,
 };
 
 /** Codes d'evenements, alignes sur `game.rs`. */
@@ -50,15 +52,23 @@ export const EV = {
   WALL: 0, HIT: 1, PAD: 2, BUMP: 3, DEMO: 4,
   GOAL: 5, COUNT: 6, BOOM: 7, KICKOFF: 8, END: 9,
   SAVE: 10, OVERTIME: 11,
+  TOUCH: 12, SHOT: 13, CLEAR: 14, EPIC_SAVE: 15,
+  ASSIST: 16, SCORER: 17, EXTERMINATION: 18,
 };
 
-/** Echelle du monde. Le compteur affiche 300 km/h a 620 unites par seconde :
- *  c'est cette equivalence, et elle seule, qui donne un sens physique aux
- *  unites du moteur. Le tableau de bord et l'interface de reglage la
- *  partagent, pour ne jamais annoncer deux vitesses differentes. */
-export const KMH_PAR_UNITE = 300 / 620;
-/** Un metre vaut donc 300 km/h = 83,33 m/s rapportes a 620 unites. */
-export const METRES_PAR_UNITE = 300 / 3.6 / 620;
+/** Echelle du monde, unique et alignee sur Rocket League.
+ *
+ *  Une unite de notre terrain vaut 3,7097 unites Unreal : c'est le facteur
+ *  qui fait coincider notre vitesse maximale avec les 2300 uu/s du vrai
+ *  jeu. Comme 1 uu vaut 1 cm et que km/h = uu/s x 0,036, tout le reste en
+ *  decoule. Le compteur affiche donc les vraies vitesses du jeu, 82,8 km/h
+ *  a fond, et non un chiffre arcade gonfle.
+ *
+ *  Tableau de bord et interface de reglage partagent ces deux constantes,
+ *  pour ne jamais annoncer deux vitesses differentes. */
+export const UU_PAR_UNITE = 3.7097;
+export const KMH_PAR_UNITE = UU_PAR_UNITE * 0.036;
+export const METRES_PAR_UNITE = UU_PAR_UNITE * 0.01;
 
 export const PHASE = { COUNTDOWN: 0, PLAY: 1, GOAL: 2, OVER: 3, WARMUP: 4 };
 
@@ -172,5 +182,11 @@ export function readCar(s, i) {
     sonic: s[b + CAR.SONIC] > 0.5,
     flame: s[b + CAR.FLAME],
     slip: s[b + CAR.SLIP],
+    points: s[b + CAR.POINTS] | 0,
+    goals: s[b + CAR.GOALS] | 0,
+    assists: s[b + CAR.ASSISTS] | 0,
+    saves: s[b + CAR.SAVES] | 0,
+    shots: s[b + CAR.SHOTS] | 0,
+    demos: s[b + CAR.DEMOS] | 0,
   };
 }

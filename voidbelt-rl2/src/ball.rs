@@ -4,16 +4,18 @@ use crate::arena;
 use crate::tune::Tune;
 use crate::vec::{v2, V2};
 
-pub const RADIUS: f32 = 14.0;
+pub const RADIUS: f32 = 24.60;
 pub const MASS: f32 = 30.0;
 /// Rocket League plafonne la balle a 6000 uu/s pour une voiture a 2300 :
 /// la balle va donc 2,6 fois plus vite que la voiture. A notre echelle,
 /// cela fait 1617 et non 1200, qui bridait les tirs.
 pub const MAX_SPEED: f32 = 1617.0;
 /// Frottement de roulement, en amortissement exponentiel par seconde.
-pub const DRAG: f32 = 0.42;
+pub const DRAG: f32 = 0.03056;
 pub const WALL_REST: f32 = 0.6;
-pub const WALL_FRIC: f32 = 0.9;
+/// Rotation maximale de la balle, en rad/s. Purement visuel chez nous.
+pub const SPIN_MAX: f32 = 6.0;
+pub const WALL_FRIC: f32 = 0.715;
 
 #[derive(Clone, Copy)]
 pub struct Ball {
@@ -46,7 +48,8 @@ impl Ball {
     pub fn step(&mut self, dt: f32, t: &Tune) -> f32 {
         self.vel = self.vel.mul((-t.ball_drag * dt).exp()).clamp_len(t.ball_max_speed);
         self.pos = self.pos.add(self.vel.mul(dt));
-        self.roll += self.vel.len() / t.ball_radius.max(1.0) * dt;
+        let spin = (self.vel.len() / t.ball_radius.max(1.0)).min(t.ball_spin_max);
+        self.roll += spin * dt;
         match arena::contact(self.pos, t.ball_radius) {
             Some(h) => {
                 arena::bounce(&mut self.pos, &mut self.vel, &h, t.ball_wall_rest, t.ball_wall_fric)

@@ -41,8 +41,11 @@ export class Input {
         done({ source: 'keys', code: e.code, label: keyLabel(e.code) });
         return;
       }
-      // Les fleches et l'espace font defiler la page : on les retient.
-      if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
+      // Fleches et espace font defiler la page, Tab change de bouton : on
+      // les retient, sinon le jeu perd le focus en montrant les scores.
+      if (e.code.startsWith('Arrow') || e.code === 'Space' || e.code === 'Tab') {
+        e.preventDefault();
+      }
       this.keys.add(e.code);
       this.tapped.add(e.code);
     };
@@ -143,6 +146,10 @@ export class Input {
     if ((held && !this.prevPause) || this.tapped.has(keys.pause)) this.onPause?.();
     this.prevPause = held;
     this.tapped.clear();
+
+    // Le tableau des scores se tient enfonce, comme dans Rocket League :
+    // c'est un etat, pas une bascule.
+    out.scores = this.keys.has(keys.scores) || this._pressed(pad.scores, gp);
 
     return out;
   }

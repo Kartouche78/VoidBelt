@@ -82,6 +82,8 @@ reglages! {
     grip = car::GRIP,
     grip_drift = car::GRIP_DRIFT,
     wall_align = car::WALL_ALIGN,
+    turn_curve = car::TURN_CURVE,
+    yaw_max = car::YAW_MAX,
     car_mass = car::MASS,
     car_half_len = car::HALF_LEN,
     car_half_wid = car::HALF_WID,
@@ -112,6 +114,7 @@ reglages! {
     ball_drag = ball::DRAG,
     ball_wall_rest = ball::WALL_REST,
     ball_wall_fric = ball::WALL_FRIC,
+    ball_spin_max = ball::SPIN_MAX,
 
     // Poussee d'une frappe selon la vitesse du chassis, reprise de la table
     // du vrai jeu : elle croit vite puis sature, d'ou les frappes molles a

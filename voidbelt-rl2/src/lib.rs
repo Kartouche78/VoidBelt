@@ -14,6 +14,7 @@ pub mod car;
 pub mod collide;
 pub mod game;
 pub mod pads;
+pub mod score;
 pub mod state;
 pub mod tune;
 #[cfg(test)]
