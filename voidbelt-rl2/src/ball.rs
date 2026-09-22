@@ -2,6 +2,7 @@
 
 use crate::arena;
 use crate::tune::Tune;
+use crate::spin::Quat;
 use crate::vec::{v2, V2};
 
 pub const RADIUS: f32 = 24.60;
@@ -21,8 +22,13 @@ pub const WALL_FRIC: f32 = 0.715;
 pub struct Ball {
     pub pos: V2,
     pub vel: V2,
-    /// Angle de roulement cumule, purement visuel.
+    /// Angle de roulement cumule. Ne sert plus qu'au disque peint, garde
+    /// comme secours tant que la balle en volume n'est pas chargee.
     pub roll: f32,
+    /// Orientation dans l'espace, pour la balle en volume. Purement
+    /// visuelle, mais tenue ici : une rotation s'accumule, et deux clients
+    /// qui l'integreraient chacun de leur cote ne verraient pas la meme.
+    pub spin: Quat,
     /// Derniere equipe a avoir touche, pour l'attribution du but.
     pub last_touch: i8,
 }
@@ -33,6 +39,7 @@ impl Ball {
             pos: v2(arena::CX, arena::CY),
             vel: V2::ZERO,
             roll: 0.0,
+            spin: Quat::IDENTITE,
             last_touch: -1,
         }
     }
@@ -40,6 +47,7 @@ impl Ball {
     pub fn reset(&mut self) {
         self.pos = v2(arena::CX, arena::CY);
         self.vel = V2::ZERO;
+        self.spin = Quat::IDENTITE;
         self.last_touch = -1;
     }
 
@@ -48,8 +56,18 @@ impl Ball {
     pub fn step(&mut self, dt: f32, t: &Tune) -> f32 {
         self.vel = self.vel.mul((-t.ball_drag * dt).exp()).clamp_len(t.ball_max_speed);
         self.pos = self.pos.add(self.vel.mul(dt));
-        let spin = (self.vel.len() / t.ball_radius.max(1.0)).min(t.ball_spin_max);
-        self.roll += spin * dt;
+        let vitesse = self.vel.len();
+        let tour = (vitesse / t.ball_radius.max(1.0)).min(t.ball_spin_max);
+        self.roll += tour * dt;
+        // Roulement sans glissement : le point de contact avec le sol doit
+        // rester immobile, ce qui impose l'axe autant que la vitesse de
+        // rotation. L'axe est perpendiculaire au deplacement, couche dans
+        // le plan du terrain ; le repere du dessin ayant l'ordonnee a
+        // l'endroit, l'ordonnee du moteur s'y inverse — d'ou (y, x).
+        if vitesse > 1e-3 {
+            let pas = Quat::autour(self.vel.y, self.vel.x, 0.0, tour * dt);
+            self.spin = pas.mul(self.spin).norm();
+        }
         match arena::contact(self.pos, t.ball_radius, t.arena_corner) {
             Some(h) => {
                 arena::bounce(&mut self.pos, &mut self.vel, &h, t.ball_wall_rest, t.ball_wall_fric)

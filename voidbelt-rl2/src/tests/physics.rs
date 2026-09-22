@@ -248,3 +248,36 @@ fn a_l_arret_la_voiture_ne_catapulte_pas_la_balle() {
     collide::car_ball(&mut c, &mut b, &T);
     assert!(b.vel.len() < 20.0, "frappe fantome: {}", b.vel.len());
 }
+
+/// La balle doit rouler sans glisser : le point de contact avec le sol
+/// reste immobile. C'est cette contrainte qui fixe l'axe et la vitesse de
+/// rotation, et une balle qui tourne a l'envers se voit tout de suite.
+#[test]
+fn la_balle_roule_dans_le_bon_sens() {
+    use crate::ball::Ball;
+    let t = crate::tune::Tune::default();
+    let mut b = Ball::new();
+    // Lancee vers la droite : le sommet doit partir vers la droite aussi.
+    b.vel = crate::vec::v2(200.0, 0.0);
+    let avant = b.spin;
+    b.step(1.0 / 60.0, &t);
+    assert_ne!(b.spin, avant, "la balle ne tourne pas");
+
+    // On fait tourner le sommet (0, 0, r) par le quaternion obtenu, puis on
+    // regarde de quel cote il est parti. Repere du dessin : x a droite.
+    let q = b.spin;
+    let r = t.ball_radius;
+    // v' = q * (0,0,r) * conj(q), developpe pour un vecteur pur.
+    let (x, y, z, w) = (q.x, q.y, q.z, q.w);
+    let sommet_x = 2.0 * (x * z + w * y) * r;
+    assert!(
+        sommet_x > 0.0,
+        "le sommet part vers la gauche : la balle roule a l'envers ({sommet_x})",
+    );
+
+    // Immobile, elle ne doit plus tourner du tout.
+    b.vel = crate::vec::V2::ZERO;
+    let fige = b.spin;
+    b.step(1.0 / 60.0, &t);
+    assert_eq!(b.spin, fige, "elle tourne encore a l'arret");
+}

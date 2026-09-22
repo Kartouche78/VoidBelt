@@ -22,7 +22,10 @@ export const STATE = {
   /// Effectif de la partie : il change quand quelqu'un rejoint un salon,
   /// et c'est lui qui dit ou commencent les plots.
   CAR_COUNT: 12,
-  CAR_BASE: 13,
+  /// Orientation de la balle, quatre composantes : le moteur la calcule,
+  /// le rendu la pose telle quelle.
+  BALL_SPIN: 13,
+  CAR_BASE: 17,
   CAR_STRIDE: 16,
 };
 

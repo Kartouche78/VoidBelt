@@ -11,7 +11,7 @@ import { makeFlames } from './flame.js';
 import { makeTrails } from './trail.js';
 import { Names } from './names.js';
 import { fitPlank, stadiumById } from './stadiums.js';
-import { makeBall, makeRoll, makeSky } from './scene3d.js';
+import { applySpin, makeBall, makeSky } from './scene3d.js';
 
 export const TEAM = [0x2f7ce0, 0xf07a25];
 /** Carrosseries, dans l'ordre des equipes. `car_white.png` reste en reserve. */
@@ -205,7 +205,6 @@ export class Renderer {
 
     // La balle en volume prend le relais des qu'elle est chargee. Le disque
     // et son ombre peinte s'effacent alors : le modele porte la sienne.
-    this.roll = makeRoll(this.geom);
     makeBall(this.ball, this.geom, (modele) => {
       this.ballModel = modele;
       this.ballDisc.visible = false;
@@ -359,7 +358,7 @@ export class Renderer {
     this.padGroup.visible = show;
     this.ball.visible = show;
     this.ball.position.set(state[6], -state[7], Z.BALL);
-    if (this.ballModel) this.roll(this.ballModel, state[8], state[9], dt);
+    if (this.ballModel) applySpin(this.ballModel, state, STATE.BALL_SPIN);
     else this.ballDisc.rotation.z = -state[10] * 0.25;
     this.sky?.(now);
 

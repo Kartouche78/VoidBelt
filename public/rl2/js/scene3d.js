@@ -89,23 +89,27 @@ export function makeBall(groupe, geom, onReady) {
     'assets/ball/ball.glb',
     (gltf) => {
       const modele = gltf.scene;
-      // Le modele arrive a la taille ou il a ete dessine : on le ramene au
-      // rayon que le moteur applique, quel qu'il soit.
       const boite = new THREE.Box3().setFromObject(modele);
       const taille = boite.getSize(new THREE.Vector3());
+      const centre = boite.getCenter(new THREE.Vector3());
       const rayon = Math.max(taille.x, taille.y, taille.z) / 2;
-      if (rayon > 1e-6) modele.scale.setScalar(geom.ballR / rayon);
-      boite.getCenter(taille);
-      modele.position.sub(taille.multiplyScalar(geom.ballR / rayon));
 
       modele.traverse((o) => {
         if (!o.isMesh) return;
         o.castShadow = true;
         o.receiveShadow = false;
+        // On recentre la geometrie elle-meme, et non l'objet. Deplacer
+        // l'objet laisse le pivot a l'origine du modele : la balle se
+        // mettait alors a graviter autour d'un point decale au lieu de
+        // tourner sur elle-meme, ce qui ne ressemblait plus a rien.
+        o.geometry.translate(-centre.x, -centre.y, -centre.z);
         // Le dessin de la balle vient de sa texture : on ne veut pas que
         // le moteur de rendu la reinterprete comme une couleur lineaire.
         if (o.material.map) o.material.map.colorSpace = THREE.SRGBColorSpace;
       });
+      // Le modele arrive a la taille ou il a ete dessine : on le ramene au
+      // rayon que le moteur applique, quel qu'il soit.
+      if (rayon > 1e-6) modele.scale.setScalar(geom.ballR / rayon);
       groupe.add(modele);
       onReady?.(modele);
     },
@@ -114,19 +118,10 @@ export function makeBall(groupe, geom, onReady) {
   );
 }
 
-/** Fait rouler la balle sur le sol d'apres sa vitesse : l'axe de rotation
- *  est perpendiculaire au deplacement, et l'angle suit la distance
- *  parcourue divisee par le rayon. Une balle qui glisse sans tourner se
- *  voit tout de suite. */
-export function makeRoll(geom) {
-  const axe = new THREE.Vector3();
-  const tour = new THREE.Quaternion();
-  return function roule(modele, vx, vy, dt) {
-    const v = Math.hypot(vx, vy);
-    if (!modele || v < 1e-3 || dt <= 0) return;
-    // Repere du rendu : l'ordonnee du jeu descend, celle de three monte.
-    axe.set(-vy / v, -vx / v, 0);
-    tour.setFromAxisAngle(axe, (v * dt) / Math.max(geom.ballR, 1e-3));
-    modele.quaternion.premultiply(tour);
-  };
+/** Pose l'orientation calculee par le moteur. Rien ne s'accumule ici :
+ *  une rotation est un etat, elle appartient a la simulation, et deux
+ *  clients en ligne doivent voir la meme balle tourner pareil. */
+export function applySpin(modele, state, base) {
+  if (!modele) return;
+  modele.quaternion.set(state[base], state[base + 1], state[base + 2], state[base + 3]);
 }

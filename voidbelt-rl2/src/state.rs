@@ -14,7 +14,10 @@ pub const CAR_STRIDE: usize = 16;
 /// rejoint un salon, et c'est lui qui dit ou commencent les plots. Le mettre
 /// ici rend chaque image auto-descriptive, sans que l'hote ait a deviner.
 pub const CAR_COUNT: usize = 12;
-pub const CAR_BASE: usize = 13;
+/// Orientation de la balle, quatre composantes. Elle precede les voitures
+/// parce qu'elle tient a la balle, decrite en tete de l'etat.
+pub const BALL_SPIN: usize = 13;
+pub const CAR_BASE: usize = 17;
 
 /// Les plots sont ranges derriere les voitures : leur depart depend donc de
 /// l'effectif, qu'un salon en ligne fixe librement. L'hote lit ce depart
@@ -47,6 +50,10 @@ pub fn write_state(g: &Game, out: &mut [f32]) {
     out[10] = g.ball.roll;
     out[11] = g.ball.last_touch as f32;
     out[CAR_COUNT] = g.cars.len() as f32;
+    out[BALL_SPIN] = g.ball.spin.x;
+    out[BALL_SPIN + 1] = g.ball.spin.y;
+    out[BALL_SPIN + 2] = g.ball.spin.z;
+    out[BALL_SPIN + 3] = g.ball.spin.w;
 
     for (i, c) in g.cars.iter().enumerate() {
         let b = CAR_BASE + i * CAR_STRIDE;

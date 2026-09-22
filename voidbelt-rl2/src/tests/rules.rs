@@ -315,8 +315,9 @@ fn le_tampon_d_etat_a_la_bonne_taille() {
     let g = Game::new(1, 1, 300.0);
     let mut out = vec![0.0; state::state_len(2)];
     state::write_state(&g, &mut out);
-    // 13 d'entete, 16 par voiture, 34 plots.
-    assert_eq!(state::state_len(2), 13 + 2 * 16 + 34);
+    // 17 d'entete — dont l'orientation de la balle —, 16 par voiture,
+    // 34 plots.
+    assert_eq!(state::state_len(2), 17 + 2 * 16 + 34);
     assert_eq!(out[6], arena::CX);
     assert_eq!(out[state::CAR_COUNT], 2.0, "l'effectif n'est pas annonce");
     assert_eq!(state::pad_table().len(), 34 * 3);
