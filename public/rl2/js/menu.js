@@ -267,7 +267,11 @@ export class Menu {
     // decider avant un solo, autant la demander plutot que de la cacher
     // dans les parametres.
     $('btn-play').onclick = () => this.showStadiums();
-    $('btn-stadium-back').onclick = () => this.show('title');
+    $('btn-stadium-back').onclick = () => {
+      // Depuis un salon on revient au jeu, pas a l'accueil.
+      if (this.pourQui === 'salon') return this.hide();
+      return this.show('title');
+    };
     $('btn-settings').onclick = () => {
       this.from = 'title';
       this.show('settings');
@@ -305,8 +309,10 @@ export class Menu {
     }
   }
 
-  /** Grille des stades. Un clic choisit et lance dans la foulee. */
-  showStadiums() {
+  /** Grille des stades. En solo, un clic choisit et lance dans la foulee ;
+   *  en ligne, il pose le stade du salon et referme. */
+  showStadiums(pour = 'solo') {
+    this.pourQui = pour;
     // On s'ouvre sur l'onglet du stade en cours : le retrouver sous les
     // yeux vaut mieux que de le chercher.
     this.lot = stadiumById(this.settings.stadium).groupe ?? GROUPES[0][0];
@@ -326,6 +332,11 @@ export class Menu {
       this.settings.stadium,
       (id) => this._pickLot(id),
       (s) => {
+        if (this.pourQui === 'salon') {
+          this.hooks.roomStadium(s);
+          this.hide();
+          return;
+        }
         this.settings.stadium = s.id;
         this.hooks.change(this.settings);
         this.hooks.play();

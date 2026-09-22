@@ -147,6 +147,14 @@ export class Net {
     return this.room?.players?.find((p) => p.id === this.you)?.team ?? 0;
   }
 
+  /** Stade du salon. Reserve a l'hote cote serveur : les autres peuvent
+   *  l'envoyer, il sera simplement ignore. L'arrondi part avec, c'est la
+   *  seule donnee du stade qui entre dans la physique. */
+  setStadium(id, corner) {
+    if (!this.connected) return;
+    this.sock.send(JSON.stringify({ t: 'stadium', id, corner }));
+  }
+
   /** Envoie un message rapide : deux directions, jamais du texte. */
   chat(groupe, choix) {
     if (!this.connected) return;

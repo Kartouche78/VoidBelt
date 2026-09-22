@@ -142,6 +142,7 @@ async function boot() {
       audio.stopAll();
       return menu.show('title');
     },
+    roomStadium: (s) => net.setStadium(s.id, s.corner),
     change: (s) => {
       saveSettings(s);
       audio.applyLevels(s.audio);
@@ -150,6 +151,16 @@ async function boot() {
   });
 
   net.onRoom = () => {
+    // Le stade du salon fait foi en ligne : on ne pose que le decor, la
+    // physique des coins etant appliquee par le serveur qui simule.
+    const voulu = net.room?.stadium;
+    if (voulu && voulu !== app.stadium) {
+      app.stadium = voulu;
+      view.setStadium(stadiumById(voulu));
+    }
+    // Le bouton se repeint a chaque fois : l'hote peut changer en cours de
+    // route, et c'est lui seul qui a la main dessus.
+    if (voulu) showRoomStadium(voulu);
     const compo = roster();
     view.setRoster(compo);
     scores.setRoster(compo);
@@ -188,6 +199,7 @@ async function boot() {
     chat.setName(menu.playerName() || 'Vous');
     chat.clear();
     app.mode = 'online';
+    app.stadium = null;
     app.running = true;
     app.paused = false;
     app.finished = false;
@@ -212,6 +224,17 @@ async function boot() {
 
   const kickoff = document.getElementById('btn-kickoff');
   kickoff.onclick = () => net.start();
+
+  const pickStade = document.getElementById('btn-stadium-pick');
+  pickStade.onclick = () => menu.showStadiums('salon');
+
+  /** Montre le stade en cours sur le bouton du salon. Seul l'hote peut en
+   *  changer : pour les autres, c'est un simple rappel. */
+  function showRoomStadium(id) {
+    const s = stadiumById(id);
+    pickStade.textContent = s.name;
+    pickStade.disabled = !net.isHost;
+  }
 
   const teamBtn = [document.getElementById('btn-team-0'), document.getElementById('btn-team-1')];
   const teamSplit = document.getElementById('team-split');

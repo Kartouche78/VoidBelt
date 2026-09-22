@@ -407,6 +407,18 @@ fn handle_text(room: &mut Room, id: u32, text: &str) -> bool {
             room.game.begin();
             true
         }
+        // Stade du salon, reserve a l'hote : tout le monde doit voir le
+        // meme terrain, et son arrondi de coins compte dans les rebonds.
+        Some("stadium") if room.host == id => {
+            let Some(nom) = msg.get("id").and_then(Value::as_str) else {
+                return false;
+            };
+            let corner = msg
+                .get("corner")
+                .and_then(Value::as_f64)
+                .unwrap_or(f64::NAN) as f32;
+            room.set_stadium(nom, corner)
+        }
         // Tchat rapide. On ne transporte que deux directions, jamais du
         // texte libre : le libelle vit chez le client, et un salon ne peut
         // donc pas servir a diffuser n'importe quoi a n'importe qui.

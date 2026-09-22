@@ -1005,3 +1005,16 @@ button.stadium.active span { color: var(--orange); }
 }
 .touche-pad { color: var(--ink); }
 .touche-clavier { color: var(--dim); }
+
+/* Choix du stade dans le salon : discret sous le bouton d'engagement. */
+#btn-stadium-pick {
+  display: block;
+  margin: 0 auto 6px;
+  padding: 8px 18px;
+  font-size: 10px;
+  letter-spacing: .14em;
+  background: #0b1018cc;
+  border-color: #26334a;
+  pointer-events: auto;
+}
+#btn-stadium-pick:disabled { opacity: .55; cursor: default; }

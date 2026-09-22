@@ -47,6 +47,10 @@ pub struct Room {
     pub seed: u32,
     /// Reglages a appliquer au prochain echauffement.
     pub tune: Tune,
+    /// Stade choisi par l'hote. Le decor ne regarde que le navigateur, mais
+    /// l'arrondi des coins, lui, est une donnee de collision : il vit donc
+    /// dans les reglages du salon et c'est ce serveur qui l'arbitre.
+    pub stadium: String,
     /// Tampons reutilises : a 60 Hz, mieux vaut ne rien allouer par image.
     pub floats: Vec<f32>,
     pub events: Vec<f32>,
@@ -64,6 +68,7 @@ impl Room {
             empty_for: 0.0,
             seed,
             tune: Tune::default(),
+            stadium: String::from("voidbelt"),
             floats: vec![0.0; state::state_len(IDLE_CARS)],
             events: Vec::with_capacity(64),
             bytes: Vec::with_capacity(state::state_len(IDLE_CARS) * 8),
@@ -104,6 +109,29 @@ impl Room {
     /// Adopte de nouveaux reglages. Une partie en cours les garde pour le
     /// prochain echauffement : changer la physique en pleine action
     /// deplacerait les voitures sous les joueurs.
+    /// Change le stade du salon. L'identifiant ne sert qu'a dire au
+    /// navigateur quelle planche afficher ; l'arrondi, lui, entre dans la
+    /// physique, d'ou les bornes : un salon ne doit pas pouvoir se donner
+    /// un terrain sans coins ou sans milieu.
+    pub fn set_stadium(&mut self, id: &str, corner: f32) -> bool {
+        let propre: String = id
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+            .take(32)
+            .collect();
+        if propre.is_empty() || !corner.is_finite() {
+            return false;
+        }
+        let corner = corner.clamp(10.0, 200.0);
+        if propre == self.stadium && (corner - self.tune.arena_corner).abs() < 0.01 {
+            return false;
+        }
+        self.stadium = propre;
+        self.tune.arena_corner = corner;
+        self.game.tune.arena_corner = corner;
+        true
+    }
+
     pub fn set_tune(&mut self, t: Tune) {
         self.tune = t;
         if self.game.phase == Phase::Warmup {
@@ -192,6 +220,7 @@ impl Room {
             "host": self.host,
             "phase": phase_name(self.game.phase),
             "cars": self.game.cars.len(),
+            "stadium": self.stadium,
             "players": players,
         })
     }
