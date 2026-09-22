@@ -61,6 +61,10 @@ const FRAPPE_PLEINE = 650;
 /** Voix qui se relaient pour les touches de balle : un dribble en enchaine
  *  plusieurs par seconde, et une voix unique les couperait l'une l'autre. */
 const VOIX_BALLE = 4;
+/** Ecart minimal entre deux touches de balle. Une balle coincee contre un
+ *  muret est frappee a chaque image : sans ce repos, quatre voix se
+ *  superposaient et le choc virait au grondement. */
+const REPOS_BALLE = 0.07;
 
 export class Audio {
   constructor(levels) {
@@ -179,9 +183,8 @@ export class Audio {
     for (const name of Object.keys(this.loops)) this._loop(name, false, 0, 0, 0.12);
     this.boostOn = false;
     this.boostHeld = 0;
-    // Le demarreur doit pouvoir reclaquer apres un arret general.
-    this.revving = false;
     this.ballVoice = 0;
+    this.dernierChoc = -1;
   }
 
   /** Ouvre ou ferme une piste qui tourne en boucle. Plutot que de la relancer
@@ -311,38 +314,41 @@ export class Audio {
    *  Le gain depasse 1 sur les grosses frappes : le fichier est deja a
    *  pleine echelle, et c'est le limiteur de sortie qui tient le bord. */
   ballTouch(force) {
+    const t = this.ctx.currentTime;
+    if (t - (this.dernierChoc ?? -1) < REPOS_BALLE) return;
+    this.dernierChoc = t;
     const part = Math.min(Math.max(force, 0) / FRAPPE_PLEINE, 1);
     this.ballVoice = (this.ballVoice + 1) % VOIX_BALLE;
     this.play('ballTouch', 0.36 + part * 1.4, `ballTouch#${this.ballVoice}`, 1.12 - part * 0.2);
   }
 
+  /** Coup de demarreur, a l'arrivee sur le terrain et a la seule. Rallume
+   *  aussi le ralenti, pour qu'on entende le moteur prendre avant meme
+   *  d'avoir touche a l'accelerateur. */
+  engineStart() {
+    this.play('engineStart', 0.55);
+  }
+
   /** Moteur, en trois temps.
    *
    *  `cold` tourne tant que la voiture est a l'arret sans qu'on touche a
-   *  l'accelerateur. Au premier appui, `start` claque une fois et `on`
-   *  prend le relais, jusqu'au retour a l'arret pied leve. La hauteur de
-   *  `on` monte avec la vitesse, faute de boite de vitesses.
+   *  l'accelerateur, `on` des qu'elle roule ou qu'on accelere. La hauteur
+   *  de `on` monte avec la vitesse, faute de boite de vitesses. `start`,
+   *  lui, ne passe plus par ici : voir `engineStart`.
    *
    *  `on` a false coupe tout : c'est ce qui fait taire le moteur pendant
    *  une celebration de but, ou hors match. */
   setEngine(on, speed = 0, throttle = 0, speedMax = 1) {
     if (!this.ready) return;
     if (!on) {
-      this.revving = false;
       this._loop('engineCold', false, 0, 0, 0.2);
       this._loop('engineOn', false, 0, 0, 0.2);
       return;
     }
-    const roule = speed > AU_POINT_MORT;
-    const pousse = throttle > 0.05;
-    // Le demarreur ne claque qu'une fois, a la reprise depuis l'arret.
-    if (pousse && !this.revving) {
-      this.play('engineStart', 0.55);
-      this.revving = true;
-    }
-    if (!pousse && !roule) this.revving = false;
-
-    const tourne = this.revving || roule;
+    // Le moteur tourne des qu'on roule ou qu'on accelere. Le demarreur,
+    // lui, ne se declenche plus d'ici : il appartient a l'arrivee sur le
+    // terrain, pas au moindre arret en cours de match.
+    const tourne = speed > AU_POINT_MORT || throttle > 0.05;
     this._loop('engineCold', !tourne, 0.3, 0.12, 0.25);
     const part = Math.min(Math.max(speed / Math.max(speedMax, 1), 0), 1);
     this._loop('engineOn', tourne, 0.22 + part * 0.4, 0.08, 0.2);

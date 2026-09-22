@@ -105,6 +105,8 @@ async function boot() {
     paused: false,
     finished: false,
     last: performance.now(),
+    /// Etat de demolition a l'image precedente, pour entendre la reprise.
+    demoAvant: 0,
   };
 
   const net = new Net(geom.padCount);
@@ -437,6 +439,12 @@ async function boot() {
       const fete = (state[STATE.PHASE] | 0) === PHASE.GOAL;
       const aVoiture = live && !fete && player.demo <= 0;
 
+      // Retour d'une demolition : la carcasse reapparait au fond du camp,
+      // moteur coupe, et redemarre. C'est l'autre moment ou l'on arrive
+      // sur le terrain, avec l'engagement.
+      if (app.demoAvant > 0 && player.demo <= 0 && live) audio.engineStart();
+      app.demoAvant = player.demo;
+
       // Le crissement suit la glissade reelle, pas le bouton : on n'entend
       // rien tant que les roues tiennent, meme frein a main tire.
       const sliding = aVoiture && Math.abs(player.slip) > 0.22 && player.speed > 90;
@@ -490,9 +498,9 @@ async function boot() {
           view.kick(4);
           break;
         case EV.PINCH:
-          // Un coincement part bien plus vite qu'une frappe ordinaire : la
-          // secousse le dit, sinon on ne comprend pas ce qui vient d'arriver.
-          if (!fete) audio.ballTouch(e.value);
+          // Pas de son ajoute : la frappe de la meme image en a deja joue
+          // un, et les deux ensemble faisaient un grondement. C'est la
+          // secousse, plus forte qu'a l'ordinaire, qui dit le coincement.
           view.kick(6 + e.value / 60);
           break;
         case EV.DEMO: {
@@ -517,6 +525,9 @@ async function boot() {
           audio.hush();
           view.clearEffects();
           audio.countdown();
+          // Le demarreur vient apres le silence : joue avant, `hush` le
+          // coupait dans l'oeuf. Tout le monde arrive sur le terrain.
+          audio.engineStart();
           break;
         default:
           break;
