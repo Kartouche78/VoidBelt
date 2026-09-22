@@ -7,6 +7,7 @@
     "dev": "cargo run",
     "build:rl2": "powershell -ExecutionPolicy Bypass -File voidbelt-rl2/build.ps1",
     "test:rl2": "cargo test --manifest-path voidbelt-rl2/Cargo.toml --release",
-    "share": "bash partager.sh"
+    "share": "bash partager.sh",
+    "test:ui": "node public/rl2/js/panneau.test.mjs"
   }
 }

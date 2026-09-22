@@ -7,6 +7,8 @@
 
 import { ACTIONS, keyLabel, padLabel } from './settings.js';
 
+const $ = (id) => document.getElementById(id);
+
 /** Touches de l'interface, les memes pour tout le monde. Elles ne se
  *  reassignent pas : perdre la touche « retour » enfermerait dans un menu
  *  sans pouvoir en sortir ni la remettre. */
