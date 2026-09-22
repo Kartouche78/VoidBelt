@@ -69,7 +69,10 @@ async fn main() {
     // tout casser.
     let rl2_files = Router::new()
         .merge(page("/rl2", "public/rl2"))
-        .merge(page("/admin", "public/admin"))
+        .route(
+            "/rl2/admin",
+            get(|| async { Redirect::permanent("/rl2/admin/") }),
+        )
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::CACHE_CONTROL,
             HeaderValue::from_static("no-cache"),
@@ -105,7 +108,6 @@ async fn main() {
         .merge(page("/arena", "public/arena"))
         .merge(page("/skilltree", "public/skilltree"))
         .merge(page("/jumpnbump", "public/jumpnbump"))
-        .merge(page("/multiplayer", "public/multiplayer"))
         .fallback_service(ServeDir::new("public"))
         .layer(cors)
         .layer(CompressionLayer::new())

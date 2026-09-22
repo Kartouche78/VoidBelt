@@ -59,10 +59,12 @@ export const EV = {
 /** Echelle du monde, unique et alignee sur Rocket League.
  *
  *  Une unite de notre terrain vaut 3,7097 unites Unreal : c'est le facteur
- *  qui fait coincider notre vitesse maximale avec les 2300 uu/s du vrai
- *  jeu. Comme 1 uu vaut 1 cm et que km/h = uu/s x 0,036, tout le reste en
- *  decoule. Le compteur affiche donc les vraies vitesses du jeu, 82,8 km/h
- *  a fond, et non un chiffre arcade gonfle.
+ *  qui fait coincider nos tailles et nos vitesses avec celles du vrai jeu,
+ *  du rayon de la balle aux 2300 uu/s du plafond. Comme 1 uu vaut 1 cm et
+ *  que km/h = uu/s x 0,036, tout le reste en decoule. Le compteur affiche
+ *  donc les vraies vitesses du jeu, 82,8 km/h a fond, et non un chiffre
+ *  arcade gonfle. Seul le seuil du supersonique est descendu un peu sous
+ *  le sien, pour qu'il se voie sur un terrain deux fois plus court.
  *
  *  Tableau de bord et interface de reglage partagent ces deux constantes,
  *  pour ne jamais annoncer deux vitesses differentes. */
@@ -155,6 +157,7 @@ export async function loadEngine(url) {
         corner: g[6], goalHalf: g[7], goalDepth: g[8],
         ballR: g[9], carLen: g[10] * 2, carWid: g[11] * 2,
         boostMax: g[12], speedMax: g[13], padCount: g[14], demoSpeed: g[15], countFrom: g[16],
+        goalFront: g[17],
       };
     },
   };

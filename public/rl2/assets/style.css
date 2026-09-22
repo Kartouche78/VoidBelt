@@ -552,3 +552,456 @@ button.primary:hover, button.primary:focus-visible { background: #ff8c39; }
 
 #message { font-size: clamp(34px, 12vw, 64px); }
 }
+
+/* ---------------------------------------------------------- stades ----- */
+
+/* Grille de vignettes : la planche fait foi, le nom vient par-dessus. */
+#stadium-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  max-height: min(56vh, 460px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+button.stadium {
+  position: relative;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+button.stadium img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+button.stadium span {
+  display: block;
+  padding: 8px 10px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--dim);
+}
+button.stadium:hover span, button.stadium:focus-visible span { color: var(--ink); }
+button.stadium.active { border-color: var(--orange); }
+button.stadium.active span { color: var(--orange); }
+
+/* Bandeau des calques de mise au point : discret, en haut a gauche. */
+#debug-flash {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  padding: 7px 11px;
+  border: 1px solid #b14cff;
+  border-radius: 7px;
+  background: #1a0b2acc;
+  color: #e3c9ff;
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+#debug-flash[hidden] { display: none; }
+
+/* Panneau de calage du decor (F4) : les chiffres doivent rester lisibles
+   sur une capture d'ecran, c'est tout leur interet. */
+#fit-panel {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  min-width: 300px;
+  padding: 12px 14px;
+  border: 1px solid #b14cff;
+  border-radius: 8px;
+  background: #140822e8;
+  color: #e3c9ff;
+  font-family: var(--mono);
+  pointer-events: none;
+}
+#fit-panel[hidden] { display: none; }
+.fit-title {
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: #b14cff;
+  margin-bottom: 7px;
+}
+.fit-values {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: .02em;
+}
+.fit-note { font-size: 11px; color: #a98cc4; margin-top: 3px; }
+.fit-keys { font-size: 10px; color: #8a6fa6; margin-top: 6px; letter-spacing: .04em; }
+.fit-copied { font-size: 11px; color: #ffd24a; margin-top: 6px; }
+
+/* Onglets du selecteur de stade : meme barre que les parametres, mais
+   posee au-dessus d'une grille qui defile. */
+#stadium-tabs { margin-bottom: 12px; }
+
+/* ------------------------------------------------------- accueil ------- */
+
+/* L'accueil ne ressemble a aucun autre ecran : une photo plein cadre, la
+   marque en haut a gauche, le menu en bas a gauche. Il annule donc le
+   voile et le centrage que `.screen` impose aux panneaux. */
+#screen-title.title {
+  display: block;
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
+  overflow: hidden;
+}
+/* Ce `display` porte un identifiant : il l'emportait sur la regle
+   `.screen[hidden]`, et l'accueil restait donc affiche par-dessus les
+   autres ecrans. Il faut le rattraper a poids egal. */
+#screen-title.title[hidden] { display: none; }
+#screen-title.title::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('menu/menu_background.jpg') center / cover no-repeat;
+}
+/* Deux voiles croises : un depuis la gauche pour poser le texte, un depuis
+   le bas pour rattacher le menu au sol de l'image. */
+#screen-title.title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(95deg, #04060af2 0%, #04060ab8 26%, #04060a33 52%, transparent 72%),
+    linear-gradient(to top, #04060ad9, transparent 42%);
+}
+
+.title-brand,
+.title-menu,
+.title-note {
+  position: absolute;
+  left: clamp(26px, 6vw, 92px);
+  z-index: 1;
+}
+.title-brand { top: clamp(24px, 6vh, 70px); }
+.title-brand h1 { font-size: clamp(44px, 6.4vw, 78px); }
+.title-menu { bottom: clamp(60px, 13vh, 132px); display: grid; justify-items: start; }
+.title-note {
+  bottom: clamp(26px, 6vh, 58px);
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: .14em;
+  color: #7c8798;
+}
+
+/* Une ligne par entree, en petites capitales tres espacees. L'entree visee
+   s'eclaircit et tire un court trait orange sous elle. */
+.title-menu button {
+  position: relative;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 10px 0 12px;
+  font-size: clamp(11.5px, 1.15vw, 14px);
+  letter-spacing: .34em;
+  color: #c3ccdb;
+  opacity: .58;
+  text-shadow: 0 2px 14px #000a;
+  transition: opacity .18s, color .18s;
+}
+.title-menu button::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 3px;
+  width: 0;
+  height: 2px;
+  background: var(--orange);
+  transition: width .22s ease;
+}
+/* On reprend la main sur le liisere de navigation manette : ici le repere,
+   c'est le trait, pas un cadre autour du mot. */
+.title-menu button:hover,
+.title-menu button:focus-visible,
+.title-menu button.pad-focus {
+  color: #fff;
+  opacity: 1;
+  background: none;
+  border: 0;
+  outline: none;
+  transform: none;
+}
+.title-menu button:hover::after,
+.title-menu button:focus-visible::after,
+.title-menu button.pad-focus::after { width: 30px; }
+
+/* ------------------------------------------- ecrans de menu (feuilles) --- */
+
+/* Meme photo, meme colonne a gauche que l'accueil : on quitte la boite
+   centree des panneaux pour que les ecrans s'enchainent sans rupture. */
+.screen.sheet {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: clamp(16px, 3vh, 30px);
+  padding: clamp(22px, 5vh, 54px) clamp(26px, 6vw, 92px);
+  background: none;
+  backdrop-filter: none;
+  overflow: hidden;
+}
+/* Ce `display` porte un identifiant de fait : sans cette ligne l'ecran
+   resterait affiche par-dessus les autres, comme l'accueil l'a fait. */
+.screen.sheet[hidden] { display: none; }
+.screen.sheet::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('menu/menu_background.jpg') center / cover no-repeat;
+}
+/* Le voile est plus franc qu'a l'accueil : il y a du texte a lire jusqu'au
+   milieu de l'image, et des reglages a distinguer les uns des autres. */
+.screen.sheet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, #04060af7 0%, #04060ae6 46%, #04060aa8 72%, #04060a4d 100%);
+}
+
+.sheet-head,
+.sheet-body,
+.sheet-menu {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+}
+.sheet-head .eyebrow { margin-bottom: 8px; }
+.sheet-head h2 { margin: 0; }
+.sheet-body { overflow-y: auto; padding-right: 6px; }
+.sheet-body .row { border-color: #ffffff12; }
+
+/* Le pied reprend les entrees de l'accueil, couchees en ligne. */
+.sheet-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(16px, 3vw, 40px);
+}
+.title-menu button,
+.sheet-menu button {
+  position: relative;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 10px 0 12px;
+  font-size: clamp(11.5px, 1.15vw, 14px);
+  letter-spacing: .34em;
+  color: #c3ccdb;
+  opacity: .58;
+  text-shadow: 0 2px 14px #000a;
+  transition: opacity .18s, color .18s;
+}
+.title-menu button::after,
+.sheet-menu button::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 3px;
+  width: 0;
+  height: 2px;
+  background: var(--orange);
+  transition: width .22s ease;
+}
+.title-menu button:hover, .title-menu button:focus-visible, .title-menu button.pad-focus,
+.sheet-menu button:hover, .sheet-menu button:focus-visible, .sheet-menu button.pad-focus {
+  color: #fff;
+  opacity: 1;
+  background: none;
+  border: 0;
+  outline: none;
+  transform: none;
+}
+.title-menu button:hover::after, .title-menu button:focus-visible::after, .title-menu button.pad-focus::after,
+.sheet-menu button:hover::after, .sheet-menu button:focus-visible::after, .sheet-menu button.pad-focus::after {
+  width: 30px;
+}
+
+/* Onglets : memes capitales espacees, meme trait orange, sur une rangee. */
+.sheet .tabs {
+  display: flex;
+  gap: clamp(14px, 2.6vw, 34px);
+  border: 0;
+  margin-bottom: clamp(12px, 2.4vh, 22px);
+  padding: 0;
+}
+.sheet .tabs button {
+  position: relative;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 6px 0 10px;
+  font-size: 11px;
+  letter-spacing: .28em;
+  color: #c3ccdb;
+  opacity: .5;
+}
+.sheet .tabs button::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 2px;
+  width: 0;
+  height: 2px;
+  background: var(--orange);
+  transition: width .2s ease;
+}
+.sheet .tabs button.active,
+.sheet .tabs button:hover,
+.sheet .tabs button.pad-focus,
+.sheet .tabs button:focus-visible {
+  color: #fff;
+  opacity: 1;
+  background: none;
+  outline: none;
+}
+.sheet .tabs button.active::after,
+.sheet .tabs button:hover::after,
+.sheet .tabs button.pad-focus::after,
+.sheet .tabs button:focus-visible::after { width: 100%; }
+
+/* Vignettes de stade : plus de cadre, c'est l'image qui parle. Le stade
+   vise s'eclaircit et prend le liisere orange. */
+.sheet button.stadium {
+  border: 1px solid #ffffff1a;
+  background: #04060a80;
+  opacity: .72;
+  transition: opacity .18s, border-color .18s, transform .18s;
+}
+.sheet button.stadium span { letter-spacing: .06em; }
+.sheet button.stadium:hover,
+.sheet button.stadium:focus-visible,
+.sheet button.stadium.pad-focus {
+  opacity: 1;
+  border-color: var(--orange);
+  outline: none;
+  transform: translateY(-2px);
+}
+.sheet button.stadium.active { border-color: var(--orange); opacity: 1; }
+#stadium-list { max-height: none; }
+
+/* Salons et saisie du pseudo, poses sur la photo plutot que dans une boite. */
+.sheet .salon { background: #04060a99; border-color: #ffffff1a; }
+.sheet input[type="text"] { background: #04060a99; border-color: #ffffff26; }
+/* Le corps de la feuille defile deja : ce plafond-la ferait deux
+   ascenseurs imbriques, l'un dans l'autre. */
+.sheet #settings-body { max-height: none; overflow: visible; }
+.sheet .note { margin-top: 12px; }
+
+/* ------------------------------------------------------- calques -------- */
+
+/* Un calque se pose sur ce qu'il y a derriere au lieu de le remplacer : on
+   voit la photo du menu, ou la partie en cours, a travers le voile. */
+.screen.modal {
+  display: grid;
+  place-items: center;
+  padding: clamp(18px, 4vh, 40px);
+  background: #04060ab0;
+  backdrop-filter: blur(7px);
+}
+.screen.modal[hidden] { display: none; }
+
+.modal-card {
+  width: min(600px, 100%);
+  max-height: min(84vh, 720px);
+  display: grid;
+  grid-template-rows: auto minmax(0, auto) auto;
+  gap: clamp(14px, 2.6vh, 26px);
+  padding: clamp(22px, 3.4vh, 34px) clamp(24px, 3.6vw, 38px) clamp(12px, 2vh, 20px);
+  background: #070b12f2;
+  border: 1px solid #ffffff1f;
+  border-radius: 14px;
+  box-shadow: 0 40px 120px #000c, 0 0 0 1px #0a0f18 inset;
+}
+/* Dans un calque, c'est le corps qui defile, pas la carte entiere : le
+   titre et les entrees du pied doivent rester sous les yeux. */
+.modal-card .sheet-body {
+  width: auto;
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+}
+.modal-card .sheet-head,
+.modal-card .sheet-menu { width: auto; }
+.modal-card .sheet-head h2 { font-size: 22px; }
+
+/* Entrees empilees, comme a l'accueil : c'est la forme d'un menu de pause. */
+.sheet-menu.stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+/* ------------------------------------------------------ messagerie ------ */
+
+/* Tout se range en bas a gauche : le groupe ouvert juste au-dessus du
+   journal, pour que l'oeil n'ait pas a traverser l'ecran entre les deux. */
+#chat {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  display: grid;
+  gap: 10px;
+  max-width: min(320px, 34vw);
+  pointer-events: none;
+}
+
+#chat-quick {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid #ffffff1f;
+  border-left: 2px solid var(--orange);
+  border-radius: 8px;
+  background: #070b12e8;
+  animation: chat-in .12s ease-out;
+}
+#chat-quick[hidden], #chat-log[hidden] { display: none; }
+.chat-groupe {
+  font-size: 9px;
+  letter-spacing: .26em;
+  text-transform: uppercase;
+  color: var(--orange);
+  margin-bottom: 5px;
+}
+.chat-choix {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 11.5px;
+  color: var(--ink);
+}
+.chat-choix b { color: #7f8ba0; font-size: 12px; width: 11px; text-align: center; }
+
+#chat-log { display: grid; gap: 3px; }
+.chat-ligne {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #dce3ee;
+  text-shadow: 0 1px 6px #000c;
+  animation: chat-in .14s ease-out;
+}
+.chat-ligne b { color: var(--orange); margin-right: 6px; font-weight: 400; }
+
+@keyframes chat-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Rappel des touches d'interface : la manette d'abord, le clavier ensuite. */
+.touche-pad, .touche-clavier {
+  font-size: 11px;
+  letter-spacing: .08em;
+  padding: 6px 10px;
+  border: 1px solid #ffffff1a;
+  border-radius: 6px;
+  background: #0b1018a8;
+}
+.touche-pad { color: var(--ink); }
+.touche-clavier { color: var(--dim); }

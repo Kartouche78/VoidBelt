@@ -1,8 +1,9 @@
 //! Geometrie du stade et rebonds sur les murs.
 //!
 //! Le repere monde est celui des planches PNG (1672 x 941) : un pixel de
-//! `terrain.png` compose vaut une unite. Les bornes ci-dessous ont ete
-//! relevees sur la ligne creme du terrain, les buts sur la barre neon.
+//! `terrain.png` compose vaut une unite. Les bornes ci-dessous ne suivent
+//! plus une planche en particulier : chaque stade recale son decor dessus,
+//! et `assets/stadium/Gabarit.jpg` en porte le trace exact.
 
 use crate::vec::{v2, V2};
 
@@ -14,10 +15,14 @@ pub const BOARD_H: f32 = 941.0;
 // celle du stade : ces bornes sont donc directement celles du dessin.
 pub const MIN_X: f32 = 173.0;
 pub const MAX_X: f32 = 1498.0;
-pub const MIN_Y: f32 = 130.0;
-pub const MAX_Y: f32 = 779.0;
-/// Les coins sont chanfreines a 45 degres ; un arc de ce rayon les suit de
-/// pres, et rend les rebonds plus doux qu'une arete vive.
+// Cinq unites gagnees en haut et en bas sur la mesure d'origine (130 et
+// 779) : l'aire de jeu passe de 649 a 659 de haut. Le centre, lui, ne
+// bouge pas, donc engagements et cages restent ou ils etaient.
+pub const MIN_Y: f32 = 125.0;
+pub const MAX_Y: f32 = 784.0;
+/// Rayon d'arrondi des coins, par defaut. Chaque stade peint les siens a
+/// sa facon : la valeur en vigueur est un reglage (`arena_corner`), celle-ci
+/// n'est que le point de depart, celui de la planche d'origine.
 pub const CORNER: f32 = 46.0;
 
 pub const CX: f32 = (MIN_X + MAX_X) * 0.5;
@@ -26,30 +31,13 @@ pub const CY: f32 = (MIN_Y + MAX_Y) * 0.5;
 /// Demi-hauteur de la bouche de but, et profondeur des filets.
 pub const GOAL_HALF: f32 = 86.0;
 pub const GOAL_DEPTH: f32 = 90.0;
-/// Les cages debordent sur le terrain : leur bouche est en retrait du muret
-/// de cette distance, et les filets repartent vers l'exterieur.
-pub const GOAL_FRONT: f32 = 32.0;
+/// Retrait de la bouche de but par rapport au muret. Il vaut zero : la
+/// bouche est dans le plan du muret, qui file donc droit d'un coin a
+/// l'autre. Une bouche en retrait creusait une poche entre le montant et
+/// le muret, qu'il fallait rattraper par un biseau ; le muret n'etait
+/// alors plus une ligne droite, et une planche de stade non plus.
+pub const GOAL_FRONT: f32 = 0.0;
 
-/// Demi-hauteur de l'ossature de cage, montants et equerres compris.
-pub const GOAL_SIDE: f32 = 120.0;
-
-/// Abscisse du muret lateral a cette hauteur. Devant une cage il avance
-/// jusqu'a sa face, sinon un creux de trente unites se forme entre le
-/// montant et le muret, et on s'y coince. Le raccord est biseaute : une
-/// marche franche ejecterait la voiture qui longe la paroi.
-fn side_wall(y: f32, left: bool) -> f32 {
-    let wall = if left { MIN_X } else { MAX_X };
-    let lane = (y - CY).abs();
-    if lane >= GOAL_SIDE {
-        return wall;
-    }
-    let mouth = goal_mouth(left);
-    if lane <= GOAL_HALF {
-        return mouth;
-    }
-    let t = (GOAL_SIDE - lane) / (GOAL_SIDE - GOAL_HALF);
-    wall + (mouth - wall) * t
-}
 
 /// Le tir allait-il au but de cette equipe ? On prolonge la trajectoire
 /// jusqu'au plan de but et on regarde si elle passe dans la bouche. Sert a
@@ -154,29 +142,31 @@ fn push(n: V2, depth: f32) -> Option<Hit> {
 
 /// Contact d'un disque de rayon `r` avec l'enceinte. La bouche des buts est
 /// ouverte : on y bascule sur les parois du filet, poteaux compris.
-pub fn contact(p: V2, r: f32) -> Option<Hit> {
-    // Une fois la bouche franchie, c'est le filet qui borne, plus l'enceinte.
-    if in_goal_lane(p.y) && (p.x < goal_mouth(true) || p.x > goal_mouth(false)) {
+pub fn contact(p: V2, r: f32, corner: f32) -> Option<Hit> {
+    // Un arrondi ne peut deborder de la demi-largeur du terrain, ni etre
+    // negatif : une valeur aberrante venue d'un reglage ferait un terrain
+    // sans milieu plutot que d'echouer franchement.
+    let corner = corner.clamp(0.0, (MAX_Y - MIN_Y) * 0.5);
+    // Dans la bande des buts, la bouche est ouverte sur toute la hauteur du
+    // muret : seul le filet borne, et rien ne barre l'entree. Y laisser
+    // l'enceinte la fermerait, puisque le muret arrete un mobile a un rayon
+    // de son plan, donc avant qu'il ait pu franchir la ligne.
+    if in_goal_lane(p.y) {
         return net_contact(p, r);
     }
     // Rectangle a coins arrondis : on ramene le centre dans le rectangle
     // interieur, la distance restante decrit aussi bien les bords droits
-    // (distance nulle sur un axe) que les arcs de coin. Les bords lateraux
-    // suivent l'ossature des cages, la bouche restant ouverte.
-    let (min_x, max_x) = if in_goal_lane(p.y) {
-        (MIN_X, MAX_X)
-    } else {
-        (side_wall(p.y, true), side_wall(p.y, false))
-    };
-    let qx = p.x.clamp(min_x + CORNER, max_x - CORNER);
-    let qy = p.y.clamp(MIN_Y + CORNER, MAX_Y - CORNER);
+    // (distance nulle sur un axe) que les arcs de coin. Les murets sont
+    // deux lignes droites, la bouche des buts s'y ouvre sans decrochement.
+    let qx = p.x.clamp(MIN_X + corner, MAX_X - corner);
+    let qy = p.y.clamp(MIN_Y + corner, MAX_Y - corner);
     let d = p.sub(v2(qx, qy));
     let l = d.len();
-    if l <= CORNER - r {
+    if l <= corner - r {
         return None;
     }
     let n = if l > 1e-6 { d.mul(-1.0 / l) } else { v2(0.0, 1.0) };
-    push(n, l - (CORNER - r))
+    push(n, l - (corner - r))
 }
 
 /// Parois interieures d'un filet : fond et deux joues, la bouche reste libre.

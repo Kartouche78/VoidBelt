@@ -20,6 +20,7 @@ export class Hud {
       arc: $('boost-arc'),
       speed: $('speed-value'),
       message: $('message'),
+      flash: $('debug-flash'),
       sonic: $('sonic'),
       board: $('scoreboard'),
       lobby: $('lobby'),
@@ -111,6 +112,19 @@ export class Hud {
       tone = d > 0 ? 'blue' : 'orange';
     }
     this._set(text, tone);
+  }
+
+  /** Bandeau passager des calques de mise au point. Il a son propre
+   *  element : le bandeau de match se reecrit a chaque image et l'effacerait
+   *  aussitot. */
+  flash(text) {
+    const el = this.el.flash;
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(this.flashTimer);
+    this.flashTimer = setTimeout(() => {
+      el.hidden = true;
+    }, 1800);
   }
 
   _set(text, tone) {

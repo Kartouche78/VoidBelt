@@ -245,6 +245,9 @@ impl Game {
                 return;
             }
             Phase::Goal => {
+                // La celebration ne fige plus rien : on continue de rouler,
+                // la balle reste ou elle est tombee, et c'est seulement au
+                // bout du chronometre qu'on remet tout le monde en place.
                 self.timer -= dt;
                 if self.timer <= 0.0 {
                     if self.overtime || (self.clock <= 0.0 && self.score[0] != self.score[1]) {
@@ -252,8 +255,8 @@ impl Game {
                     } else {
                         self.kickoff();
                     }
+                    return;
                 }
-                return;
             }
             Phase::Warmup | Phase::Play => {}
         }
@@ -346,6 +349,12 @@ impl Game {
                     self.events.push((ev::BUMP, bump.force));
                 }
             }
+        }
+
+        // Un but deja encaisse ne se recompte pas : pendant la celebration
+        // la balle dort au fond du filet, elle y serait vue a chaque image.
+        if self.phase == Phase::Goal {
+            return;
         }
 
         if let Some(team) = arena::conceded(self.ball.pos, self.tune.ball_radius) {

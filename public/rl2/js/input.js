@@ -16,6 +16,9 @@ const DPAD = { up: 12, down: 13, left: 14, right: 15 };
 /** A valide, B revient en arriere. Aucun des deux n'est utilise en course. */
 const NAV_OK = 0;
 const NAV_BACK = 1;
+/** Gachettes hautes : elles changent d'onglet, comme dans le vrai jeu. */
+const NAV_TAB_PREV = 4;
+const NAV_TAB_NEXT = 5;
 
 export class Input {
   constructor(settings) {
@@ -27,10 +30,19 @@ export class Input {
     this.padIndex = null;
     this.capture = null;
     this.prevPause = false;
+    this.prevCamera = false;
     this.onPause = null;
+    this.onCamera = null;
     this.onPadChange = null;
     this._prevButtons = [];
-    this._nav = { x: { dir: 0, next: 0 }, y: { dir: 0, next: 0 }, ok: false, back: false };
+    // Fronts de la croix pour le tchat rapide : elle ne sert a rien d'autre
+    // en course, la direction venant du stick.
+    this._quick = { up: false, down: false, left: false, right: false };
+    this._nav = {
+      x: { dir: 0, next: 0 },
+      y: { dir: 0, next: 0 },
+      ok: false, back: false, tabPrev: false, tabNext: false,
+    };
 
     this._down = (e) => {
       if (e.repeat) return;
@@ -142,6 +154,12 @@ export class Input {
     out.boost = this.keys.has(keys.boost) || this._pressed(pad.boost, gp);
     out.drift = this.keys.has(keys.drift) || this._pressed(pad.drift, gp);
 
+    // La vue bascule a l'appui : un etat maintenu la ferait
+    // clignoter soixante fois par seconde.
+    const cam = this.keys.has(keys.camera) || this._pressed(pad.camera, gp);
+    if ((cam && !this.prevCamera) || this.tapped.has(keys.camera)) this.onCamera?.();
+    this.prevCamera = cam;
+
     const held = this._pressed(pad.pause, gp) || this.keys.has(keys.pause);
     if ((held && !this.prevPause) || this.tapped.has(keys.pause)) this.onPause?.();
     this.prevPause = held;
@@ -152,6 +170,23 @@ export class Input {
     out.scores = this.keys.has(keys.scores) || this._pressed(pad.scores, gp);
 
     return out;
+  }
+
+  /** Direction du tchat rapide qui vient d'etre pressee, ou `null`. La
+   *  croix sur la manette, les chiffres 1 a 4 au clavier — les fleches y
+   *  conduisent deja la voiture, elles ne peuvent pas servir deux fois. */
+  chatPulse() {
+    if (this.capture) return null;
+    const gp = this.pad();
+    const BOUTON = { up: DPAD.up, left: DPAD.left, right: DPAD.right, down: DPAD.down };
+    const TOUCHE = { up: 'Digit1', left: 'Digit2', down: 'Digit3', right: 'Digit4' };
+    let sortie = null;
+    for (const dir of Object.keys(BOUTON)) {
+      const on = !!gp?.buttons[BOUTON[dir]]?.pressed || this.keys.has(TOUCHE[dir]);
+      if (on && !this._quick[dir] && !sortie) sortie = dir;
+      this._quick[dir] = on;
+    }
+    return sortie;
   }
 
   /** Une direction maintenue avance d'un cran, puis se repete. */
@@ -198,15 +233,21 @@ export class Input {
       - (held(DPAD.up) || keys.has('ArrowUp') ? 1 : 0);
     const ok = held(NAV_OK);
     const back = held(NAV_BACK);
+    const tabPrev = held(NAV_TAB_PREV);
+    const tabNext = held(NAV_TAB_NEXT);
     const now = performance.now();
     const pulse = {
       x: this._repeat('x', dx || axis(0), now),
       y: this._repeat('y', dy || axis(1), now),
       ok: ok && !this._nav.ok,
       back: back && !this._nav.back,
+      // Un cran par appui : maintenir LB ne doit pas defiler les onglets.
+      tab: (tabNext && !this._nav.tabNext ? 1 : 0) - (tabPrev && !this._nav.tabPrev ? 1 : 0),
     };
     this._nav.ok = ok;
     this._nav.back = back;
+    this._nav.tabPrev = tabPrev;
+    this._nav.tabNext = tabNext;
     return pulse;
   }
 

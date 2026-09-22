@@ -28,6 +28,12 @@
 
     <div id="message" hidden></div>
 
+    <!-- Bandeau des calques de mise au point (F1 / F2 / F3) -->
+    <div id="debug-flash" hidden></div>
+
+    <!-- Panneau de calage du decor (F4) -->
+    <div id="fit-panel" hidden></div>
+
     <!-- Salon en ligne : remplace le tableau de score en attendant le coup d'envoi -->
     <div id="scores" hidden aria-label="Tableau des joueurs"></div>
 
@@ -39,6 +45,12 @@
       </div>
       <button id="btn-kickoff">Lancer la partie</button>
       <p id="lobby-info"></p>
+    </div>
+
+    <!-- Tchat rapide : le groupe ouvert, puis le journal de la partie -->
+    <div id="chat">
+      <div id="chat-quick" hidden></div>
+      <div id="chat-log" hidden></div>
     </div>
 
     <div id="gauge">
@@ -56,25 +68,42 @@
   </div>
 
   <!-- Accueil -->
-  <section id="screen-title" class="screen" hidden>
-    <div class="panel">
+  <section id="screen-title" class="screen title" hidden>
+    <div class="title-brand">
       <p class="eyebrow">VOIDBELT &middot; ARCADE</p>
       <h1>RL<span>2</span></h1>
-      <p class="tagline">Football motorise vu de dessus. 1 contre 1 face a la machine.</p>
-      <div class="actions">
-        <button id="btn-play" class="primary">Jouer</button>
-        <button id="btn-online">Multijoueur</button>
-        <button id="btn-settings">Parametres</button>
-        <a class="link" href="/">Retour au site</a>
-      </div>
-      <p class="note">Manette recommandee &middot; RT accelere, LT recule, B boost, X drift.</p>
     </div>
+    <nav class="title-menu">
+      <button id="btn-play">Jouer</button>
+      <button id="btn-online">Multijoueur</button>
+      <button id="btn-settings">Param&egrave;tres</button>
+      <button id="btn-quit-site">Quitter</button>
+    </nav>
+    <p class="title-note">Manette recommand&eacute;e &middot; RT acc&eacute;l&egrave;re, LT recule, B boost, X drift.</p>
+  </section>
+
+  <!-- Choix du stade, avant une partie solo -->
+  <section id="screen-stadium" class="screen sheet" hidden>
+    <div class="sheet-head">
+      <p class="eyebrow">VOIDBELT &middot; ARCADE</p>
+      <h2>Choisis ton stade</h2>
+    </div>
+    <div class="sheet-body">
+      <nav class="tabs" id="stadium-tabs"></nav>
+      <div id="stadium-list"></div>
+    </div>
+    <nav class="sheet-menu">
+      <button id="btn-stadium-back">Retour</button>
+    </nav>
   </section>
 
   <!-- Multijoueur -->
-  <section id="screen-online" class="screen" hidden>
-    <div class="panel wide">
+  <section id="screen-online" class="screen sheet" hidden>
+    <div class="sheet-head">
+      <p class="eyebrow">VOIDBELT &middot; ARCADE</p>
       <h2>Multijoueur</h2>
+    </div>
+    <div class="sheet-body">
       <div class="row">
         <div class="row-label">Ton pseudo</div>
         <div class="row-control">
@@ -83,41 +112,50 @@
       </div>
       <div id="online-list"></div>
       <p id="online-status" class="note"></p>
-      <div class="actions row-actions">
-        <button id="btn-online-create" class="primary">Creer un salon</button>
-        <button id="btn-online-refresh">Actualiser</button>
-        <button id="btn-online-back">Retour</button>
-      </div>
     </div>
+    <nav class="sheet-menu">
+      <button id="btn-online-create">Cr&eacute;er un salon</button>
+      <button id="btn-online-refresh">Actualiser</button>
+      <button id="btn-online-back">Retour</button>
+    </nav>
   </section>
 
   <!-- Parametres -->
-  <section id="screen-settings" class="screen" hidden>
-    <div class="panel wide">
-      <h2>Parametres</h2>
-      <nav class="tabs">
-        <button data-tab="controls" class="active">Commandes</button>
-        <button data-tab="audio">Son</button>
-        <button data-tab="match">Match</button>
-      </nav>
-      <div id="settings-body"></div>
-      <div class="actions row-actions">
-        <button id="btn-settings-back" class="primary">Retour</button>
-        <button id="btn-settings-reset">Reinitialiser</button>
+  <section id="screen-settings" class="screen modal" hidden>
+    <div class="modal-card sheet">
+      <div class="sheet-head">
+        <p class="eyebrow">VOIDBELT &middot; ARCADE</p>
+        <h2>Param&egrave;tres</h2>
       </div>
+      <div class="sheet-body">
+        <nav class="tabs">
+          <button data-tab="controls" class="active">Commandes</button>
+          <button data-tab="audio">Son</button>
+          <button data-tab="match">Match</button>
+          <button data-tab="interface">Interface</button>
+        </nav>
+        <div id="settings-body"></div>
+      </div>
+      <nav class="sheet-menu">
+        <button id="btn-settings-back">Retour</button>
+        <button id="btn-settings-reset">R&eacute;initialiser</button>
+      </nav>
     </div>
   </section>
 
   <!-- Pause -->
-  <section id="screen-pause" class="screen" hidden>
-    <div class="panel">
-      <h2>Pause</h2>
-      <div class="actions">
-        <button id="btn-resume" class="primary">Reprendre</button>
-        <button id="btn-pause-settings">Parametres</button>
+  <section id="screen-pause" class="screen modal" hidden>
+    <div class="modal-card sheet">
+      <div class="sheet-head">
+        <p class="eyebrow">VOIDBELT &middot; ARCADE</p>
+        <h2>Pause</h2>
+      </div>
+      <nav class="sheet-menu stack">
+        <button id="btn-resume">Reprendre</button>
+        <button id="btn-pause-settings">Param&egrave;tres</button>
         <button id="btn-pause-restart">Rejouer</button>
         <button id="btn-pause-quit">Quitter</button>
-      </div>
+      </nav>
     </div>
   </section>
 

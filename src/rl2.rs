@@ -407,6 +407,29 @@ fn handle_text(room: &mut Room, id: u32, text: &str) -> bool {
             room.game.begin();
             true
         }
+        // Tchat rapide. On ne transporte que deux directions, jamais du
+        // texte libre : le libelle vit chez le client, et un salon ne peut
+        // donc pas servir a diffuser n'importe quoi a n'importe qui.
+        Some("chat") => {
+            let dir = |cle| {
+                msg.get(cle)
+                    .and_then(Value::as_str)
+                    .filter(|d| matches!(*d, "up" | "down" | "left" | "right"))
+                    .map(str::to_string)
+            };
+            let (Some(g), Some(m)) = (dir("g"), dir("m")) else {
+                return false;
+            };
+            let Some(seat) = room.seats.iter().flatten().find(|s| s.id == id) else {
+                return false;
+            };
+            room.shout(
+                json!({ "t": "chat", "from": seat.name, "team": seat.team, "g": g, "m": m })
+                    .to_string(),
+            );
+            // Deja diffuse : inutile de renvoyer la composition derriere.
+            false
+        }
         // Chacun choisit son camp, librement : rien n'impose d'equilibre, et
         // la partie se refait aussitot pour replacer tout le monde.
         Some("team") => {

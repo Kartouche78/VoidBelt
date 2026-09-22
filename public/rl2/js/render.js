@@ -1,19 +1,16 @@
 // Rendu three.js du terrain vu de dessus.
 //
 // Le repere monde est celui des planches (1672 x 941, y vers le bas) ; on le
-// bascule en repere three.js en niant y. `terrain.png` est mis a l'echelle
-// dans la decoupe transparente de `stade.png`, exactement comme la planche
-// de reference a ete composee.
+// bascule en repere three.js en niant y. Le decor du stade, lui, se recale
+// sur l'enceinte du moteur : voir `stadiums.js`.
 
 import * as THREE from '../vendor/three.module.js';
 import { STATE, carsIn, padBase } from './wasm.js';
 import { Effects } from './effects.js';
 import { makeFlames } from './flame.js';
+import { makeTrails } from './trail.js';
 import { Names } from './names.js';
-
-// Les planches se superposent a l'echelle 1:1 : `terrain.png` et
-// `stade.png` sont toutes deux dessinees dans le meme repere 1672 x 941,
-// terrain deja place dans son stade. Plus rien a mettre a l'echelle.
+import { fitPlank, stadiumById } from './stadiums.js';
 
 export const TEAM = [0x2f7ce0, 0xf07a25];
 /** Carrosseries, dans l'ordre des equipes. `car_white.png` reste en reserve. */
@@ -96,7 +93,10 @@ export class Renderer {
 
     const loader = new THREE.TextureLoader();
     this.load = (url) => {
-      const t = loader.load(url);
+      // Les planches de stade portent le nom du stade, accents et
+      // apostrophe compris : on encode avant de demander le fichier plutot
+      // que de s'en remettre au navigateur, qui n'encode pas toujours.
+      const t = loader.load(encodeURI(url));
       t.colorSpace = THREE.SRGBColorSpace;
       t.anisotropy = 4;
       return t;
@@ -115,14 +115,40 @@ export class Renderer {
   }
 
   _buildField() {
-    const { boardW: w, boardH: h } = this.geom;
-    const pitch = plane(w, h, flat(this.load('assets/terrain.png')));
-    pitch.position.set(w / 2, -h / 2, Z.TERRAIN);
-    this.scene.add(pitch);
+    // Les planches du stade vivent dans leur propre groupe : changer de
+    // stade revient a le vider et a le remplir a nouveau, sans toucher au
+    // reste de la scene.
+    this.field = new THREE.Group();
+    this.scene.add(this.field);
+    this.setStadium(stadiumById('voidbelt'));
+  }
 
-    const stade = plane(this.geom.boardW, this.geom.boardH, flat(this.load('assets/stade.png')));
-    stade.position.set(this.geom.boardW / 2, -this.geom.boardH / 2, Z.STADE);
-    this.scene.add(stade);
+  /** Pose les planches d'un stade et les recale sur l'enceinte du moteur.
+   *  Le decor n'a pas de role physique : seule compte la superposition du
+   *  muret peint et du mur ou rebondit la balle. */
+  setStadium(stadium, raw = false) {
+    this.stadium = stadium;
+    this.raw = raw;
+    for (const m of this.field.children.slice()) {
+      this.field.remove(m);
+      m.material.map?.dispose();
+      m.material.dispose();
+      m.geometry.dispose();
+    }
+    // En calage (F4) la planche se pose telle quelle, centree sur le
+    // cadre : c'est le contour qu'on deplace pour venir dessus, pas
+    // l'inverse. Le reste du temps elle est recalee sur l'enceinte.
+    const box = raw
+      ? { w: this.geom.boardW, h: this.geom.boardH, x: this.geom.boardW / 2, y: this.geom.boardH / 2 }
+      : fitPlank(stadium, this.geom);
+    // Le stade d'origine garde ses deux calques transparents ; les autres
+    // sont des planches pleines, terrain et decor deja composes.
+    const arts = stadium.layers || [stadium.art];
+    arts.forEach((url, i) => {
+      const m = plane(box.w, box.h, flat(this.load(url)));
+      m.position.set(box.x, -box.y, i === 0 ? Z.TERRAIN : Z.STADE);
+      this.field.add(m);
+    });
   }
 
   _buildPads() {
@@ -188,6 +214,7 @@ export class Renderer {
    *  reglages successifs ne se cumulent pas. */
   setGeometry(g) {
     this.geom = g;
+    if (this.stadium) this.setStadium(this.stadium, this.raw);
     const b = this.built;
     this.ball.scale.setScalar(g.ballR / b.ballR);
     for (const car of this.cars) {
@@ -209,7 +236,12 @@ export class Renderer {
     g.add(sh, body);
     // Les reacteurs se montent apres le chassis : ils s'accrochent aux
     // pots releves sur la planche, pas a un point choisi a la main.
-    g.userData = { body, team: team & 1, flames: makeFlames(g, this.geom, this.load) };
+    g.userData = {
+      body,
+      team: team & 1,
+      flames: makeFlames(g, this.geom, this.load),
+      trails: makeTrails(g, this.geom, this.load),
+    };
     g.position.z = Z.CAR;
     this.scene.add(g);
     this.cars.push(g);
@@ -306,6 +338,11 @@ export class Renderer {
   update(state, readCar, dt) {
     const now = performance.now() / 1000;
     const { boardW, boardH } = this.geom;
+    // En calage, la planche n'est plus a sa place de jeu : voitures, balle
+    // et plots y seraient a cote de tout. On degage la vue.
+    const show = !this.raw;
+    this.padGroup.visible = show;
+    this.ball.visible = show;
     this.ball.position.set(state[6], -state[7], Z.BALL);
     this.ballDisc.rotation.z = -state[10] * 0.25;
 
@@ -317,17 +354,18 @@ export class Renderer {
     }
     for (let i = 0; i < this.cars.length; i += 1) {
       const g = this.cars[i];
-      if (i >= count) {
+      if (i >= count || !show) {
         g.visible = false;
         this.names.place(i, 0, 0, false);
         continue;
       }
       const c = readCar(state, i);
-      const alive = c.demo <= 0;
+      const alive = c.demo <= 0 && show;
       g.visible = alive;
       g.position.set(c.x, -c.y, Z.CAR);
       g.rotation.z = -c.yaw;
       g.userData.flames(c, dt, now);
+      g.userData.trails(c, dt);
       this.names.place(i, c.x, -c.y, alive);
       this._skid(c, i, dt);
     }

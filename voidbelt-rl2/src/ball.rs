@@ -50,7 +50,7 @@ impl Ball {
         self.pos = self.pos.add(self.vel.mul(dt));
         let spin = (self.vel.len() / t.ball_radius.max(1.0)).min(t.ball_spin_max);
         self.roll += spin * dt;
-        match arena::contact(self.pos, t.ball_radius) {
+        match arena::contact(self.pos, t.ball_radius, t.arena_corner) {
             Some(h) => {
                 arena::bounce(&mut self.pos, &mut self.vel, &h, t.ball_wall_rest, t.ball_wall_fric)
             }

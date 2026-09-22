@@ -1,4 +1,17 @@
 /target
 *.log
-/voidbelt-factory/target
 /voidbelt-rl2/target
+
+# Reglages d'editeur, propres a la machine.
+/.cursor
+
+# Planches sources des stades et du menu. Le jeu ne sert que les .jpg
+# derives : garder les .png doublerait le poids du site pour rien, et
+# Cloudflare Pages deploie tout ce qui est dans public/.
+/public/rl2/assets/stadium/*.png
+/public/rl2/assets/stadium/v2/*.png
+/public/rl2/assets/menu/*.png
+
+# Clip de reference pour le saut, pose la le temps d'un essai. C'est une
+# capture de Rocket League : elle n'a rien a faire en ligne.
+/public/rl2/saut_rl.mp4

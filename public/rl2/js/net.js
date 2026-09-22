@@ -101,6 +101,13 @@ export class Net {
           resolve(msg.room);
         }
         if (msg.t === 'room') this.room = msg.room;
+        // Tchat rapide d'un joueur du salon, soi-meme compris : c'est le
+        // serveur qui renvoie, pour que tout le monde lise la meme chose
+        // dans le meme ordre.
+        if (msg.t === 'chat') {
+          this.onChat?.(msg);
+          return undefined;
+        }
         this.onRoom?.(this.room);
         return undefined;
       };
@@ -138,6 +145,12 @@ export class Net {
   /** Camp actuel du joueur, d'apres la derniere composition recue. */
   get team() {
     return this.room?.players?.find((p) => p.id === this.you)?.team ?? 0;
+  }
+
+  /** Envoie un message rapide : deux directions, jamais du texte. */
+  chat(groupe, choix) {
+    if (!this.connected) return;
+    this.sock.send(JSON.stringify({ t: 'chat', g: groupe, m: choix }));
   }
 
   send(c) {

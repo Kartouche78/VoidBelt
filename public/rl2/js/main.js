@@ -1,6 +1,6 @@
 // Point d'entree : assemble le moteur Rust, le rendu et les menus.
 
-import { loadEngine, readCar, readEvents, EV, PHASE, STATE } from './wasm.js';
+import { loadEngine, readCar, readEvents, carsIn, EV, PHASE, STATE } from './wasm.js';
 import { Renderer } from './render.js';
 import { Input } from './input.js';
 import { Audio } from './audio.js';
@@ -9,6 +9,10 @@ import { Scores } from './scores.js';
 import { Menu } from './menu.js';
 import { load as loadSettings, save as saveSettings } from './settings.js';
 import { Net } from './net.js';
+import { stadiumById } from './stadiums.js';
+import { Debug } from './debug.js';
+import { FitEdit } from './fitedit.js';
+import { Chat } from './chat.js';
 
 const SOLO_SEAT = 0;
 
@@ -50,11 +54,48 @@ async function boot() {
   view.setPads(padTable);
   view.setMode(settings.camera);
 
+  /** Relit la geometrie apres un changement de reglage et la propage a tout
+   *  ce qui se dessine dessus. */
+  function refreshGeometry() {
+    geom = engine.geometry();
+    view.setGeometry(geom);
+    hud.setGeometry?.(geom);
+    debug?.setGeometry(geom);
+  }
+
+  /** Pose un stade : son decor, et le seul reglage de collision qui lui
+   *  appartienne, l'arrondi de ses coins. */
+  function applyStadium(id, editing = false) {
+    const s = stadiumById(id);
+    engine.setTune({ arena_corner: s.corner });
+    view.setStadium(s, editing);
+    refreshGeometry();
+    // En calage, le contour n'est plus l'enceinte : c'est le rectangle
+    // qu'on promene sur la planche.
+    debug?.setFrame(editing ? fit.frame(geom) : null);
+    return s;
+  }
+  // Le stade retenu s'affiche des l'accueil : l'arene tourne en fond
+  // derriere le menu, autant que ce soit celle qu'on va jouer.
+
   const audio = new Audio(settings.audio);
   audio.preload();
   const hud = new Hud(geom);
   const scores = new Scores(document.getElementById('scores'));
   const input = new Input(settings);
+  // Calques F1 / F2 / F3. Ils vivent dans la scene du rendu, mais pilotent
+  // le moteur pour F3, qui divise les vitesses : c'est ici qu'ils sont
+  // branches aux deux.
+  const debug = new Debug(view.scene, geom, engine, refreshGeometry);
+  const fit = new FitEdit(applyStadium);
+  // En ligne, le message passe par le serveur et revient a tout le monde ;
+  // en solo il n'y a personne a prevenir, on l'affiche directement.
+  const chat = new Chat((groupe, choix) => {
+    if (app.mode !== 'online' || !net.connected) return false;
+    net.chat(groupe, choix);
+    return true;
+  });
+  applyStadium(settings.stadium);
 
   const app = {
     /** `solo` : le moteur local simule. `online` : le serveur simule et on
@@ -115,6 +156,7 @@ async function boot() {
     showTeams(net.room, net.you);
     if (menu.screen === 'online') menu.refreshRooms();
   };
+  net.onChat = (m) => chat.recu(m.from, m.g, m.m);
   net.onClose = () => {
     if (app.mode === 'online') leaveOnline('Connexion au salon perdue.');
   };
@@ -143,6 +185,8 @@ async function boot() {
     audio.unlock();
     audio.applyLevels(settings.audio);
     audio.stopAll();
+    chat.setName(menu.playerName() || 'Vous');
+    chat.clear();
     app.mode = 'online';
     app.running = true;
     app.paused = false;
@@ -204,12 +248,15 @@ async function boot() {
 
   function startMatch() {
     app.mode = 'solo';
+    applyStadium(settings.stadium);
     const compo = roster();
     view.setRoster(compo);
     scores.setRoster(compo);
     audio.unlock();
     audio.applyLevels(settings.audio);
     audio.stopAll();
+    chat.setName(settings.name || 'Vous');
+    chat.clear();
     engine.start(seed(), settings.match.level, settings.match.duration);
     app.running = true;
     app.paused = false;
@@ -217,6 +264,16 @@ async function boot() {
     app.last = performance.now();
     menu.hide();
   }
+
+  // Changement de vue a la volee : Y sur la manette, V au clavier. Le
+  // reglage est le meme que celui des parametres, donc le choix se garde.
+  input.onCamera = () => {
+    settings.camera = settings.camera === 'follow' ? 'arena' : 'follow';
+    saveSettings(settings);
+    view.setMode(settings.camera);
+    hud.flash(settings.camera === 'follow' ? 'Camera : suivi' : 'Camera : arene entiere');
+    if (menu.screen === 'settings') menu.renderSettings();
+  };
 
   input.onPause = () => {
     // Depuis les parametres, la touche pause sert de retour arriere.
@@ -237,6 +294,48 @@ async function boot() {
   };
   addEventListener('pointerdown', wake, { once: true });
   addEventListener('keydown', wake, { once: true });
+
+  // Mise au point : reservee au solo. En ligne c'est le serveur qui simule,
+  // un gabarit change ici ne montrerait qu'un mensonge a l'ecran.
+  addEventListener('keydown', (e) => {
+    // En calage, les fleches deplacent la planche et ne conduisent plus :
+    // on les prend avant tout le reste.
+    if (fit.key(e)) {
+      e.preventDefault();
+      return;
+    }
+    // F1 a F4, plus les chiffres 1 a 4 en secours : selon le navigateur,
+    // certaines touches de fonction ne descendent jamais jusqu'a la page —
+    // F3 ouvre la recherche et ne nous arrive pas. Les chiffres, eux, ne
+    // sont pris par personne, ni par le jeu ni par le navigateur.
+    // F8 double F3 : c'est la seule des quatre que le navigateur confisque,
+    // et les chiffres servent maintenant au tchat rapide.
+    const DEBUG_KEYS = { F1: 'F1', F2: 'F2', F3: 'F3', F8: 'F3', F4: 'F4' };
+    const touche = DEBUG_KEYS[e.key];
+    if (!touche) return;
+    e.preventDefault();
+    if (app.mode !== 'solo') {
+      hud.flash('Mise au point indisponible en ligne');
+      return;
+    }
+    if (touche === 'F4') {
+      // Sans le contour a regler, le calage se ferait a l'aveugle : on
+      // l'allume avant d'entrer, pour que le cadre soit pose a temps.
+      if (!debug.limits) debug.toggle('F1');
+      const on = fit.toggle(settings.stadium, geom);
+      hud.flash(`Calage du decor : ${on ? 'ouvert' : 'ferme'}`);
+      return;
+    }
+    // Une panne ici serait muette : rien ne se passerait a l'ecran et on
+    // croirait la touche morte, ce qui est deja arrive.
+    try {
+      const said = debug.toggle(touche);
+      if (said) hud.flash(said);
+    } catch (err) {
+      console.error(err);
+      hud.flash('Mise au point en panne, voir la console');
+    }
+  });
 
   addEventListener('resize', () => view.resize());
   input.onPadChange = () => {
@@ -265,7 +364,18 @@ async function boot() {
       // permet de reprendre la partie et de reassigner un bouton de manette.
       const cmd = input.read();
       padMenu();
-      const live = app.running && !app.paused;
+      // Tchat rapide : seulement en partie, menu ferme. Ouvert, un menu
+      // se sert deja de la croix pour se parcourir.
+      const horloge = now / 1000;
+      if (app.running && !app.paused && !menu.screen && !fit.on) {
+        chat.pulse(input.chatPulse(), horloge);
+      } else {
+        chat.cancel();
+      }
+      chat.update(horloge);
+      // Le calage arrete le jeu : on aligne un decor sur une image fixe,
+      // pas sur une balle qui roule.
+      const live = app.running && !app.paused && !fit.on;
       let state;
       let events = null;
       if (app.mode === 'online') {
@@ -293,15 +403,24 @@ async function boot() {
 
       const player = readCar(state, me);
       view.update(state, readCar, dt);
+      debug.update(state, readCar, carsIn(state));
       hud.update(state, player, state[STATE.PHASE] | 0, geom.boostMax, lobbyInfo());
       // Le tableau se tient enfonce : on le montre tant que la touche l'est.
       scores.show(!!cmd.scores && app.running && !app.paused);
       scores.update(state);
+      // Pendant la celebration d'un but, seule l'ovation s'entend : les
+      // voitures roulent encore, mais on coupe tout ce qui vient d'elles
+      // jusqu'a la remise en place.
+      const fete = (state[STATE.PHASE] | 0) === PHASE.GOAL;
+      const aVoiture = live && !fete && player.demo <= 0;
+
       // Le crissement suit la glissade reelle, pas le bouton : on n'entend
       // rien tant que les roues tiennent, meme frein a main tire.
-      const sliding = live && player.demo <= 0 && Math.abs(player.slip) > 0.22 && player.speed > 90;
+      const sliding = aVoiture && Math.abs(player.slip) > 0.22 && player.speed > 90;
       audio.setDrift(sliding, (Math.abs(player.slip) - 0.22) * 1.6);
-      audio.setBoost(live && player.demo <= 0 && player.flame > 0, dt);
+      audio.setBoost(aVoiture && player.flame > 0, dt);
+      // Moteur : muet tant que les joueurs ne sont pas reposes au sol.
+      audio.setEngine(aVoiture, player.speed, cmd.throttle, geom.speedMax);
 
       // L'ecran de fin n'existe qu'en solo : en ligne le serveur renvoie tout
       // le monde a l'echauffement, on reste donc dans la partie.
@@ -336,9 +455,12 @@ async function boot() {
   });
 
   function handleEvents(buf, state) {
+    // Pendant la celebration d'un but, seule l'ovation s'entend.
+    const fete = (state[STATE.PHASE] | 0) === PHASE.GOAL;
     for (const e of readEvents(buf)) {
       switch (e.code) {
         case EV.HIT:
+          if (!fete) audio.ballTouch(e.value);
           if (e.value > 120) view.kick(e.value / 90);
           break;
         case EV.BUMP:

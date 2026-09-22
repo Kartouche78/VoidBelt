@@ -11,15 +11,20 @@ use crate::vec::{wrap_angle, V2};
 
 // Gabarit cale sur les planches `car_*.png`, au format 2:3 : la boite de
 // collision a donc exactement les proportions de la voiture dessinee.
-pub const HALF_LEN: f32 = 15.91;
-pub const HALF_WID: f32 = 11.35;
+// Les trois cotes portent le meme demi pour cent de plus que la mesure
+// d'origine (15.91 / 11.35 / 13.63) : la voiture grossit sans se deformer.
+pub const HALF_LEN: f32 = 15.99;
+pub const HALF_WID: f32 = 11.41;
 /// Rayon du disque equivalent, utilise pour les contacts rapides.
-pub const RADIUS: f32 = 13.63;
+pub const RADIUS: f32 = 13.70;
 pub const MASS: f32 = 180.0;
 
 pub const DRIVE_MAX: f32 = 380.0;
 pub const SPEED_MAX: f32 = 620.0;
-pub const SUPERSONIC: f32 = 592.0;
+/// Seuil du supersonique. Rocket League le place a 95,7 % du plafond, soit
+/// 592 chez nous ; on descend a 90 %, sinon il demande la moitie du terrain
+/// rien que pour etre atteint et ne se voit presque jamais.
+pub const SUPERSONIC: f32 = 558.0;
 pub const THROTTLE_A: f32 = 431.0;
 pub const BOOST_A: f32 = 267.0;
 pub const BRAKE_A: f32 = 943.0;
@@ -123,6 +128,11 @@ impl Car {
         self.demo = 0.0;
         self.drifting = false;
         self.input = Input::default();
+        // Le chronometre de reacteur ne s'eteint que dans `step`, qui ne
+        // tourne pas pendant le decompte : laisse allume, il figeait la
+        // flamme a l'ecran et tenait le souffle du boost pendant les trois
+        // secondes de l'engagement.
+        self.flame = 0.0;
     }
 
     pub fn fwd(&self) -> V2 {
@@ -255,7 +265,7 @@ impl Car {
         self.vel = f.mul(vf).add(lat.mul(vt)).clamp_len(t.speed_max);
         self.pos = self.pos.add(self.vel.mul(dt));
 
-        if let Some(h) = arena::contact(self.pos, t.car_radius) {
+        if let Some(h) = arena::contact(self.pos, t.car_radius, t.arena_corner) {
             self.ride(&h, dt, t);
         }
     }

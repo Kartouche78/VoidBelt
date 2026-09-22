@@ -11,11 +11,14 @@ export const ACTIONS = [
   { id: 'steer', label: 'Direction (axe)', padOnly: true, axis: true },
   { id: 'boost', label: 'Boost', analog: false },
   { id: 'drift', label: 'Drift', analog: false },
+  { id: 'camera', label: 'Changer de vue', analog: false },
   { id: 'pause', label: 'Pause', analog: false },
   { id: 'scores', label: 'Tableau des scores', analog: false },
 ];
 
-/** Manette Xbox en mapping standard : RT accelere, LT freine, B boost, X drift. */
+/** Manette Xbox en mapping standard : RT accelere, LT freine, B boost,
+ *  X drift, Y change de vue. Cote clavier, la vue prend une touche encore
+ *  libre : espace et maj sont deja pris par le drift et le boost. */
 export const DEFAULTS = {
   keys: {
     accel: 'ArrowUp',
@@ -24,6 +27,7 @@ export const DEFAULTS = {
     right: 'ArrowRight',
     boost: 'ShiftLeft',
     drift: 'Space',
+    camera: 'KeyV',
     pause: 'Escape',
     scores: 'Tab',
   },
@@ -33,12 +37,15 @@ export const DEFAULTS = {
     steer: { kind: 'axis', index: 0 },
     boost: { kind: 'button', index: 1 },
     drift: { kind: 'button', index: 2 },
+    camera: { kind: 'button', index: 3 },
     pause: { kind: 'button', index: 9 },
     // Back / Select : la touche qui montre le tableau dans Rocket League.
     scores: { kind: 'button', index: 8 },
   },
   audio: { master: 80, sfx: 90 },
   match: { duration: 300, level: 1 },
+  /// Stade choisi pour le solo, par identifiant de `stadiums.js`.
+  stadium: 'voidbelt',
   camera: 'arena',
   deadzone: 15,
   name: '',

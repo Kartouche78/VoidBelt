@@ -198,6 +198,7 @@ export const META = {
     'De combien le bot déborde pour se replacer derrière la balle.'],
   bot_approach_pad: ['bot', 'Marge d’approche', 'metres', -1, 3, 0.01,
     'Ajoutée aux rayons de la voiture et de la balle pour viser.'],
+
 };
 
 /** Décrit un réglage, même inconnu : rien ne doit disparaître de l'écran. */

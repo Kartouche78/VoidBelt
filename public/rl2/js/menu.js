@@ -3,10 +3,37 @@
 // Les panneaux vivent deja dans le HTML ; ce module ne fait que les montrer,
 // les remplir et propager les reglages modifies.
 
-import { ACTIONS, DEFAULTS, keyLabel, padLabel, reset } from './settings.js';
+import { DEFAULTS, reset } from './settings.js';
+import { PANNEAU } from './settings-panel.js';
 import { listRooms } from './net.js';
+import { GROUPES, renderPicker, stadiumById } from './stadiums.js';
 
 const $ = (id) => document.getElementById(id);
+
+/** Voisin le plus proche d'un element dans une direction, mesure a
+ *  l'ecran. Ce qui est trop de biais ne compte pas : sinon, en bout de
+ *  ligne, « a droite » sauterait a la ligne suivante. */
+function voisin(depuis, candidats, dx, dy) {
+  const a = depuis.getBoundingClientRect();
+  const ax = a.left + a.width / 2;
+  const ay = a.top + a.height / 2;
+  let meilleur = null;
+  let score = Infinity;
+  for (const el of candidats) {
+    if (el === depuis) continue;
+    const b = el.getBoundingClientRect();
+    const vers = (b.left + b.width / 2 - ax) * dx + (b.top + b.height / 2 - ay) * dy;
+    if (vers <= 1) continue;
+    const biais = Math.abs((b.left + b.width / 2 - ax) * dy - (b.top + b.height / 2 - ay) * dx);
+    if (biais > vers + 8) continue;
+    const note = vers + biais * 2;
+    if (note < score) {
+      score = note;
+      meilleur = el;
+    }
+  }
+  return meilleur;
+}
 
 const PHASE_FR = {
   warmup: 'echauffement',
@@ -31,8 +58,13 @@ export class Menu {
       pause: $('screen-pause'),
       result: $('screen-result'),
       online: $('screen-online'),
+      stadium: $('screen-stadium'),
     };
 
+    this.cursor = null;
+    for (const el of Object.values(this.screens)) {
+      el.addEventListener('pointermove', (e) => this._followMouse(e));
+    }
     this._wire();
     this.show('title');
   }
@@ -43,7 +75,14 @@ export class Menu {
 
   show(name) {
     this.input.cancelListen();
-    for (const [key, el] of Object.entries(this.screens)) el.hidden = key !== name;
+    // Les parametres sont un calque : ouverts depuis l'accueil, ils se
+    // posent dessus au lieu de le remplacer, et la photo reste derriere.
+    // Ouverts depuis la pause, c'est la partie qui sert de fond et il n'y
+    // a rien d'autre a garder affiche.
+    const fond = name === 'settings' && this.from === 'title' ? 'title' : null;
+    for (const [key, el] of Object.entries(this.screens)) {
+      el.hidden = key !== name && key !== fond;
+    }
     $('shell').classList.toggle('menu-open', name !== null);
     this.screen = name;
     if (name === 'settings') this.renderSettings();
@@ -59,19 +98,63 @@ export class Menu {
     return [...this.screens[this.screen].querySelectorAll(sel)];
   }
 
+  /** Le curseur est a nous, pas au navigateur. `document.activeElement`
+   *  bouge a chaque clic, sort des elements qu'on redessine et retombe sur
+   *  le corps de page : s'y fier, c'est perdre le repere des qu'on touche
+   *  la souris. On garde donc l'element vise et on repeint nous-memes. */
   _focus(el) {
     if (!el) return;
     for (const e of document.querySelectorAll('.pad-focus')) e.classList.remove('pad-focus');
+    this.cursor = el;
     el.classList.add('pad-focus');
     el.focus({ preventScroll: true });
     el.scrollIntoView({ block: 'nearest' });
+  }
+
+  /** Deplacement dans la grille des stades, d'apres la position a l'ecran
+   *  et non l'ordre du document. Renvoie `false` si rien ne se trouve dans
+   *  cette direction : on sort alors vers les onglets ou le pied de page,
+   *  pour que l'ecran entier reste accessible. */
+  _grille(cur, dx, dy) {
+    const grille = cur.closest('#stadium-list');
+    const cases = [...grille.querySelectorAll('button')];
+    const cible = voisin(cur, cases, dx, dy);
+    if (cible) {
+      this._focus(cible);
+      return true;
+    }
+    if (dy < 0) {
+      const onglet = this.screens[this.screen].querySelector('.tabs button.active');
+      if (onglet) {
+        this._focus(onglet);
+        return true;
+      }
+    }
+    if (dy > 0) {
+      const pied = this.screens[this.screen].querySelector('.sheet-menu button');
+      if (pied) {
+        this._focus(pied);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Element vise, ou le premier de l'ecran s'il a disparu entre-temps. */
+  _here(items) {
+    if (this.cursor && items.includes(this.cursor)) return this.cursor;
+    return null;
   }
 
   /** Rangee horizontale a laquelle appartient un element, s'il y en a une :
    *  onglets, choix, commandes d'une ligne de reglage, boutons de pied de
    *  panneau. Gauche et droite y circulent, haut et bas en sortent. */
   _lane(el) {
-    return el?.closest('.tabs, .choice, .row-control, .row-actions') ?? null;
+    // `.stack` est une pile, pas une rangee : ses entrees se parcourent en
+    // haut et en bas. La traiter comme une rangee faisait sauter la
+    // navigation d'un bout a l'autre de la liste pour revenir au depart,
+    // et le menu de pause ne repondait plus a la manette.
+    return el?.closest('.tabs, .choice, .row-control, .row-actions, .sheet-menu:not(.stack)') ?? null;
   }
 
   /** Navigation a la manette. `pulse` vient de `Input.menuPulse`. */
@@ -79,9 +162,23 @@ export class Menu {
     if (!pulse || !this.screen) return;
     const items = this.items();
     if (!items.length) return;
-    const here = items.indexOf(document.activeElement);
-    const cur = here >= 0 ? items[here] : null;
+
+    // Onglets a la gachette : LB et RB, comme dans Rocket League.
+    if (pulse.tab) {
+      this._shiftTab(pulse.tab);
+      return;
+    }
+
+    const cur = this._here(items);
+    const here = cur ? items.indexOf(cur) : -1;
     const lane = this._lane(cur);
+
+    // Une grille ne se parcourt pas comme une liste : la case du dessous
+    // n'est pas la suivante dans l'ordre du document, elle est une ligne
+    // plus bas. Les quatre directions y servent donc vraiment.
+    if (cur?.closest('#stadium-list') && (pulse.x || pulse.y)) {
+      if (this._grille(cur, pulse.x, pulse.y)) return;
+    }
 
     if (pulse.x) {
       // Sur un curseur, gauche et droite reglent la valeur plutot que de
@@ -118,10 +215,31 @@ export class Menu {
     if (pulse.back) this.back();
   }
 
+  /** Passe a l'onglet suivant ou precedent, si l'ecran en a. */
+  _shiftTab(dir) {
+    if (this.screen === 'stadium') {
+      const ids = GROUPES.map(([id]) => id);
+      const i = ids.indexOf(this.lot);
+      this._pickLot(ids[((i < 0 ? 0 : i) + dir + ids.length) % ids.length]);
+      return;
+    }
+    const tabs = [...(this.screens[this.screen]?.querySelectorAll('[data-tab]') ?? [])];
+    if (tabs.length < 2) return;
+    const i = tabs.findIndex((b) => b.dataset.tab === this.tab);
+    const next = tabs[((i < 0 ? 0 : i) + dir + tabs.length) % tabs.length];
+    this.tab = next.dataset.tab;
+    this.renderSettings();
+    // Le panneau vient d'etre reconstruit : le curseur visait un element
+    // qui n'existe plus, on le repose sur l'onglet qu'on vient de choisir.
+    this._focus([...this.screens[this.screen].querySelectorAll('[data-tab]')]
+      .find((b) => b.dataset.tab === this.tab));
+  }
+
   /** Retour arriere de l'ecran courant, pour le bouton B de la manette. */
   back() {
     const exits = {
       settings: 'btn-settings-back',
+      stadium: 'btn-stadium-back',
       online: 'btn-online-back',
       pause: 'btn-resume',
       result: 'btn-result-menu',
@@ -129,7 +247,15 @@ export class Menu {
     $(exits[this.screen] || '')?.click();
   }
 
+  /** La souris survole un element : le curseur manette le suit, pour que
+   *  les deux ne se contredisent jamais a l'ecran. */
+  _followMouse(e) {
+    const el = e.target.closest?.('button, input');
+    if (el && this.screen && this.screens[this.screen].contains(el)) this._focus(el);
+  }
+
   hide() {
+    this.cursor = null;
     for (const e of document.querySelectorAll('.pad-focus')) e.classList.remove('pad-focus');
     for (const el of Object.values(this.screens)) el.hidden = true;
     $('shell').classList.remove('menu-open');
@@ -137,7 +263,11 @@ export class Menu {
   }
 
   _wire() {
-    $('btn-play').onclick = () => this.hooks.play();
+    // Jouer passe d'abord par le choix du stade : c'est la seule chose a
+    // decider avant un solo, autant la demander plutot que de la cacher
+    // dans les parametres.
+    $('btn-play').onclick = () => this.showStadiums();
+    $('btn-stadium-back').onclick = () => this.show('title');
     $('btn-settings').onclick = () => {
       this.from = 'title';
       this.show('settings');
@@ -149,6 +279,9 @@ export class Menu {
       this.renderSettings();
     };
 
+    $('btn-quit-site').onclick = () => {
+      window.location.href = '/';
+    };
     $('btn-online').onclick = () => this.showOnline();
     $('btn-online-create').onclick = () => this.hooks.host('');
     $('btn-online-refresh').onclick = () => this.refreshRooms();
@@ -170,6 +303,48 @@ export class Menu {
         this.renderSettings();
       };
     }
+  }
+
+  /** Grille des stades. Un clic choisit et lance dans la foulee. */
+  showStadiums() {
+    // On s'ouvre sur l'onglet du stade en cours : le retrouver sous les
+    // yeux vaut mieux que de le chercher.
+    this.lot = stadiumById(this.settings.stadium).groupe ?? GROUPES[0][0];
+    this._stadiums();
+    this.show('stadium');
+    // On entre sur un stade, pas sur un onglet : c'est ce qu'on vient
+    // choisir, et les gachettes suffisent a changer de lot.
+    this._focusStade();
+  }
+
+  /** Repeint le selecteur de stade, onglets compris. */
+  _stadiums() {
+    renderPicker(
+      $('stadium-tabs'),
+      $('stadium-list'),
+      this.lot,
+      this.settings.stadium,
+      (id) => this._pickLot(id),
+      (s) => {
+        this.settings.stadium = s.id;
+        this.hooks.change(this.settings);
+        this.hooks.play();
+      },
+    );
+  }
+
+  /** Vise le stade en cours dans la grille, ou le premier a defaut. */
+  _focusStade() {
+    const box = $('stadium-list');
+    this._focus(box.querySelector('button.active') ?? box.querySelector('button'));
+  }
+
+  /** Change de lot. La grille vient d'etre refaite, donc ce que le curseur
+   *  visait n'existe plus : on le repose sur le premier stade du lot. */
+  _pickLot(id) {
+    this.lot = id;
+    this._stadiums();
+    this._focusStade();
   }
 
   /** Pseudo saisi, conserve avec les autres reglages. */
@@ -249,164 +424,10 @@ export class Menu {
     this.show('result');
   }
 
-  renderSettings() {
-    for (const b of document.querySelectorAll('[data-tab]')) {
-      b.classList.toggle('active', b.dataset.tab === this.tab);
-    }
-    const body = $('settings-body');
-    body.innerHTML = '';
-    if (this.tab === 'controls') this._controls(body);
-    else if (this.tab === 'audio') this._audio(body);
-    else this._match(body);
-  }
-
-  _row(parent, label, hint) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    const l = document.createElement('div');
-    l.className = 'row-label';
-    l.textContent = label;
-    if (hint) {
-      const h = document.createElement('small');
-      h.textContent = hint;
-      l.append(h);
-    }
-    const c = document.createElement('div');
-    c.className = 'row-control';
-    row.append(l, c);
-    parent.append(row);
-    return c;
-  }
-
-  _controls(body) {
-    const pad = this.input.pad();
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = pad
-      ? `Manette detectee : ${pad.id}`
-      : 'Aucune manette detectee. Branche-la et appuie sur un bouton.';
-    body.append(note);
-
-    for (const a of ACTIONS) {
-      const c = this._row(body, a.label);
-      if (!a.padOnly) c.append(this._bindButton(a, 'keys'));
-      if (!a.keyOnly) c.append(this._bindButton(a, 'pad'));
-    }
-
-    const c = this._row(body, 'Zone morte du stick', 'ignore les sticks fatigues');
-    c.append(this._slider('deadzone', 0, 40, this.settings.deadzone, (v) => {
-      this.settings.deadzone = v;
-    }, (v) => `${v} %`));
-  }
-
-  /** Bouton de reassignation : clavier ou manette selon `source`. */
-  _bindButton(action, source) {
-    const b = document.createElement('button');
-    b.className = `bind ${source}`;
-    const paint = () => {
-      const v = this.settings[source][action.id];
-      b.textContent = source === 'keys' ? keyLabel(v) : padLabel(v);
-    };
-    paint();
-    b.onclick = () => {
-      b.textContent = '...';
-      b.classList.add('listening');
-      this.input.listen((res) => {
-        b.classList.remove('listening');
-        if (res.source !== source) {
-          // Touche pressee alors qu'on attendait la manette (ou l'inverse) :
-          // on repeint sans rien changer plutot que de melanger les tables.
-          paint();
-          return;
-        }
-        this.settings[source][action.id] = source === 'keys' ? res.code : res.bind;
-        this.hooks.change(this.settings);
-        paint();
-      });
-    };
-    return b;
-  }
-
-  _audio(body) {
-    // Pas de curseur musique : aucune piste ne l'alimente pour l'instant,
-    // un reglage sans effet vaut moins qu'un reglage absent.
-    const levels = [
-      ['master', 'Volume general'],
-      ['sfx', 'Effets'],
-    ];
-    for (const [key, label] of levels) {
-      const c = this._row(body, label);
-      c.append(this._slider(key, 0, 100, this.settings.audio[key], (v) => {
-        this.settings.audio[key] = v;
-      }, (v) => `${v} %`));
-    }
-  }
-
-  _match(body) {
-    const dur = this._row(body, 'Duree du match');
-    dur.append(this._choice([
-      [180, '3 min'], [300, '5 min'], [600, '10 min'],
-    ], this.settings.match.duration, (v) => {
-      this.settings.match.duration = v;
-    }));
-
-    const lvl = this._row(body, 'Niveau du bot');
-    lvl.append(this._choice([
-      [0, 'Debutant'], [1, 'Confirme'], [2, 'Impitoyable'],
-    ], this.settings.match.level, (v) => {
-      this.settings.match.level = v;
-    }));
-
-    const cam = this._row(body, 'Camera', 'le suivi zoome sur ta voiture');
-    cam.append(this._choice([
-      ['arena', 'Arene entiere'], ['follow', 'Suivi'],
-    ], this.settings.camera, (v) => {
-      this.settings.camera = v;
-    }));
-
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = 'La duree et le niveau prennent effet au prochain match.';
-    body.append(note);
-  }
-
-  _slider(name, min, max, value, set, fmt) {
-    const wrap = document.createElement('div');
-    wrap.className = 'slider';
-    const i = document.createElement('input');
-    i.type = 'range';
-    i.min = min;
-    i.max = max;
-    i.value = value;
-    i.name = name;
-    const out = document.createElement('span');
-    out.textContent = fmt(value);
-    i.oninput = () => {
-      const v = Number(i.value);
-      out.textContent = fmt(v);
-      set(v);
-      this.hooks.change(this.settings);
-    };
-    wrap.append(i, out);
-    return wrap;
-  }
-
-  _choice(options, value, set) {
-    const wrap = document.createElement('div');
-    wrap.className = 'choice';
-    for (const [v, label] of options) {
-      const b = document.createElement('button');
-      b.textContent = label;
-      b.classList.toggle('active', v === value);
-      b.onclick = () => {
-        set(v);
-        this.hooks.change(this.settings);
-        for (const o of wrap.children) o.classList.toggle('active', o === b);
-      };
-      wrap.append(b);
-    }
-    return wrap;
-  }
 }
+
+// Le panneau des reglages vit dans son module, mais reste greffe ici : il
+// lit `settings`, `input` et `hooks` sur le menu comme avant.
+Object.assign(Menu.prototype, PANNEAU);
 
 export { DEFAULTS };

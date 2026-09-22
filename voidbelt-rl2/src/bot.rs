@@ -18,6 +18,20 @@ pub const APPROACH: f32 = crate::car::HALF_LEN + crate::ball::RADIUS + 8.0;
 /// Ecart lateral maximal pris pour contourner la balle par le cote.
 pub const SWING: f32 = 70.0;
 
+/// Part du temps de trajet que le bot anticipe. A pleine vitesse il
+/// faudrait viser `distance / vitesse` secondes devant ; il n'en prend
+/// qu'une fraction, sinon il vise loin devant et manque la balle.
+const LEAD_PART: f32 = 0.42;
+/// Vitesse a partir de laquelle il s'autorise le drift, en part de la
+/// vitesse du moteur seul.
+const DRIFT_PART: f32 = 0.55;
+/// Plafond de l'anticipation, exprime en distance plutot qu'en secondes :
+/// le bot ne vise jamais plus loin que le temps de parcourir ces unites.
+/// Une duree figee se derangeait des que les plafonds de vitesse
+/// changeaient — a la moitie, elle bornait l'anticipation en permanence et
+/// le bot marquait deux fois plus contre son camp.
+const LEAD_CAP_DIST: f32 = 304.0;
+
 #[derive(Clone, Copy)]
 pub struct Skill {
     /// Anticipation de la trajectoire de balle, en secondes.
@@ -90,8 +104,11 @@ impl Bot {
         }
 
         // Ou sera la balle quand on l'atteindra, plutot qu'ou elle est.
+        // Le temps de trajet se deduit de la vitesse en vigueur et non d'un
+        // chiffre fige : sans ca, diviser les plafonds par deux faisait
+        // viser le bot deux fois trop court, et il courait derriere.
         let reach = car.pos.sub(ball.pos).len();
-        let lead = (s.lookahead + reach / 900.0).min(0.8);
+        let lead = (s.lookahead + (reach / t.drive_max.max(1.0)) * LEAD_PART).min(LEAD_CAP_DIST / t.drive_max.max(1.0));
         let aim = ball.predict(lead, t).add(self.wobble);
 
         // La balle est-elle plus pres de notre but que nous ? Dans ce cas on
@@ -148,8 +165,9 @@ impl Bot {
         }
 
         // Le drift ne sert qu'aux demi-tours : declenche trop tot il coute
-        // plus de vitesse qu'il ne fait gagner d'angle.
-        out.drift = err.abs() > 1.35 && car.speed() > 210.0;
+        // plus de vitesse qu'il ne fait gagner d'angle. Le seuil se lit en
+        // part de la vitesse du moteur, pour suivre les reglages.
+        out.drift = err.abs() > 1.35 && car.speed() > t.drive_max * DRIFT_PART;
         out.boost = car.boost > 4.0
             && err.abs() < 0.28
             && dist > 130.0

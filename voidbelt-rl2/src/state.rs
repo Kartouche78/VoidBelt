@@ -7,7 +7,7 @@ use crate::game::{Game, Phase};
 use crate::pads::PADS;
 
 /// Nombre de champs par voiture dans le tampon d'etat.
-/// Dix champs de jeu, puis six compteurs personnels : points, buts, passes,
+/// Dix champs de jeu, six compteurs personnels — points, buts, passes,
 /// arrets, tirs, demolitions. Le tableau des joueurs les lit tels quels.
 pub const CAR_STRIDE: usize = 16;
 /// Effectif de la partie, en tete de l'etat : il change des qu'un joueur
@@ -113,7 +113,7 @@ pub fn geometry(t: &crate::tune::Tune) -> Vec<f32> {
         arena::MAX_X,
         arena::MIN_Y,
         arena::MAX_Y,
-        arena::CORNER,
+        t.arena_corner,
         arena::GOAL_HALF,
         arena::GOAL_DEPTH,
         t.ball_radius,
@@ -126,5 +126,8 @@ pub fn geometry(t: &crate::tune::Tune) -> Vec<f32> {
         // Instant, dans le decompte, ou le premier chiffre s'affiche : la
         // seconde d'avance reste muette pour coller a la piste sonore.
         t.count_from(),
+        // Retrait de la bouche de but par rapport au muret : le trace de
+        // mise au point en a besoin pour dessiner les cages au bon endroit.
+        arena::GOAL_FRONT,
     ]
 }

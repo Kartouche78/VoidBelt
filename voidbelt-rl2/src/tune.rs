@@ -140,6 +140,11 @@ reglages! {
     celebrate = game::CELEBRATE,
     save_range = game::SAVE_RANGE,
 
+    // --------------------------------------------------------------- stade -
+    // L'enceinte ne bouge pas d'un stade a l'autre, mais chaque planche
+    // arrondit ses coins differemment : le rayon suit le decor choisi.
+    arena_corner = crate::arena::CORNER,
+
     // ----------------------------------------------------------------- bot -
     bot_swing = bot::SWING,
     bot_approach_pad = 8.0,
@@ -225,12 +230,20 @@ mod tests {
 mod rocket_league {
     use super::*;
 
-    /// Une unite de notre terrain, en unites Unreal de Rocket League. Elle
-    /// se deduit de la seule correspondance qu'on s'impose : notre vitesse
-    /// maximale est la leur.
+    /// Une unite de notre terrain, en unites Unreal de Rocket League.
+    /// L'echelle est fixee par les tailles, pas par les vitesses : notre
+    /// rayon de balle de 24,6 vaut les 92,75 uu du vrai jeu. La deduire du
+    /// plafond de vitesse la rendrait circulaire, et masquerait justement
+    /// l'ecart que ces tests doivent surveiller.
+    const UU_PAR_UNITE: f32 = 3.7097;
+
     fn uu_par_unite() -> f32 {
-        2300.0 / Tune::FACTORY.speed_max
+        UU_PAR_UNITE
     }
+
+    /// Part des vitesses de Rocket League que l'on garde : toutes, sauf le
+    /// seuil du supersonique, qui a sa propre verification.
+    const PART_VITESSE: f32 = 1.0;
 
     fn comme_rl(rl_uu: f32, chez_nous: f32) -> bool {
         let attendu = rl_uu / uu_par_unite();
@@ -240,15 +253,30 @@ mod rocket_league {
     #[test]
     fn les_vitesses_gardent_les_proportions_du_vrai_jeu() {
         let t = Tune::FACTORY;
-        assert!(comme_rl(1410.0, t.drive_max), "vitesse au moteur seul");
-        assert!(comme_rl(2200.0, t.supersonic), "seuil supersonique");
-        assert!(comme_rl(2300.0, t.speed_max), "vitesse maximale");
-        assert!(comme_rl(6000.0, t.ball_max_speed), "plafond de la balle");
+        let moitie = |rl: f32| rl * PART_VITESSE;
+        assert!(comme_rl(moitie(1410.0), t.drive_max), "vitesse au moteur seul");
+        assert!(comme_rl(moitie(2300.0), t.speed_max), "vitesse maximale");
+        assert!(comme_rl(moitie(6000.0), t.ball_max_speed), "plafond de la balle");
         // La marche arriere n'est pas bridee dans Rocket League.
         assert!(
-            comme_rl(1410.0, t.drive_max * t.reverse_ratio),
+            comme_rl(moitie(1410.0), t.drive_max * t.reverse_ratio),
             "marche arriere",
         );
+    }
+
+    /// Le supersonique, lui, est descendu sous sa proportion d'origine :
+    /// Rocket League le pose a 95,7 % du plafond, ou il ne se voyait
+    /// presque jamais sur un terrain aussi court.
+    #[test]
+    fn le_supersonique_est_volontairement_plus_bas() {
+        let t = Tune::FACTORY;
+        let part = t.supersonic / t.speed_max;
+        let chez_eux = 2200.0 / 2300.0;
+        assert!(part < chez_eux, "il n'est pas descendu : {part:.3}");
+        assert!(part > 0.85, "il est tombe trop bas : {part:.3}");
+        // Il sert aussi de seuil de demolition : les deux ne doivent pas
+        // se separer sans qu'on l'ait decide.
+        assert_eq!(t.demo_speed, t.supersonic, "seuil de demolition dissocie");
     }
 
     #[test]

@@ -196,6 +196,14 @@ impl Room {
         })
     }
 
+    /// Envoie un texte deja compose a tous les sieges occupes.
+    pub fn shout(&self, msg: String) {
+        let frame = Message::Text(msg.into());
+        for seat in self.seats.iter().flatten() {
+            let _ = seat.tx.send(frame.clone());
+        }
+    }
+
     /// Previent tout le monde que la composition ou la phase a bouge.
     pub fn announce(&self) {
         let msg = json!({ "t": "room", "room": self.public(&self.code) }).to_string();
