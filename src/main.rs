@@ -1,6 +1,7 @@
 //! VOIDBELT ? pages statiques, transmissions et salons Jump'n Bump.
 
 mod jumpnbump;
+mod leaderboard;
 mod multiplayer;
 mod rl2;
 mod transmissions;
@@ -99,6 +100,13 @@ async fn main() {
     let app = Router::new()
         .route("/api/health", get(health))
         .route("/api/transmissions", get(transmissions::list))
+        // Classement de Velocity. Le jeu n'est plus servi par le site, mais
+        // la route l'est toujours et garde de vrais scores : la retirer
+        // ferait disparaitre `data/velocity-leaderboard.json` du dehors.
+        .route(
+            "/api/velocity/leaderboard",
+            get(leaderboard::list).post(leaderboard::submit),
+        )
         .merge(shared)
         .merge(jnb)
         .merge(rl2)
