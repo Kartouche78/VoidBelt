@@ -11,6 +11,7 @@ import { makeFlames } from './flame.js';
 import { makeTrails } from './trail.js';
 import { Names } from './names.js';
 import { fitPlank, stadiumById } from './stadiums.js';
+import { makeBall, makeRoll, makeSky } from './scene3d.js';
 
 export const TEAM = [0x2f7ce0, 0xf07a25];
 /** Carrosseries, dans l'ordre des equipes. `car_white.png` reste en reserve. */
@@ -86,6 +87,10 @@ export class Renderer {
     this.shake = 0;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    // Seule la balle projette une ombre : une carte souple suffit, et son
+    // flou masque les marches d'escalier d'une resolution modeste.
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x04060a);
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -100, 100);
@@ -103,6 +108,7 @@ export class Renderer {
     };
 
     this._buildField();
+    this.sky = makeSky(this.scene, geom);
     this._buildPads();
     this._buildActors();
     // Deux calques : la gomme reste au sol sous les voitures, le feu passe
@@ -196,6 +202,15 @@ export class Renderer {
     this.ball.add(bs, this.ballDisc);
     this.ball.position.z = Z.BALL;
     this.scene.add(this.ball);
+
+    // La balle en volume prend le relais des qu'elle est chargee. Le disque
+    // et son ombre peinte s'effacent alors : le modele porte la sienne.
+    this.roll = makeRoll(this.geom);
+    makeBall(this.ball, this.geom, (modele) => {
+      this.ballModel = modele;
+      this.ballDisc.visible = false;
+      bs.visible = false;
+    });
 
     // Les voitures naissent a la demande : un salon en ligne n'a pas de
     // plafond, et son effectif change quand quelqu'un arrive ou s'en va.
@@ -344,7 +359,9 @@ export class Renderer {
     this.padGroup.visible = show;
     this.ball.visible = show;
     this.ball.position.set(state[6], -state[7], Z.BALL);
-    this.ballDisc.rotation.z = -state[10] * 0.25;
+    if (this.ballModel) this.roll(this.ballModel, state[8], state[9], dt);
+    else this.ballDisc.rotation.z = -state[10] * 0.25;
+    this.sky?.(now);
 
     // L'effectif est annonce par l'image elle-meme : il grandit quand
     // quelqu'un rejoint le salon.

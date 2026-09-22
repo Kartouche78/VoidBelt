@@ -19,21 +19,16 @@ const CLIPS = {
 };
 
 /** Evenements a plusieurs prises : on en tire une au hasard, pour qu'un match
- *  serre ne rejoue pas six fois la meme. Chaque prise est rangee sous
+ *  serre ne rejoue pas deux fois la meme. Seules les prises reellement
+ *  presentes sont listees : une piste absente partait quand meme en
+ *  requete, et sept 404 par chargement noyaient le vrai signal. Chaque prise est rangee sous
  *  `nom#rang`, et toutes partagent une voix : un second but coupe le
  *  commentaire du premier au lieu de s'empiler dessus. */
 const VARIANTS = {
   goal: [
-    'goal/SFX_GoalEvent_0001.ogg',
-    'goal/VO_Champions_0001.ogg',
-    'goal/VO_Champions_0012.ogg',
-    'goal/VO_Champions_0015.ogg',
     'goal/VO_NeoTokyo_0003.ogg',
-    'goal/VO_ScoreGoal_0001.ogg',
   ],
   save: [
-    'save/VO_Champions_0006.ogg',
-    'save/VO_Champions_0009.ogg',
     'save/VO_NeoTokyo_0004.ogg',
   ],
   overtime: ['overtime/VO_Champions_0003.ogg'],

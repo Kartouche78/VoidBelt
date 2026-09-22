@@ -15,3 +15,9 @@
 # Clip de reference pour le saut, pose la le temps d'un essai. C'est une
 # capture de Rocket League : elle n'a rien a faire en ligne.
 /public/rl2/saut_rl.mp4
+
+# Sources Blender de la balle : le .glb embarque deja sa texture, et le
+# reste n'a rien a faire sur le site.
+/public/rl2/assets/ball/*.blend
+/public/rl2/assets/ball/*.blend1
+/node_modules
