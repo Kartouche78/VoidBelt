@@ -489,6 +489,12 @@ async function boot() {
         case EV.BUMP:
           view.kick(4);
           break;
+        case EV.PINCH:
+          // Un coincement part bien plus vite qu'une frappe ordinaire : la
+          // secousse le dit, sinon on ne comprend pas ce qui vient d'arriver.
+          if (!fete) audio.ballTouch(e.value);
+          view.kick(6 + e.value / 60);
+          break;
         case EV.DEMO: {
           // La carcasse n'a pas bouge : c'est la qu'on fait sauter la bombe.
           const victim = readCar(state, e.value | 0);

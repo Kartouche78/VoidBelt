@@ -107,6 +107,12 @@ reglages! {
     bump_cap = collide::BUMP_CAP,
     contact_radius = collide::CAR_R,
 
+    // ---------------------------------------------------------- coincement -
+    pinch_min = collide::PINCH_MIN,
+    pinch_gain = collide::PINCH_GAIN,
+    pinch_max = collide::PINCH_MAX,
+    pinch_lift = collide::PINCH_LIFT,
+
     // --------------------------------------------------------------- balle -
     ball_radius = ball::RADIUS,
     ball_mass = ball::MASS,

@@ -63,6 +63,7 @@ pub mod ev {
     pub const ASSIST: u32 = 16;
     pub const SCORER: u32 = 17;
     pub const EXTERMINATION: u32 = 18;
+    pub const PINCH: u32 = 19;
 }
 
 /// Compte les voitures de chaque camp.
@@ -293,6 +294,19 @@ impl Game {
             let force = collide::car_ball(&mut self.cars[i], &mut self.ball, &self.tune);
             if force > 0.0 {
                 self.events.push((ev::HIT, force));
+                // La balle vient d'etre poussee : si une paroi la bloque
+                // deja de l'autre cote, les deux surfaces se referment sur
+                // elle. Il faut le regarder maintenant, dans la meme image
+                // que la frappe — a la suivante, elle aurait deja recule.
+                if let Some(mur) =
+                    arena::contact(self.ball.pos, self.tune.ball_radius, self.tune.arena_corner)
+                {
+                    let fuite =
+                        collide::pinch(&self.cars[i], &mut self.ball, &mur, &self.tune);
+                    if fuite > 0.0 {
+                        self.events.push((ev::PINCH, fuite));
+                    }
+                }
                 let team = self.cars[i].team;
                 if self.scoring.touch(i) {
                     self.events.push((ev::TOUCH, i as f32));

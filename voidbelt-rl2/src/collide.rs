@@ -3,6 +3,7 @@
 use crate::ball::Ball;
 use crate::tune::Tune;
 use crate::car::Car;
+use crate::arena;
 
 /// Restitution voiture / balle : presque nulle, Rocket League ajoute a la
 /// place une poussee dediee (ci-dessous) pour donner du punch aux frappes.
@@ -55,6 +56,19 @@ fn push_scale(speed: f32, tune: &Tune) -> f32 {
     }
     table[table.len() - 1].1
 }
+
+/// Vitesse de fermeture minimale pour qu'un coincement se declenche, en
+/// unites/s. En dessous, une voiture qui pousse tranquillement la balle
+/// contre un muret la pousse, simplement.
+pub const PINCH_MIN: f32 = 140.0;
+/// Multiplicateur applique a cette vitesse de fermeture.
+pub const PINCH_GAIN: f32 = 2.6;
+/// Plafond de sortie. La balle plafonne de toute facon a `ball_max_speed` ;
+/// celui-ci borne le coincement lui-meme, pour qu'il reste une frappe
+/// exceptionnelle et non un raccourci vers la vitesse maximale.
+pub const PINCH_MAX: f32 = 1400.0;
+/// Part de l'echappee dirigee loin de la paroi, pour ne pas y rester colle.
+pub const PINCH_LIFT: f32 = 0.22;
 
 /// Frappe de balle. Renvoie la force du contact, `0` s'il n'y a pas touche.
 pub fn car_ball(c: &mut Car, b: &mut Ball, t: &Tune) -> f32 {
@@ -179,4 +193,55 @@ pub fn car_car(a: &mut Car, b: &mut Car, t: &Tune) -> Option<Bump> {
         demo_a: b_hits,
         demo_b: a_hits,
     })
+}
+
+/// Coincement : la balle prise entre une voiture et une paroi.
+///
+/// Les deux surfaces se referment l'une sur l'autre et la balle n'a plus
+/// de place pour reculer : elle fuse le long de la paroi, dans une
+/// direction qui n'est celle d'aucun des deux. Plus la voiture pousse
+/// perpendiculairement au mur, moins il reste d'echappatoire et plus la
+/// sortie est vive — c'est le coin qui se referme.
+///
+/// Rien de tout cela n'est un cas particulier ajoute a la main dans le
+/// vrai jeu : c'est ce que donne la resolution de deux contacts dans la
+/// meme image. Ici, ou les contacts sont traites l'un apres l'autre, il
+/// faut le poser explicitement.
+///
+/// Renvoie la vitesse de sortie, `0` s'il n'y a pas eu coincement.
+pub fn pinch(car: &Car, ball: &mut Ball, mur: &arena::Hit, t: &Tune) -> f32 {
+    if car.demo > 0.0 {
+        return 0.0;
+    }
+    // Vitesse a laquelle la voiture referme le coin. `mur.n` sort de la
+    // paroi vers le terrain : la voiture s'en approche quand sa vitesse
+    // pointe a l'oppose.
+    let vers_mur = -car.vel.dot(mur.n);
+    let lance = car.speed();
+    if vers_mur < t.pinch_min || lance < 1e-3 {
+        return 0.0;
+    }
+    // Un contre un quand la voiture fonce droit dans la paroi, zero quand
+    // elle la longe : c'est ce facteur qui fait qu'un coincement rate ne
+    // donne rien et qu'un coincement franc part comme un coup de fusil.
+    let aligne = vers_mur / lance;
+    let tangente = mur.n.perp();
+    // La balle sort du cote ou il lui reste de la place : celui ou elle
+    // glisse deja, la voiture ne faisant que departager les cas douteux.
+    let glisse = ball.vel.dot(tangente) + car.vel.dot(tangente) * 0.5;
+    let sens = if glisse >= 0.0 { 1.0 } else { -1.0 };
+
+    let vitesse = (vers_mur * t.pinch_gain * aligne).min(t.pinch_max);
+    // Un coincement mou ne doit pas ralentir une balle deja lancee.
+    if vitesse <= ball.vel.len() {
+        return 0.0;
+    }
+    // On decolle legerement de la paroi, sinon la balle y reste plaquee et
+    // se fait coincer a nouveau a l'image suivante.
+    let dir = tangente
+        .mul(sens)
+        .add(mur.n.mul(t.pinch_lift))
+        .norm();
+    ball.vel = dir.mul(vitesse).clamp_len(t.ball_max_speed);
+    vitesse
 }

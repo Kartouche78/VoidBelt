@@ -22,6 +22,7 @@ import { KMH_PAR_UNITE, METRES_PAR_UNITE } from './wasm.js';
 /** Onglets, dans l'ordre d'affichage. */
 export const TABS = [
   ['conduite', 'Conduite'],
+  ['coincement', 'Coincement'],
   ['boost', 'Boost'],
   ['contact', 'Contacts'],
   ['balle', 'Balle'],
@@ -199,6 +200,17 @@ export const META = {
   bot_approach_pad: ['bot', 'Marge d’approche', 'metres', -1, 3, 0.01,
     'Ajoutée aux rayons de la voiture et de la balle pour viser.'],
 
+  // ---------------------------------------------------------- coincement --
+  // La balle prise entre une voiture et une paroi ressort le long du mur.
+  // Frappe libre à fond : 87,9 km/h. Coincement de plein fouet : 183 km/h.
+  pinch_min: ['coincement', 'Seuil de déclenchement', 'kmh', 0, 60, 0.5,
+    'Vitesse à laquelle la voiture referme le coin. En dessous, elle pousse la balle sans la coincer.'],
+  pinch_gain: ['coincement', 'Amplification', 'brut', 1, 6, 0.1,
+    'Multiplie la vitesse de fermeture. À 2,6, un coincement de plein fouet double une frappe normale.'],
+  pinch_max: ['coincement', 'Vitesse maximale', 'kmh', 20, 250, 1,
+    'Plafond du coincement lui-même. La balle reste par ailleurs bornée à son propre plafond.'],
+  pinch_lift: ['coincement', 'Décollement du mur', 'pourcent', 0, 100, 5,
+    'Part de l’échappée dirigée loin de la paroi, pour que la balle ne reste pas plaquée dessus.'],
 };
 
 /** Décrit un réglage, même inconnu : rien ne doit disparaître de l'écran. */

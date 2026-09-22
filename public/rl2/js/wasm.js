@@ -57,6 +57,8 @@ export const EV = {
   SAVE: 10, OVERTIME: 11,
   TOUCH: 12, SHOT: 13, CLEAR: 14, EPIC_SAVE: 15,
   ASSIST: 16, SCORER: 17, EXTERMINATION: 18,
+  /// Coincement : la balle prise entre une voiture et une paroi.
+  PINCH: 19,
 };
 
 /** Echelle du monde, unique et alignee sur Rocket League.

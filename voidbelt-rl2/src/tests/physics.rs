@@ -281,3 +281,66 @@ fn la_balle_roule_dans_le_bon_sens() {
     b.step(1.0 / 60.0, &t);
     assert_eq!(b.spin, fige, "elle tourne encore a l'arret");
 }
+
+/// Coincement contre un muret : la balle plaquee contre la paroi, une
+/// voiture lancee dessus, elle doit repartir le long du mur bien plus vite
+/// qu'une frappe ordinaire.
+#[test]
+fn le_coincement_propulse_la_balle() {
+    use crate::{ball::Ball, car::Car, collide, vec::v2};
+    let t = crate::tune::Tune::default();
+
+    // Reference : la meme voiture, meme vitesse, mais en plein terrain.
+    let mut libre_b = Ball::new();
+    let mut libre_c = Car::new(0);
+    libre_b.pos = v2(arena::CX, arena::CY);
+    libre_c.pos = v2(arena::CX, arena::CY + t.car_half_wid + t.ball_radius - 2.0);
+    libre_c.vel = v2(0.0, -500.0);
+    collide::car_ball(&mut libre_c, &mut libre_b, &t);
+    let sans_mur = libre_b.vel.len();
+
+    // Coincement : la balle contre le muret du haut, la voiture qui monte.
+    let mut b = Ball::new();
+    let mut c = Car::new(0);
+    b.pos = v2(arena::CX, arena::MIN_Y + t.ball_radius - 1.0);
+    c.pos = v2(arena::CX, b.pos.y + t.car_half_wid + t.ball_radius - 2.0);
+    c.vel = v2(60.0, -500.0);
+    collide::car_ball(&mut c, &mut b, &t);
+    let mur = arena::contact(b.pos, t.ball_radius, t.arena_corner)
+        .expect("la balle devrait toucher le muret");
+    let fuite = collide::pinch(&c, &mut b, &mur, &t);
+
+    assert!(sans_mur > 1.0, "la frappe de reference n'a pas touche : test creux");
+    assert!(fuite > 0.0, "aucun coincement declenche");
+    assert!(
+        b.vel.len() > sans_mur * 1.5,
+        "a peine mieux qu'une frappe libre : {} contre {sans_mur}",
+        b.vel.len(),
+    );
+    // Elle repart le long du muret, pas dedans ni en arriere.
+    assert!(b.vel.x.abs() > b.vel.y.abs(), "elle ne longe pas la paroi");
+    assert!(b.vel.y > 0.0, "elle repart dans le mur");
+    assert!(b.vel.len() <= t.ball_max_speed + 0.01, "au-dela du plafond");
+}
+
+/// Longer un muret ne doit rien declencher : sans fermeture du coin, il n'y
+/// a pas de coincement, juste une balle poussee.
+#[test]
+fn longer_le_mur_ne_coince_pas() {
+    use crate::{ball::Ball, car::Car, collide, vec::v2};
+    let t = crate::tune::Tune::default();
+    let mut b = Ball::new();
+    let mut c = Car::new(0);
+    b.pos = v2(arena::CX, arena::MIN_Y + t.ball_radius - 1.0);
+    c.pos = v2(arena::CX - t.car_half_len - t.ball_radius + 2.0, b.pos.y);
+    // Vitesse parallele au muret : rien ne se referme.
+    c.vel = v2(600.0, 0.0);
+    collide::car_ball(&mut c, &mut b, &t);
+    let mur = arena::contact(b.pos, t.ball_radius, t.arena_corner)
+        .expect("la balle devrait toucher le muret");
+    assert_eq!(
+        collide::pinch(&c, &mut b, &mur, &t),
+        0.0,
+        "un mur longe ne devrait pas coincer",
+    );
+}
