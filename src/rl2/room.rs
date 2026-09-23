@@ -8,12 +8,14 @@
 use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 use voidbelt_rl2::{
+    arena::Cage,
     car::Input,
     tune::Tune,
     game::{CARS, Game, Phase},
     state,
 };
 use axum::extract::ws::Message;
+use std::time::{Duration, Instant};
 
 /// Effectif d'un salon vide : deux voitures, le temps que quelqu'un arrive.
 pub const IDLE_CARS: usize = CARS;
@@ -33,6 +35,27 @@ pub struct Seat {
     /// Temps ecoule depuis la derniere commande recue.
     pub idle: f32,
     pub tx: UnboundedSender<Message>,
+    /// Instants des derniers messages rapides, pour borner le flood.
+    pub chats: Vec<Instant>,
+}
+
+/// Messages rapides permis par fenetre glissante : deux toutes les dix
+/// secondes. Le client applique la meme regle ; le serveur la tient aussi,
+/// sans quoi un client modifie inonderait le salon.
+pub const CHAT_MAX: usize = 2;
+pub const CHAT_WINDOW: Duration = Duration::from_secs(10);
+
+impl Seat {
+    /// Vrai si ce joueur peut encore parler, et note le message le cas
+    /// echeant.
+    pub fn may_chat(&mut self, now: Instant) -> bool {
+        self.chats.retain(|t| now.duration_since(*t) < CHAT_WINDOW);
+        if self.chats.len() >= CHAT_MAX {
+            return false;
+        }
+        self.chats.push(now);
+        true
+    }
 }
 
 pub struct Room {
@@ -110,10 +133,10 @@ impl Room {
     /// prochain echauffement : changer la physique en pleine action
     /// deplacerait les voitures sous les joueurs.
     /// Change le stade du salon. L'identifiant ne sert qu'a dire au
-    /// navigateur quelle planche afficher ; l'arrondi, lui, entre dans la
-    /// physique, d'ou les bornes : un salon ne doit pas pouvoir se donner
-    /// un terrain sans coins ou sans milieu.
-    pub fn set_stadium(&mut self, id: &str, corner: f32) -> bool {
+    /// navigateur quelle planche afficher ; l'arrondi et la cage, eux,
+    /// entrent dans la physique, d'ou les bornes : un salon ne doit pas
+    /// pouvoir se donner un terrain sans coins, sans milieu ou sans but.
+    pub fn set_stadium(&mut self, id: &str, corner: f32, cage: Cage) -> bool {
         let propre: String = id
             .chars()
             .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
@@ -123,16 +146,31 @@ impl Room {
             return false;
         }
         let corner = corner.clamp(10.0, 200.0);
-        if propre == self.stadium && (corner - self.tune.arena_corner).abs() < 0.01 {
+        let cage = Cage::new(cage.half, cage.depth, cage.post);
+        if propre == self.stadium
+            && (corner - self.tune.arena_corner).abs() < 0.01
+            && cage == self.tune.cage()
+        {
             return false;
         }
         self.stadium = propre;
-        self.tune.arena_corner = corner;
-        self.game.tune.arena_corner = corner;
+        for t in [&mut self.tune, &mut self.game.tune] {
+            t.arena_corner = corner;
+            t.goal_half = cage.half;
+            t.goal_depth = cage.depth;
+            t.post_r = cage.post;
+        }
         true
     }
 
-    pub fn set_tune(&mut self, t: Tune) {
+    /// Nouveaux reglages publies. Coins et cages appartiennent au stade du
+    /// salon, pas au fichier : on les garde, sinon publier depuis /admin
+    /// rendrait a tous les salons la forme du stade d'origine.
+    pub fn set_tune(&mut self, mut t: Tune) {
+        t.arena_corner = self.tune.arena_corner;
+        t.goal_half = self.tune.goal_half;
+        t.goal_depth = self.tune.goal_depth;
+        t.post_r = self.tune.post_r;
         self.tune = t;
         if self.game.phase == Phase::Warmup {
             self.game.tune = t;
@@ -250,5 +288,23 @@ pub fn phase_name(p: Phase) -> &'static str {
         Phase::Play => "play",
         Phase::Goal => "goal",
         Phase::Over => "over",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deux_messages_rapides_par_fenetre_de_dix_secondes() {
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut s = Seat { id: 1, name: String::new(), team: 0, idle: 0.0, tx, chats: Vec::new() };
+        let t0 = Instant::now();
+        assert!(s.may_chat(t0));
+        assert!(s.may_chat(t0 + Duration::from_secs(1)));
+        assert!(!s.may_chat(t0 + Duration::from_secs(2)), "un troisieme message est passe");
+        // Le premier sort de la fenetre a dix secondes pile.
+        assert!(s.may_chat(t0 + Duration::from_secs(10)));
+        assert!(!s.may_chat(t0 + Duration::from_secs(10)));
     }
 }

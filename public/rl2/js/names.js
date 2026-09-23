@@ -14,9 +14,9 @@ const LIFT = 30;
 const MAX_CHARS = 12;
 /** Bulle du tchat, en unites du terrain : elle se glisse entre le toit et
  *  le pseudo, qui remonte d'autant tant qu'elle est la. */
-const BULLE = 24;
+const BULLE = 28;
 /** Duree de vie d'une bulle et de son fondu de sortie, en secondes. */
-const VIE = 4;
+const VIE = 2;
 const FONDU = 0.4;
 const FONT = '"Space Mono", ui-monospace, monospace';
 

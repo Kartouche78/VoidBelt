@@ -31,19 +31,31 @@ export const QUICK = {
   },
 };
 
+/** Messages qui ont leur propre son, a la place du son du tchat. La cle
+ *  est « groupe.choix », le son un nom de piste de `audio.js`. */
+const SON = { 'up.up': 'lachatte' };
+
 const FLECHE = { up: '↑', left: '←', right: '→', down: '↓' };
 const ORDRE = ['up', 'left', 'right', 'down'];
 
 /** Temps laisse pour choisir dans un groupe ouvert, en secondes. */
 const OUVERT = 3;
+/** Pas plus de deux messages sur dix secondes glissantes. Le serveur tient
+ *  la meme regle en ligne ; ici, on evite d'envoyer ce qu'il jetterait. */
+const MAX_MSG = 2;
+const FENETRE = 10;
 export class Chat {
   /** `envoi(groupe, choix)` part au serveur quand on joue en ligne. Dans
    *  ce cas le message n'est pas affiche tout de suite : il revient par le
    *  salon, comme celui des autres, et tout le monde lit le meme ordre.
-   *  `bulle(siege, texte)` affiche le message au-dessus de la voiture. */
-  constructor(envoi, bulle) {
+   *  `bulle(siege, texte, son)` affiche le message au-dessus de la
+   *  voiture ; `son` est sa piste propre, s'il en a une.
+   *  `refus(secondes)` previent qu'il faut patienter avant de reparler. */
+  constructor(envoi, bulle, refus) {
     this.envoi = envoi;
     this.bulle = bulle;
+    this.refus = refus;
+    this.envois = [];
     this.quick = document.getElementById('chat-quick');
     this.groupe = null;
     this.jusqua = 0;
@@ -53,7 +65,7 @@ export class Chat {
    *  directions. */
   recu(siege, g, m) {
     const texte = QUICK[g]?.msg[m];
-    if (texte && siege >= 0) this.bulle(siege, texte);
+    if (texte && siege >= 0) this.bulle(siege, texte, SON[`${g}.${m}`]);
   }
 
   /** Une direction vient d'etre pressee. Ouvre un groupe, ou envoie. */
@@ -66,9 +78,15 @@ export class Chat {
       const groupe = this.groupe;
       this.groupe = null;
       const texte = QUICK[groupe]?.msg[dir];
-      // En ligne, c'est le retour du serveur qui posera la bulle. En solo
-      // le joueur occupe toujours le premier siege.
-      if (texte && !this.envoi?.(groupe, dir)) this.bulle(0, texte);
+      this.envois = this.envois.filter((t) => now - t < FENETRE);
+      if (texte && this.envois.length >= MAX_MSG) {
+        this.refus?.(Math.ceil(FENETRE - (now - this.envois[0])));
+      } else if (texte) {
+        this.envois.push(now);
+        // En ligne, c'est le retour du serveur qui posera la bulle. En
+        // solo le joueur occupe toujours le premier siege.
+        if (!this.envoi?.(groupe, dir)) this.bulle(0, texte, SON[`${groupe}.${dir}`]);
+      }
     }
     this._paintQuick();
   }

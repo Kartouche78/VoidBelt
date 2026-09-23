@@ -4,6 +4,8 @@
 //
 // Deux bus (general, effets) pour que les curseurs des parametres agissent.
 
+import { SONS, familleDe } from './sons.js';
+
 /** Pistes uniques. */
 const CLIPS = {
   countdown: 'assets/audio/countdown.mp3',
@@ -16,7 +18,40 @@ const CLIPS = {
   engineCold: 'assets/audio/engine/cold.ogg',
   engineOn: 'assets/audio/engine/on.ogg',
   ballTouch: 'assets/audio/ball/touch.wav',
+  post: 'assets/audio/crossbar_sound.mp3',
+  quickchat: 'assets/audio/sound_quickchat.mp3',
+  // Son propre au message « LA CHANCE !! », a la place du precedent.
+  lachatte: 'assets/audio/lachatte.mp3',
 };
+
+/** Pistes jouees en boucle. Aucune n'a ete coupee pour boucler : `on`
+ *  demarre a 0,46 et s'acheve a zero, `cold` demarre sur son pic. Le saut a
+ *  la jointure claquait a chaque tour, toutes les secondes et demie au
+ *  ralenti, meme quand on croyait ne rien entendre. On les referme donc
+ *  sur elles-memes au decodage, voir `boucler`. */
+const BOUCLES = new Set(['drift', 'boostMax', 'engineCold', 'engineOn']);
+/** Duree du fondu qui recoud la fin d'une boucle sur son debut. */
+const COUTURE = 0.06;
+
+/** Recoud une piste sur elle-meme : sa fin est fondue dans son debut, puis
+ *  retiree. Le dernier echantillon rejoint alors le premier sans saut. */
+function boucler(ctx, buf) {
+  const n = Math.min(Math.round(COUTURE * buf.sampleRate), buf.length >> 2);
+  if (n < 2) return buf;
+  const len = buf.length - n;
+  const out = ctx.createBuffer(buf.numberOfChannels, len, buf.sampleRate);
+  for (let c = 0; c < buf.numberOfChannels; c++) {
+    const src = buf.getChannelData(c);
+    const dst = out.getChannelData(c);
+    dst.set(src.subarray(0, len));
+    for (let i = 0; i < n; i++) {
+      // Fondu a puissance constante : pas de creux au milieu de la couture.
+      const k = (i / n) * Math.PI * 0.5;
+      dst[i] = src[i] * Math.sin(k) + src[len + i] * Math.cos(k);
+    }
+  }
+  return out;
+}
 
 /** Evenements a plusieurs prises : on en tire une au hasard, pour qu'un match
  *  serre ne rejoue pas deux fois la meme. Seules les prises reellement
@@ -26,7 +61,7 @@ const CLIPS = {
  *  commentaire du premier au lieu de s'empiler dessus. */
 const VARIANTS = {
   goal: [
-    'goal/VO_NeoTokyo_0003.ogg',
+    'goal/goal.ogg',
   ],
   save: [
     'save/VO_NeoTokyo_0004.ogg',
@@ -66,6 +101,13 @@ const VOIX_BALLE = 4;
  *  superposaient et le choc virait au grondement. */
 const REPOS_BALLE = 0.07;
 
+/** Force d'un choc sur le poteau qui le fait sonner a plein. Un tir a
+ *  pleine vitesse arrive a 1600 environ ; un rebond mou reste discret. */
+const POTEAU_PLEIN = 900;
+/** Repos entre deux sons de poteau : une balle qui reste collee au montant
+ *  le touche plusieurs images de suite, un seul tintement suffit. */
+const REPOS_POTEAU = 0.25;
+
 export class Audio {
   constructor(levels) {
     this.ctx = null;
@@ -102,7 +144,7 @@ export class Audio {
       // `decodeAudioData` vide le tampon qu'on lui passe : on lui en donne
       // une copie, pour pouvoir redecoder si le contexte est recree.
       this.ctx.decodeAudioData(buf.slice(0)).then((b) => {
-        this.clips[name] = b;
+        this.clips[name] = BOUCLES.has(name) ? boucler(this.ctx, b) : b;
         this._catchUp(name);
       }).catch(() => {});
     }
@@ -128,7 +170,7 @@ export class Audio {
     if (rate !== 1) src.playbackRate.value = rate;
     const g = this.ctx.createGain();
     g.gain.value = volume;
-    src.connect(g).connect(this.sfx);
+    src.connect(g).connect(this._bus(name));
     src.start(0, Math.max(0, offset));
     this.voices[as] = { src, gain: g };
     src.onended = () => {
@@ -200,7 +242,7 @@ export class Audio {
       src.loop = true;
       const g = this.ctx.createGain();
       g.gain.value = 0;
-      src.connect(g).connect(this.sfx);
+      src.connect(g).connect(this._bus(name));
       src.start();
       this.loops[name] = { src, gain: g };
     }
@@ -243,6 +285,10 @@ export class Audio {
     limiteur.connect(this.ctx.destination);
     this.master = bus(limiteur);
     this.sfx = bus(this.master);
+    // Un bus par famille de sons, sous les effets : c'est lui que regle
+    // chaque curseur de l'onglet Son.
+    this.familles = {};
+    for (const s of SONS) this.familles[s.id] = bus(this.sfx);
     this.ready = true;
     this.applyLevels(this.levels);
     this._decode();
@@ -254,6 +300,30 @@ export class Audio {
     const now = this.ctx.currentTime;
     this.master.gain.setTargetAtTime(levels.master / 100, now, 0.05);
     this.sfx.gain.setTargetAtTime(levels.sfx / 100, now, 0.05);
+    for (const s of SONS) {
+      const v = Number(levels.sons?.[s.id] ?? 100);
+      this.familles[s.id].gain.setTargetAtTime((s.mix * Math.max(0, v)) / 100, now, 0.05);
+    }
+  }
+
+  /** Bus d'une piste : celui de sa famille, les effets a defaut. */
+  _bus(name) {
+    return this.familles?.[familleDe(name)] ?? this.sfx;
+  }
+
+  /** Fait entendre une famille depuis l'onglet Son, pour la regler a
+   *  l'oreille. Les boucles ne jouent qu'un instant. */
+  preview(id) {
+    if (!this.ready) return;
+    const s = SONS.find((x) => x.id === id);
+    if (!s) return;
+    const volume = { balle: 1, poteau: 1, moteur: 0.5, boost: 0.6, drift: 0.5 }[id] ?? 0.85;
+    const clip = s.clips.map((c) => (this.raw[c] ? c : Object.keys(this.raw).find((k) => k.startsWith(`${c}#`))))
+      .find(Boolean);
+    if (!clip) return;
+    this.play(clip, volume, 'apercu');
+    clearTimeout(this.finApercu);
+    this.finApercu = setTimeout(() => this.stop('apercu', 0.2), 1800);
   }
 
   // ------------------------------------------------------------ signaux ---
@@ -320,6 +390,25 @@ export class Audio {
     const part = Math.min(Math.max(force, 0) / FRAPPE_PLEINE, 1);
     this.ballVoice = (this.ballVoice + 1) % VOIX_BALLE;
     this.play('ballTouch', 0.36 + part * 1.4, `ballTouch#${this.ballVoice}`, 1.12 - part * 0.2);
+  }
+
+  /** Un message rapide vient de s'afficher, le sien ou celui d'un autre.
+   *  `son` : piste propre au message, le son du tchat a defaut. Une seule
+   *  voix pour tous : un message coupe le son du precedent. */
+  quickchat(son) {
+    const piste = son && this.raw[son] ? son : 'quickchat';
+    this.play(piste, 0.8, 'tchat');
+  }
+
+  /** La balle sur le poteau. Volume selon la force du choc, avec un
+   *  plancher : meme un poteau effleure doit s'entendre. */
+  post(force) {
+    if (!this.ready) return;
+    const t = this.ctx.currentTime;
+    if (t - (this.dernierPoteau ?? -1) < REPOS_POTEAU) return;
+    this.dernierPoteau = t;
+    const part = Math.min(Math.max(force, 0) / POTEAU_PLEIN, 1);
+    this.play('post', 0.35 + part * 0.65);
   }
 
   /** Coup de demarreur, a l'arrivee sur le terrain et a la seule. Rallume

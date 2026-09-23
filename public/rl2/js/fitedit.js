@@ -15,7 +15,7 @@
 //   R              revenir aux valeurs du fichier
 //   C              copier la ligne a recopier dans `stadiums.js`
 
-import { REV, saveOverride, stadiumById } from './stadiums.js';
+import { REV, clearOverride, saveOverride, stadiumById } from './stadiums.js';
 
 const PAS = 1;
 const PAS_RAPIDE = 10;
@@ -80,6 +80,8 @@ export class FitEdit {
       goalHalf: geom.goalHalf * ky,
       goalFront: geom.goalFront * kx,
       goalDepth: geom.goalDepth * kx,
+      post: geom.postR * kx,
+      bulge: (geom.postBulge ?? 0) * kx,
     };
   }
 
@@ -90,7 +92,7 @@ export class FitEdit {
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
 
     if (k === 'r') {
-      saveOverride(this.id, null);
+      clearOverride(this.id, ['fit', 'corner']);
       const s = stadiumById(this.id);
       this.fit = [...s.fit];
       this.corner = s.corner;

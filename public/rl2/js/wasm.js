@@ -59,6 +59,8 @@ export const EV = {
   ASSIST: 16, SCORER: 17, EXTERMINATION: 18,
   /// Coincement : la balle prise entre une voiture et une paroi.
   PINCH: 19,
+  /// La balle a tape un poteau.
+  POST: 20,
 };
 
 /** Echelle du monde, unique et alignee sur Rocket League.
@@ -162,7 +164,7 @@ export async function loadEngine(url) {
         corner: g[6], goalHalf: g[7], goalDepth: g[8],
         ballR: g[9], carLen: g[10] * 2, carWid: g[11] * 2,
         boostMax: g[12], speedMax: g[13], padCount: g[14], demoSpeed: g[15], countFrom: g[16],
-        goalFront: g[17],
+        goalFront: g[17], postR: g[18], postBulge: g[19],
       };
     },
   };

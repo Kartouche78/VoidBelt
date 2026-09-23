@@ -28,6 +28,7 @@ export const TABS = [
   ['balle', 'Balle'],
   ['plots', 'Plots'],
   ['match', 'Match'],
+  ['stade', 'Stade'],
   ['bot', 'Bot'],
   ['divers', 'Divers'],
 ];
@@ -193,6 +194,18 @@ export const META = {
     'Doit couvrir la plus longue prise de but, qui dure 5,5 secondes.'],
   save_range: ['match', 'Portée d’un arrêt', 'metres', 1, 60, 0.5,
     'Distance au but en deçà de laquelle un dégagement compte comme arrêt.'],
+
+  // --------------------------------------------------------------- stade --
+  // Valeurs de base : chaque stade peut declarer les siennes (F4 pour les
+  // coins, F6 pour les cages), qui passent alors devant celles-ci.
+  arena_corner: ['stade', 'Arrondi des coins', 'metres', 0, 8, 0.05,
+    'Rayon des coins de l’enceinte. Chaque stade impose le sien, calé avec F4.'],
+  goal_half: ['stade', 'Demi-ouverture du but', 'metres', 1.1, 7.4, 0.05,
+    'Du centre du but à un poteau. Base des stades qui n’ont pas calé leurs cages avec F6.'],
+  goal_depth: ['stade', 'Profondeur du filet', 'metres', 0.55, 5.6, 0.05,
+    'De la ligne de but au fond du filet.'],
+  post_r: ['stade', 'Rayon des poteaux', 'metres', 0, 1.5, 0.01,
+    'Arrondi du montant : plus il est grand, plus un tir sur le poteau est dévié en douceur.'],
 
   // ----------------------------------------------------------------- bot --
   bot_swing: ['bot', 'Amplitude de contournement', 'metres', 0, 15, 0.05,

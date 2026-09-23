@@ -1,5 +1,6 @@
 //! VOIDBELT ? pages statiques, transmissions et salons Jump'n Bump.
 
+mod ia;
 mod jumpnbump;
 mod leaderboard;
 mod multiplayer;
@@ -85,6 +86,8 @@ async fn main() {
         .route("/api/rl2/rooms", get(rl2::rooms))
         .route("/api/rl2/tune", get(rl2::tune_get).put(rl2::tune_put))
         .route("/api/rl2/ws", get(rl2::ws))
+        // Cles des fournisseurs d'IA pour les generateurs de l'admin.
+        .route("/api/ia/keys", get(ia::keys_get).put(ia::keys_put))
         .with_state(rl2::Hub::new());
 
     let multiplayer = Router::new()
@@ -94,8 +97,14 @@ async fn main() {
 
     let cors = CorsLayer::new()
         .allow_origin(HeaderValue::from_static("https://voidbelt.com"))
-        .allow_methods([Method::GET, Method::POST])
-        .allow_headers([header::ACCEPT, header::CONTENT_TYPE]);
+        // PUT et le jeton : l'admin servi par voidbelt.com publie sur
+        // api.voidbelt.com, reglages du jeu comme cles d'IA.
+        .allow_methods([Method::GET, Method::POST, Method::PUT])
+        .allow_headers([
+            header::ACCEPT,
+            header::CONTENT_TYPE,
+            header::HeaderName::from_static("x-admin-token"),
+        ]);
 
     let app = Router::new()
         .route("/api/health", get(health))

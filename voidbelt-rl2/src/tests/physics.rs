@@ -205,8 +205,54 @@ fn le_poteau_renvoie_la_balle() {
     for _ in 0..60 {
         b.step(DT, &T);
     }
-    assert!(arena::conceded(b.pos, ball::RADIUS).is_none(), "but accorde sur le poteau");
+    assert!(arena::conceded(b.pos, ball::RADIUS, &arena::Cage::FACTORY).is_none(), "but accorde sur le poteau");
     assert!(b.vel.x > -600.0, "la balle n'a pas ete deviee");
+}
+
+/// Tire la balle depuis `depart` vers `cible` et la laisse vivre une
+/// seconde. Rend la balle, et si le but a ete accorde en chemin.
+fn tir(depart: crate::vec::V2, cible: crate::vec::V2, vitesse: f32) -> (Ball, bool) {
+    let mut b = Ball::new();
+    b.pos = depart;
+    b.vel = cible.sub(depart).norm().mul(vitesse);
+    let mut but = false;
+    for _ in 0..120 {
+        b.step(DT, &T);
+        but |= arena::conceded(b.pos, ball::RADIUS, &arena::Cage::FACTORY).is_some();
+    }
+    (b, but)
+}
+
+/// Une balle qui mord franchement le poteau, de face, doit repartir vers
+/// le terrain : pas glisser le long du montant jusqu'au fond du filet.
+#[test]
+fn un_tir_sur_le_poteau_ressort() {
+    let bouche = arena::goal_mouth(true);
+    let poteau = arena::CY + arena::GOAL_HALF;
+    let (b, but) = tir(v2(bouche + 200.0, poteau - 8.0), v2(bouche, poteau - 8.0), 900.0);
+    assert!(!but, "but accorde sur le poteau");
+    assert!(b.vel.x > 0.0, "la balle n'est pas ressortie : {:?}", b.vel);
+}
+
+/// Un tir croise qui vient mourir sur le poteau depuis l'axe du but doit
+/// ricocher vers le terrain, pas se glisser dans le filet.
+#[test]
+fn un_tir_en_biais_sur_le_poteau_ricoche() {
+    let bouche = arena::goal_mouth(true);
+    let poteau = arena::CY + arena::GOAL_HALF;
+    let depart = v2(bouche + 250.0, poteau - 140.0);
+    let (b, but) = tir(depart, v2(bouche, poteau - 6.0), 1000.0);
+    assert!(!but, "but accorde sur le poteau");
+    assert!(b.vel.x > 0.0, "la balle n'est pas ressortie : {:?}", b.vel);
+}
+
+/// Un tir qui passe au ras du poteau sans le toucher reste un but.
+#[test]
+fn un_tir_au_ras_du_poteau_rentre() {
+    let bouche = arena::goal_mouth(true);
+    let y = arena::CY + arena::GOAL_HALF - ball::RADIUS - 3.0;
+    let (_, but) = tir(v2(bouche + 200.0, y), v2(bouche, y), 900.0);
+    assert!(but, "un tir cadre a ete refuse");
 }
 
 #[test]
@@ -306,7 +352,7 @@ fn le_coincement_propulse_la_balle() {
     c.pos = v2(arena::CX, b.pos.y + t.car_half_wid + t.ball_radius - 2.0);
     c.vel = v2(60.0, -500.0);
     collide::car_ball(&mut c, &mut b, &t);
-    let mur = arena::contact(b.pos, t.ball_radius, t.arena_corner)
+    let mur = arena::contact(b.pos, t.ball_radius, t.arena_corner, &t.cage())
         .expect("la balle devrait toucher le muret");
     let fuite = collide::pinch(&c, &mut b, &mur, &t);
 
@@ -336,11 +382,103 @@ fn longer_le_mur_ne_coince_pas() {
     // Vitesse parallele au muret : rien ne se referme.
     c.vel = v2(600.0, 0.0);
     collide::car_ball(&mut c, &mut b, &t);
-    let mur = arena::contact(b.pos, t.ball_radius, t.arena_corner)
+    let mur = arena::contact(b.pos, t.ball_radius, t.arena_corner, &t.cage())
         .expect("la balle devrait toucher le muret");
     assert_eq!(
         collide::pinch(&c, &mut b, &mur, &t),
         0.0,
         "un mur longe ne devrait pas coincer",
     );
+}
+
+/// Une balle poussee le long d'un muret frotte contre la voiture a chaque
+/// image : elle ne doit faire entendre qu'un seul choc, pas une rafale.
+#[test]
+fn pousser_la_balle_le_long_du_mur_ne_sonne_qu_une_fois() {
+    use crate::game::ev;
+    let mut g = super::started(0);
+    g.bot_on = false;
+    let r = g.tune.ball_radius;
+    g.ball.pos = v2(arena::CX, arena::MIN_Y + r);
+    g.ball.vel = v2(0.0, 0.0);
+    g.cars[0].pos = v2(arena::CX - g.tune.car_half_len - r - 4.0, g.ball.pos.y);
+    g.cars[0].yaw = 0.0;
+    g.cars[0].vel = v2(150.0, -20.0);
+    let mut chocs = 0;
+    for _ in 0..(1.5 / DT) as usize {
+        // La voiture colle au mur et pousse : la balle ne s'en detache pas.
+        g.cars[0].input = drive(0.6, false);
+        g.step(DT);
+        chocs += g.events.iter().filter(|e| e.0 == ev::HIT).count();
+    }
+    assert_eq!(chocs, 1, "le frottement contre le mur rejoue le choc");
+}
+
+/// La forme des buts suit les reglages du stade : une cage plus ouverte
+/// accepte un tir que celle d'usine renvoie sur le poteau.
+#[test]
+fn la_cage_suit_les_reglages_du_stade() {
+    let bouche = arena::goal_mouth(true);
+    let y = arena::CY + arena::GOAL_HALF - 8.0;
+    let tirer = |t: &crate::tune::Tune| {
+        let mut b = Ball::new();
+        b.pos = v2(bouche + 200.0, y);
+        b.vel = v2(-900.0, 0.0);
+        (0..120).any(|_| {
+            b.step(DT, t);
+            arena::conceded(b.pos, ball::RADIUS, &t.cage()).is_some()
+        })
+    };
+    assert!(!tirer(&T), "la cage d'usine devait renvoyer ce tir");
+    let mut large = T;
+    large.goal_half = arena::GOAL_HALF + 40.0;
+    assert!(tirer(&large), "la cage elargie a refuse le tir");
+}
+
+/// Premier rebond d'une balle lancee de `depart` a la vitesse `vel`.
+fn premier_rebond(depart: crate::vec::V2, vel: crate::vec::V2) -> ball::Rebond {
+    let mut b = Ball::new();
+    b.pos = depart;
+    b.vel = vel;
+    (0..120)
+        .map(|_| b.step(DT, &T))
+        .find(|r| r.force > 0.0)
+        .expect("aucun rebond")
+}
+
+/// Le poteau se reconnait : c'est lui qui aura son bruit, pas le muret.
+#[test]
+fn le_poteau_se_distingue_du_muret() {
+    let bouche = arena::goal_mouth(true);
+    let poteau = arena::CY + arena::GOAL_HALF;
+    let sur_le_poteau = premier_rebond(v2(bouche + 200.0, poteau), v2(-900.0, 0.0));
+    assert!(sur_le_poteau.poteau, "le poteau n'a pas ete reconnu");
+    let sur_le_muret = premier_rebond(v2(bouche + 200.0, poteau + 120.0), v2(-900.0, 0.0));
+    assert!(!sur_le_muret.poteau, "le muret passe pour un poteau");
+    let au_fond = premier_rebond(v2(bouche - 10.0, arena::CY), v2(-900.0, 0.0));
+    assert!(!au_fond.poteau, "le fond du filet passe pour un poteau");
+}
+
+/// Le poteau s'epaissit vers la bouche du but, jamais vers le terrain :
+/// une balle qui longe la ligne du muret ne le touche pas, une balle qui
+/// frole la joue a deux unites pres le touche.
+#[test]
+fn le_poteau_affleure_le_muret_et_mord_sur_la_bouche() {
+    let cage = arena::Cage::FACTORY;
+    let r = ball::RADIUS;
+    let bouche = arena::goal_mouth(true);
+    let poteau = arena::CY + cage.half;
+    // Cote terrain, au ras de la ligne du muret, a hauteur du poteau.
+    for dy in [0.0, 3.0, 6.0, 9.0, 12.0] {
+        let p = v2(bouche + r + 0.1, poteau + dy);
+        assert!(
+            arena::contact(p, r, T.arena_corner, &cage).is_none(),
+            "le poteau deborde sur le terrain a {dy}",
+        );
+    }
+    // Dans le filet, a une unite de la joue : c'est la surepaisseur qui
+    // la renvoie, en face du centre du poteau.
+    let p = v2(bouche - cage.post - arena::POST_BULGE, poteau - r - 1.0);
+    let h = arena::contact(p, r, T.arena_corner, &cage).expect("la surepaisseur ne mord pas");
+    assert!(h.post, "ce n'est pas le poteau qui a renvoye la balle");
 }

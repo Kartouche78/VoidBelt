@@ -121,8 +121,8 @@ pub fn geometry(t: &crate::tune::Tune) -> Vec<f32> {
         arena::MIN_Y,
         arena::MAX_Y,
         t.arena_corner,
-        arena::GOAL_HALF,
-        arena::GOAL_DEPTH,
+        t.cage().half,
+        t.cage().depth,
         t.ball_radius,
         t.car_half_len,
         t.car_half_wid,
@@ -136,5 +136,9 @@ pub fn geometry(t: &crate::tune::Tune) -> Vec<f32> {
         // Retrait de la bouche de but par rapport au muret : le trace de
         // mise au point en a besoin pour dessiner les cages au bon endroit.
         arena::GOAL_FRONT,
+        // Rayon des poteaux et leur surepaisseur, pour que F1 et F6 les
+        // dessinent.
+        t.cage().post,
+        arena::POST_BULGE,
     ]
 }

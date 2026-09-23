@@ -13,11 +13,11 @@ use crate::vec::v2;
 fn but_valide_seulement_une_fois_la_ligne_franchie() {
     let bouche = arena::goal_mouth(true);
     let sur_la_ligne = v2(bouche - ball::RADIUS + 2.0, arena::CY);
-    assert_eq!(arena::conceded(sur_la_ligne, ball::RADIUS), None);
+    assert_eq!(arena::conceded(sur_la_ligne, ball::RADIUS, &arena::Cage::FACTORY), None);
     let dedans = v2(bouche - ball::RADIUS - 2.0, arena::CY);
-    assert_eq!(arena::conceded(dedans, ball::RADIUS), Some(0));
+    assert_eq!(arena::conceded(dedans, ball::RADIUS, &arena::Cage::FACTORY), Some(0));
     let hors_cage = v2(bouche - 40.0, arena::CY + arena::GOAL_HALF + 30.0);
-    assert_eq!(arena::conceded(hors_cage, ball::RADIUS), None);
+    assert_eq!(arena::conceded(hors_cage, ball::RADIUS, &arena::Cage::FACTORY), None);
 }
 
 #[test]
@@ -321,7 +321,7 @@ fn le_tampon_d_etat_a_la_bonne_taille() {
     assert_eq!(out[6], arena::CX);
     assert_eq!(out[state::CAR_COUNT], 2.0, "l'effectif n'est pas annonce");
     assert_eq!(state::pad_table().len(), 34 * 3);
-    assert_eq!(state::geometry(&T).len(), 18);
+    assert_eq!(state::geometry(&T).len(), 20);
 }
 
 #[test]

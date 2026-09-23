@@ -197,7 +197,11 @@ pub async fn tune_put(
 }
 
 /// Vrai si la requete vient de la machine hote, ou porte le jeton attendu.
-fn allowed(headers: &axum::http::HeaderMap, who: SocketAddr) -> bool {
+///
+/// Une requete relayee par un proxy (nginx sur le VPS) arrive elle aussi de
+/// `127.0.0.1` : l'adresse ne prouve alors plus rien. Des qu'elle porte un
+/// en-tete de relais, seul le jeton ouvre la porte.
+pub(crate) fn allowed(headers: &axum::http::HeaderMap, who: SocketAddr) -> bool {
     if let Ok(expected) = std::env::var("RL2_ADMIN_TOKEN") {
         if !expected.is_empty() {
             let given = headers
@@ -207,7 +211,8 @@ fn allowed(headers: &axum::http::HeaderMap, who: SocketAddr) -> bool {
             return given == expected;
         }
     }
-    who.ip().is_loopback()
+    let relayee = headers.contains_key("x-forwarded-for") || headers.contains_key("x-real-ip");
+    who.ip().is_loopback() && !relayee
 }
 
 pub async fn ws(
@@ -259,6 +264,7 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                         team,
                         idle: 0.0,
                         tx: tx.clone(),
+                        chats: Vec::new(),
                     });
                     Ok((wanted, slot))
                 }
@@ -276,6 +282,7 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                 team: 0,
                 idle: 0.0,
                 tx: tx.clone(),
+                chats: Vec::new(),
             });
             rooms.insert(code.clone(), room);
             Ok((code, slot))
@@ -413,11 +420,18 @@ fn handle_text(room: &mut Room, id: u32, text: &str) -> bool {
             let Some(nom) = msg.get("id").and_then(Value::as_str) else {
                 return false;
             };
-            let corner = msg
-                .get("corner")
-                .and_then(Value::as_f64)
-                .unwrap_or(f64::NAN) as f32;
-            room.set_stadium(nom, corner)
+            let nombre = |cle: &str, defaut: f32| {
+                msg.get(cle).and_then(Value::as_f64).map_or(defaut, |v| v as f32)
+            };
+            let corner = nombre("corner", f32::NAN);
+            // Un client d'avant F6 n'envoie pas de cage : celle d'usine.
+            let usine = voidbelt_rl2::arena::Cage::FACTORY;
+            let cage = voidbelt_rl2::arena::Cage::new(
+                nombre("goal_half", usine.half),
+                nombre("goal_depth", usine.depth),
+                nombre("post_r", usine.post),
+            );
+            room.set_stadium(nom, corner, cage)
         }
         // Tchat rapide. On ne transporte que deux directions, jamais du
         // texte libre : le libelle vit chez le client, et un salon ne peut
@@ -433,16 +447,23 @@ fn handle_text(room: &mut Room, id: u32, text: &str) -> bool {
                 return false;
             };
             // Le siege dit au-dessus de quelle voiture poser la bulle.
-            let Some((slot, seat)) = room
+            let Some(slot) = room
                 .seats
                 .iter()
-                .enumerate()
-                .find_map(|(i, s)| s.as_ref().filter(|s| s.id == id).map(|s| (i, s)))
+                .position(|s| s.as_ref().is_some_and(|s| s.id == id))
             else {
                 return false;
             };
+            let Some(seat) = room.seats[slot].as_mut() else {
+                return false;
+            };
+            // Au-dela de deux messages en dix secondes, on se tait.
+            if !seat.may_chat(std::time::Instant::now()) {
+                return false;
+            }
+            let (from, team) = (seat.name.clone(), seat.team);
             room.shout(
-                json!({ "t": "chat", "from": seat.name, "slot": slot, "team": seat.team, "g": g, "m": m })
+                json!({ "t": "chat", "from": from, "slot": slot, "team": team, "g": g, "m": m })
                     .to_string(),
             );
             // Deja diffuse : inutile de renvoyer la composition derriere.

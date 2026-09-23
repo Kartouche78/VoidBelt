@@ -234,8 +234,13 @@ impl Scoring {
 }
 
 /// Un tir est cadre si la balle part vers le but adverse et y entrerait.
-pub fn is_shot(team: u8, pos: crate::vec::V2, vel: crate::vec::V2) -> bool {
-    crate::arena::on_target(pos, vel, 1 - team)
+pub fn is_shot(
+    team: u8,
+    pos: crate::vec::V2,
+    vel: crate::vec::V2,
+    cage: &crate::arena::Cage,
+) -> bool {
+    crate::arena::on_target(pos, vel, 1 - team, cage)
 }
 
 /// Un degagement : la balle quitte la zone defensive de son camp, poussee

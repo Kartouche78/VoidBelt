@@ -148,11 +148,13 @@ export class Net {
   }
 
   /** Stade du salon. Reserve a l'hote cote serveur : les autres peuvent
-   *  l'envoyer, il sera simplement ignore. L'arrondi part avec, c'est la
-   *  seule donnee du stade qui entre dans la physique. */
-  setStadium(id, corner) {
+   *  l'envoyer, il sera simplement ignore. L'arrondi et la cage partent
+   *  avec : ce sont les donnees du stade qui entrent dans la physique. */
+  setStadium(id, corner, cage) {
     if (!this.connected) return;
-    this.sock.send(JSON.stringify({ t: 'stadium', id, corner }));
+    this.sock.send(JSON.stringify({
+      t: 'stadium', id, corner, goal_half: cage.half, goal_depth: cage.depth, post_r: cage.post,
+    }));
   }
 
   /** Envoie un message rapide : deux directions, jamais du texte. */

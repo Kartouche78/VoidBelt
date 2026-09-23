@@ -14,6 +14,8 @@
 !/public/rl2/assets/stadium/*_cage.png
 /public/rl2/assets/stadium/v2/*.png
 /public/rl2/assets/menu/*.png
+# Sauf le logo detoure du menu, que le jeu sert tel quel.
+!/public/rl2/assets/menu/logo_menu.png
 
 # Clip de reference pour le saut, pose la le temps d'un essai. C'est une
 # capture de Rocket League : elle n'a rien a faire en ligne.
@@ -24,3 +26,7 @@
 /public/rl2/assets/ball/*.blend
 /public/rl2/assets/ball/*.blend1
 /node_modules
+
+# Cles des fournisseurs d'IA, posees depuis l'admin : elles ne quittent
+# jamais la machine.
+/data/ia-keys.json

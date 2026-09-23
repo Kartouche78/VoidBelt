@@ -150,6 +150,11 @@ reglages! {
     // L'enceinte ne bouge pas d'un stade a l'autre, mais chaque planche
     // arrondit ses coins differemment : le rayon suit le decor choisi.
     arena_corner = crate::arena::CORNER,
+    // Les cages aussi sont peintes differemment d'une planche a l'autre :
+    // ouverture, profondeur et poteaux se calent en jeu, touche F6.
+    goal_half = crate::arena::GOAL_HALF,
+    goal_depth = crate::arena::GOAL_DEPTH,
+    post_r = crate::arena::POST_R,
 
     // ----------------------------------------------------------------- bot -
     bot_swing = bot::SWING,
@@ -171,6 +176,11 @@ impl Tune {
     /// laisse pas viser dans le vide.
     pub fn bot_approach(&self) -> f32 {
         self.car_half_len + self.ball_radius + self.bot_approach_pad
+    }
+
+    /// Forme des buts en vigueur, bornee a ce qui reste jouable.
+    pub fn cage(&self) -> crate::arena::Cage {
+        crate::arena::Cage::new(self.goal_half, self.goal_depth, self.post_r)
     }
 
     /// Instant, dans le decompte, ou le premier chiffre s'affiche.

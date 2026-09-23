@@ -31,6 +31,15 @@ pub const STEP: f32 = 1.0 / 120.0;
 /// Distance au but en deca de laquelle une frappe degagee compte comme un
 /// arret. Plus loin, c'est du jeu ordinaire.
 pub const SAVE_RANGE: f32 = 400.0;
+/// Temps qu'une voiture doit passer loin de la balle pour qu'un nouveau
+/// contact refasse le bruit du choc. Une balle poussee contre un mur, ou
+/// portee en dribble, touche la voiture a chaque image, et ses rebonds
+/// contre la paroi la decollent une fraction de seconde : sans cette marge
+/// le choc repartait en boucle tout le long du frottement.
+pub const DECOLLE: f32 = 0.15;
+/// Ecart a la paroi en deca duquel la balle compte encore comme collee au
+/// mur. Poussee le long d'un muret, elle en rebondit de quelques unites.
+pub const FROLE: f32 = 6.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Phase {
@@ -64,6 +73,8 @@ pub mod ev {
     pub const SCORER: u32 = 17;
     pub const EXTERMINATION: u32 = 18;
     pub const PINCH: u32 = 19;
+    /// La balle a tape un poteau. Valeur : vitesse d'impact.
+    pub const POST: u32 = 20;
 }
 
 /// Compte les voitures de chaque camp.
@@ -114,6 +125,13 @@ pub struct Game {
     pub scoring: Scoring,
     /// Memorise l'etat supersonique pour n'emettre le son qu'au passage.
     boom: Vec<bool>,
+    /// Secondes depuis le dernier contact de chaque voiture avec la balle :
+    /// le choc ne s'entend qu'a la reprise de contact, voir `DECOLLE`.
+    colle: Vec<f32>,
+    /// Voiture dont le choc s'est deja fait entendre sur une balle restee
+    /// contre un mur. Elle ne resonne plus tant que la balle y frotte ;
+    /// un autre joueur, ou une balle decollee, rend la voix.
+    muet: Option<usize>,
     /// L'engagement d'ouverture nait hors d'un pas de simulation : il serait
     /// efface avant que l'hote ait pu le lire, on le reporte donc sur la
     /// premiere image.
@@ -147,6 +165,8 @@ impl Game {
             tune: Tune::default(),
             scoring: Scoring::new(n),
             boom: vec![false; n],
+            colle: vec![DECOLLE; n],
+            muet: None,
             opening: true,
             carry: 0.0,
         };
@@ -208,6 +228,8 @@ impl Game {
         self.phase = Phase::Countdown;
         self.timer = self.tune.countdown;
         self.boom = vec![false; self.cars.len()];
+        self.colle = vec![DECOLLE; self.cars.len()];
+        self.muet = None;
         self.events.push((ev::KICKOFF, 0.0));
     }
 
@@ -278,9 +300,14 @@ impl Game {
             self.boom[i] = sonic;
         }
 
-        let wall = self.ball.step(dt, &self.tune);
-        if wall > 60.0 {
-            self.events.push((ev::WALL, wall));
+        let choc = self.ball.step(dt, &self.tune);
+        if choc.force > 60.0 {
+            let code = if choc.poteau { ev::POST } else { ev::WALL };
+            self.events.push((code, choc.force));
+        }
+        let (rayon, coin, cage) = (self.tune.ball_radius, self.tune.arena_corner, self.tune.cage());
+        if arena::contact(self.ball.pos, rayon + FROLE, coin, &cage).is_none() {
+            self.muet = None;
         }
 
         self.pads.tick(dt);
@@ -292,14 +319,24 @@ impl Game {
             // trajectoires dit si le joueur vient de sortir un tir cadre.
             let before = self.ball;
             let force = collide::car_ball(&mut self.cars[i], &mut self.ball, &self.tune);
-            if force > 0.0 {
-                self.events.push((ev::HIT, force));
+            if force <= 0.0 {
+                self.colle[i] += dt;
+            } else {
+                // Tout contact compte pour le jeu, mais seul le premier
+                // d'un appui continu fait du bruit.
+                if self.colle[i] >= DECOLLE && self.muet != Some(i) {
+                    self.events.push((ev::HIT, force));
+                }
+                self.colle[i] = 0.0;
+                if arena::contact(self.ball.pos, rayon + FROLE, coin, &cage).is_some() {
+                    self.muet = Some(i);
+                }
                 // La balle vient d'etre poussee : si une paroi la bloque
                 // deja de l'autre cote, les deux surfaces se referment sur
                 // elle. Il faut le regarder maintenant, dans la meme image
                 // que la frappe — a la suivante, elle aurait deja recule.
                 if let Some(mur) =
-                    arena::contact(self.ball.pos, self.tune.ball_radius, self.tune.arena_corner)
+                    arena::contact(self.ball.pos, rayon, coin, &cage)
                 {
                     let fuite =
                         collide::pinch(&self.cars[i], &mut self.ball, &mur, &self.tune);
@@ -316,8 +353,8 @@ impl Game {
                 let close = dist < self.tune.save_range;
                 if close
                     && before.vel.len() > 170.0
-                    && arena::on_target(before.pos, before.vel, team)
-                    && !arena::on_target(self.ball.pos, self.ball.vel, team)
+                    && arena::on_target(before.pos, before.vel, team, &cage)
+                    && !arena::on_target(self.ball.pos, self.ball.vel, team, &cage)
                 {
                     // Proximite du but, de 0 au bord de la zone a 1 sur la
                     // ligne : c'est elle qui distingue l'arret spectaculaire.
@@ -327,7 +364,7 @@ impl Game {
                     if epic {
                         self.events.push((ev::EPIC_SAVE, i as f32));
                     }
-                } else if score::is_shot(team, self.ball.pos, self.ball.vel) {
+                } else if score::is_shot(team, self.ball.pos, self.ball.vel, &cage) {
                     self.scoring.shot(i);
                     self.events.push((ev::SHOT, i as f32));
                 } else if score::is_clear(team, before.pos, self.ball.vel, &self.tune) {
@@ -371,7 +408,7 @@ impl Game {
             return;
         }
 
-        if let Some(team) = arena::conceded(self.ball.pos, self.tune.ball_radius) {
+        if let Some(team) = arena::conceded(self.ball.pos, self.tune.ball_radius, &self.tune.cage()) {
             let scorer = 1 - team;
             self.events.push((ev::GOAL, scorer as f32));
             // Le buteur est le dernier a avoir touche, quel que soit son

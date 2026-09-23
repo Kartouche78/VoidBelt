@@ -8,8 +8,10 @@
 // des valeurs d'usine, ce qui permet de regler meme sur un hebergement
 // statique, avec export du fichier a la fin.
 
-import { loadEngine } from '../rl2/js/wasm.js';
-import { TABS, describe } from '../rl2/js/tuning.js';
+import { loadEngine } from '../js/wasm.js';
+import { TABS, describe } from '../js/tuning.js';
+import { initSections } from './sections.js';
+import { api, setToken, token } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 const API = '/api/rl2/tune';
@@ -209,7 +211,7 @@ function row(key) {
 
 async function publish() {
   try {
-    const res = await fetch(API, {
+    const res = await api(API, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(state.values),
@@ -281,7 +283,7 @@ async function boot() {
 
   // Valeurs deja publiees, si le serveur repond.
   try {
-    const res = await fetch(API, { cache: 'no-store' });
+    const res = await api(API);
     if (res.ok) {
       const data = await res.json();
       let n = 0;
@@ -300,13 +302,22 @@ async function boot() {
     say(`${state.keys.length} réglages, valeurs d’usine (pas de serveur).`);
   }
 
-  drawTabs();
-  drawFields();
+  // Sections de l'admin : les reglages ne se redessinent qu'a leur tour.
+  initSections(() => {
+    drawTabs();
+    drawFields();
+  });
 
   $('search').oninput = (e) => {
     state.query = e.target.value;
     drawTabs();
     drawFields();
+  };
+  // Jeton d'hote : indispensable pour publier depuis le site en ligne.
+  $('token').value = token();
+  $('token').onchange = (e) => {
+    setToken(e.target.value.trim());
+    say(e.target.value.trim() ? 'Jeton enregistré dans ce navigateur.' : 'Jeton retiré.', 'ok');
   };
   $('btn-reset').onclick = resetAll;
   $('btn-export').onclick = exportJson;

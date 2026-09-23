@@ -1,5 +1,7 @@
 // Reglages persistes dans le navigateur : touches, manette, son, match.
 
+import { SONS_DEFAUT, SONS_REV } from './sons.js';
+
 const KEY = 'voidbelt.rl2.settings';
 
 /** Actions reglables, dans l'ordre d'affichage du menu. */
@@ -42,7 +44,8 @@ export const DEFAULTS = {
     // Back / Select : la touche qui montre le tableau dans Rocket League.
     scores: { kind: 'button', index: 8 },
   },
-  audio: { master: 80, sfx: 90 },
+  // `sons` : volume de chaque famille, en % du mixage d'origine.
+  audio: { master: 80, sfx: 90, sons: SONS_DEFAUT, sonsRev: SONS_REV },
   match: { duration: 300, level: 1 },
   /// Stade choisi pour le solo, par identifiant de `stadiums.js`.
   stadium: 'voidbelt',
@@ -66,7 +69,16 @@ function merge(base, over) {
 
 export function load() {
   try {
-    return merge(DEFAULTS, JSON.parse(localStorage.getItem(KEY) || '{}'));
+    const garde = JSON.parse(localStorage.getItem(KEY) || '{}');
+    const s = merge(DEFAULTS, garde);
+    // Nouveau mixage de reference : les curseurs repartent de 100 %. On
+    // lit la version gardee, pas celle fusionnee, que les valeurs par
+    // defaut rempliraient d'office.
+    if (garde?.audio?.sonsRev !== SONS_REV) {
+      s.audio.sons = structuredClone(SONS_DEFAUT);
+      s.audio.sonsRev = SONS_REV;
+    }
+    return s;
   } catch {
     // Stockage indisponible (navigation privee, quota) : on joue quand meme.
     return structuredClone(DEFAULTS);

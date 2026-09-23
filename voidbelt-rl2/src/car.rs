@@ -37,7 +37,10 @@ pub const KICKOFF_BOOST: f32 = 33.0;
 /// Courbures extremes : rayon de braquage a l'arret puis a pleine vitesse.
 pub const TURN_SLOW: f32 = 0.023;
 pub const TURN_FAST: f32 = 0.003275;
-pub const DRIFT_TURN: f32 = 1.85;
+/// Braquage multiplie pendant un drift. A 2,4 le rayon tombe a 42 % de
+/// celui en appui : la voiture pivote nettement plus court qu'elle ne
+/// tourne (1,85 auparavant, soit 54 %).
+pub const DRIFT_TURN: f32 = 2.4;
 /// Amortissement de la vitesse laterale, par seconde. En appui la voiture
 /// suit son nez en une cinquantaine de millisecondes ; en drift elle met
 /// presque une demi-seconde, et c'est tout le glissement.
@@ -265,7 +268,7 @@ impl Car {
         self.vel = f.mul(vf).add(lat.mul(vt)).clamp_len(t.speed_max);
         self.pos = self.pos.add(self.vel.mul(dt));
 
-        if let Some(h) = arena::contact(self.pos, t.car_radius, t.arena_corner) {
+        if let Some(h) = arena::contact(self.pos, t.car_radius, t.arena_corner, &t.cage()) {
             self.ride(&h, dt, t);
         }
     }

@@ -12,6 +12,7 @@ import { Net } from './net.js';
 import { stadiumById } from './stadiums.js';
 import { Debug } from './debug.js';
 import { FitEdit } from './fitedit.js';
+import { CageEdit } from './cageedit.js';
 import { Chat } from './chat.js';
 
 const SOLO_SEAT = 0;
@@ -63,11 +64,18 @@ async function boot() {
     debug?.setGeometry(geom);
   }
 
-  /** Pose un stade : son decor, et le seul reglage de collision qui lui
-   *  appartienne, l'arrondi de ses coins. */
+  // Cage de base, celle des reglages publies : un stade qui ne declare pas
+  // la sienne y revient, au lieu d'heriter de celle du stade precedent.
+  const base = engine.tune();
+  const cageBase = { half: base.goal_half, depth: base.goal_depth, post: base.post_r };
+  const cageOf = (s) => s.goal ?? cageBase;
+
+  /** Pose un stade : son decor, et ses reglages de collision, l'arrondi
+   *  de ses coins et la forme de ses cages. */
   function applyStadium(id, editing = false) {
     const s = stadiumById(id);
-    engine.setTune({ arena_corner: s.corner });
+    const c = cageOf(s);
+    engine.setTune({ arena_corner: s.corner, goal_half: c.half, goal_depth: c.depth, post_r: c.post });
     view.setStadium(s, editing);
     refreshGeometry();
     // En calage, le contour n'est plus l'enceinte : c'est le rectangle
@@ -88,13 +96,17 @@ async function boot() {
   // branches aux deux.
   const debug = new Debug(view.scene, geom, engine, refreshGeometry);
   const fit = new FitEdit(applyStadium);
+  const cages = new CageEdit(cageOf, (id) => applyStadium(id));
   // En ligne, le message passe par le serveur et revient a tout le monde ;
   // en solo il n'y a personne a prevenir, on l'affiche directement.
   const chat = new Chat((groupe, choix) => {
     if (app.mode !== 'online' || !net.connected) return false;
     net.chat(groupe, choix);
     return true;
-  }, (siege, texte) => view.names.say(siege, texte));
+  }, (siege, texte, son) => {
+    view.names.say(siege, texte);
+    audio.quickchat(son);
+  }, (s) => hud.flash(`Tchat : patiente ${s} s`));
   applyStadium(settings.stadium);
 
   const app = {
@@ -129,6 +141,12 @@ async function boot() {
 
   const menu = new Menu(settings, input, {
     play: () => startMatch(),
+    // Onglet Son : le clic vaut geste, le contexte audio peut s'ouvrir.
+    ecouter: (id) => {
+      audio.unlock();
+      audio.applyLevels(settings.audio);
+      audio.preview(id);
+    },
     host: () => joinOnline(''),
     join: (code) => joinOnline(code),
     resume: () => {
@@ -144,7 +162,7 @@ async function boot() {
       audio.stopAll();
       return menu.show('title');
     },
-    roomStadium: (s) => net.setStadium(s.id, s.corner),
+    roomStadium: (s) => net.setStadium(s.id, s.corner, cageOf(stadiumById(s.id))),
     change: (s) => {
       saveSettings(s);
       audio.applyLevels(s.audio);
@@ -330,7 +348,7 @@ async function boot() {
   addEventListener('keydown', (e) => {
     // En calage, les fleches deplacent la planche et ne conduisent plus :
     // on les prend avant tout le reste.
-    if (fit.key(e)) {
+    if (fit.key(e) || cages.key(e)) {
       e.preventDefault();
       return;
     }
@@ -340,7 +358,7 @@ async function boot() {
     // sont pris par personne, ni par le jeu ni par le navigateur.
     // F8 double F3 : c'est la seule des quatre que le navigateur confisque,
     // et les chiffres servent maintenant au tchat rapide.
-    const DEBUG_KEYS = { F1: 'F1', F2: 'F2', F3: 'F3', F8: 'F3', F4: 'F4' };
+    const DEBUG_KEYS = { F1: 'F1', F2: 'F2', F3: 'F3', F8: 'F3', F4: 'F4', F6: 'F6' };
     const touche = DEBUG_KEYS[e.key];
     if (!touche) return;
     e.preventDefault();
@@ -348,7 +366,16 @@ async function boot() {
       hud.flash('Mise au point indisponible en ligne');
       return;
     }
+    if (touche === 'F6') {
+      // Cages et decor ne se calent pas en meme temps : F6 referme F4.
+      if (fit.on) fit.toggle(settings.stadium, geom);
+      if (!debug.limits) debug.toggle('F1');
+      const on = cages.toggle(settings.stadium);
+      hud.flash(`Calage des cages : ${on ? 'ouvert' : 'ferme'}`);
+      return;
+    }
     if (touche === 'F4') {
+      if (cages.on) cages.toggle(settings.stadium);
       // Sans le contour a regler, le calage se ferait a l'aveugle : on
       // l'allume avant d'entrer, pour que le cadre soit pose a temps.
       if (!debug.limits) debug.toggle('F1');
@@ -397,15 +424,15 @@ async function boot() {
       // Tchat rapide : seulement en partie, menu ferme. Ouvert, un menu
       // se sert deja de la croix pour se parcourir.
       const horloge = now / 1000;
-      if (app.running && !app.paused && !menu.screen && !fit.on) {
+      if (app.running && !app.paused && !menu.screen && !fit.on && !cages.on) {
         chat.pulse(input.chatPulse(), horloge);
       } else {
         chat.cancel();
       }
       chat.update(horloge);
       // Le calage arrete le jeu : on aligne un decor sur une image fixe,
-      // pas sur une balle qui roule.
-      const live = app.running && !app.paused && !fit.on;
+      // pas sur une balle qui roule. Idem pour les cages.
+      const live = app.running && !app.paused && !fit.on && !cages.on;
       let state;
       let events = null;
       if (app.mode === 'online') {
@@ -499,6 +526,9 @@ async function boot() {
           // Aucun contact ne secoue l'ecran, balle, voiture ou coincement :
           // la camera ne bouge qu'au but.
           if (!fete) audio.ballTouch(e.value);
+          break;
+        case EV.POST:
+          if (!fete) audio.post(e.value);
           break;
         case EV.DEMO: {
           // La carcasse n'a pas bouge : c'est la qu'on fait sauter la bombe.

@@ -82,6 +82,23 @@ function segments(polylines, material) {
 }
 
 /** Cercle ferme, en polyligne. */
+/** Arrondi d'un poteau, du muret vers la joue du filet. `dir` dit de quel
+ *  cote s'enfonce le filet, `side` de quel cote de l'axe est le poteau. Le
+ *  centre de l'arc est celui du moteur, dans `arena.rs` : decale d'un rayon
+ *  dans le filet et d'un rayon au-dela de la bouche. */
+function post(mouth, dir, cy, side, half, r) {
+  const pts = [];
+  if (r <= 0) return [[mouth, cy + side * half]];
+  const ox = mouth + dir * r;
+  const oy = cy + side * (half + r);
+  for (let i = 0; i <= 8; i += 1) {
+    const a = (i / 8) * Math.PI * 0.5;
+    // De la face du muret (vers le terrain) a la joue (vers l'axe).
+    pts.push([ox - dir * r * Math.cos(a), oy - side * r * Math.sin(a)]);
+  }
+  return pts;
+}
+
 function circle(cx, cy, r, steps = 24) {
   const pts = [];
   for (let i = 0; i <= steps; i += 1) {
@@ -169,6 +186,8 @@ export class Debug {
       minX: g.minX, maxX: g.maxX, minY: g.minY, maxY: g.maxY,
       rx: g.corner, ry: g.corner,
       goalHalf: g.goalHalf, goalFront: g.goalFront, goalDepth: g.goalDepth,
+      post: g.postR ?? 0,
+      bulge: g.postBulge ?? 0,
     };
   }
 
@@ -203,14 +222,27 @@ export class Debug {
     // arrondis du stade compris.
     this.group.add(segments([roundedRect(g, 14)], lines(VIOLET)));
 
-    // Cages : la bouche reste ouverte, les trois parois du filet bornent.
+    // Cages : la bouche reste ouverte, les trois parois du filet bornent,
+    // et chaque poteau est l'arrondi qui raccorde le muret a sa joue.
     const nets = [];
     for (const [mouth, dir] of [[mouthL, -1], [mouthR, 1]]) {
       const back = mouth + dir * g.goalDepth;
       nets.push([
-        [mouth, cy - g.goalHalf], [back, cy - g.goalHalf],
-        [back, cy + g.goalHalf], [mouth, cy + g.goalHalf],
+        ...post(mouth, dir, cy, -1, g.goalHalf, g.post),
+        [back, cy - g.goalHalf],
+        [back, cy + g.goalHalf],
+        ...post(mouth, dir, cy, 1, g.goalHalf, g.post).reverse(),
       ]);
+    }
+    // Le poteau lui-meme : un disque qui affleure le muret et mord sur la
+    // bouche de sa surepaisseur, comme dans `arena.rs`.
+    if (g.post > 0) {
+      const rp = g.post + (g.bulge || 0);
+      for (const [mouth, dir] of [[mouthL, -1], [mouthR, 1]]) {
+        for (const side of [-1, 1]) {
+          nets.push(circle(mouth + dir * rp, cy + side * (g.goalHalf + g.post), rp, 20));
+        }
+      }
     }
     this.group.add(segments(nets, lines(JAUNE)));
   }

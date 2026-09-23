@@ -15,11 +15,17 @@
 // chanfreine les siens a sa facon, et c'est la seule donnee de collision
 // qui change d'un stade a l'autre : elle part dans le reglage
 // `arena_corner` du moteur. F1, en jeu, affiche le contour obtenu.
+//
+// `goal` = { half, depth, post }, facultatif : demi-ouverture du but,
+// profondeur du filet et rayon des poteaux, en unites de jeu, calees sur
+// les cages peintes avec F6. Sans elle, le stade garde la cage de base.
 
 // Pour une planche neuve, inutile de repasser par le calage : le gabarit
 // `assets/stadium/Gabarit.jpg` porte le contour exact du moteur, a
-// l'echelle 1:1 sur les 1672 x 941. Une planche dessinee dessus se declare
-// `fit: [173, 1498, 125, 784], corner: 83` et tombe juste du premier coup.
+// l'echelle 1:1 sur les 1672 x 941, cages et poteaux arrondis compris, et
+// la ligne de but qui prolonge le muret devant chaque cage. Une planche
+// dessinee dessus se declare `fit: [173, 1498, 125, 784], corner: 83,
+// goal: { half: 86, depth: 75, post: 7 }` et tombe juste du premier coup.
 
 /** Aire de jeu peinte sur la planche d'origine. Ce n'est qu'une mesure de
  *  cette image-la, pas l'enceinte du moteur : depuis que celle-ci a gagne
@@ -51,6 +57,8 @@ export const STADIUMS = [
     // releve les chiffres.
     fit: [253, 1419, 181, 737],
     corner: 90,
+    // Cale au mode F6 sur les cages peintes.
+    goal: { half: 86, depth: 75, post: 7 },
   },
   {
     id: 'sahreon',
@@ -147,11 +155,7 @@ export function loadOverrides() {
   }
 }
 
-/** Retient le calage d'un stade, ou l'efface si `values` est nul. */
-export function saveOverride(id, values) {
-  const all = loadOverrides();
-  if (values) all[id] = values;
-  else delete all[id];
+function store(all) {
   try {
     localStorage.setItem(CLE, JSON.stringify({ rev: REV, map: all }));
   } catch {
@@ -159,6 +163,24 @@ export function saveOverride(id, values) {
     // assez pour relever les chiffres et me les envoyer.
   }
   return all;
+}
+
+/** Retient une partie du calage d'un stade : F4 ecrit le contour, F6 la
+ *  cage, et l'un n'efface pas ce que l'autre a regle. */
+export function saveOverride(id, values) {
+  const all = loadOverrides();
+  all[id] = { ...all[id], ...values };
+  return store(all);
+}
+
+/** Oublie les champs `fields` du calage d'un stade : la valeur du fichier
+ *  reprend la main. */
+export function clearOverride(id, fields) {
+  const all = loadOverrides();
+  if (!all[id]) return all;
+  for (const f of fields) delete all[id][f];
+  if (!Object.keys(all[id]).length) delete all[id];
+  return store(all);
 }
 
 /** Onglets du selecteur, dans l'ordre d'affichage. Le lot v2 est retire

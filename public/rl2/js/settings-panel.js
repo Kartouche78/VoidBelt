@@ -6,6 +6,7 @@
 // et continuent d'y lire `settings`, `input` et `hooks`.
 
 import { ACTIONS, keyLabel, padLabel } from './settings.js';
+import { SONS, SONS_MAX } from './sons.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -18,7 +19,7 @@ const INTERFACE = [
   ['Retour', 'B', 'Echap'],
   ['Changer d’onglet', 'LB / RB', '—'],
   ['Tchat rapide, en jeu', 'Croix', '1 2 3 4'],
-  ['Mise au point, en solo', '—', 'F1 F2 F3 ou F8 F4'],
+  ['Mise au point, en solo', '—', 'F1 F2 F3 ou F8 F4 F6'],
 ];
 
 export const PANNEAU = {
@@ -113,6 +114,27 @@ export const PANNEAU = {
       c.append(this._slider(key, 0, 100, this.settings.audio[key], (v) => {
         this.settings.audio[key] = v;
       }, (v) => `${v} %`));
+    }
+
+    // Puis chaque son, en % de son mixage d'origine. Le bouton le fait
+    // entendre : un volume se regle a l'oreille, pas au chiffre.
+    const titre = document.createElement('p');
+    titre.className = 'note';
+    titre.textContent = 'Son par son — 100 % = mixage de référence.';
+    body.append(titre);
+    const sons = this.settings.audio.sons;
+    for (const s of SONS) {
+      const c = this._row(body, s.label, s.hint);
+      c.append(this._slider(`son-${s.id}`, 0, SONS_MAX, sons[s.id] ?? 100, (v) => {
+        sons[s.id] = v;
+      }, (v) => `${v} %`));
+      const b = document.createElement('button');
+      b.className = 'ecoute';
+      b.type = 'button';
+      b.textContent = '▶';
+      b.title = `Écouter : ${s.label}`;
+      b.onclick = () => this.hooks.ecouter?.(s.id);
+      c.append(b);
     }
   },
 

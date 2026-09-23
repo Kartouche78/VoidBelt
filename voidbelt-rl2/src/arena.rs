@@ -28,9 +28,10 @@ pub const CORNER: f32 = 46.0;
 pub const CX: f32 = (MIN_X + MAX_X) * 0.5;
 pub const CY: f32 = (MIN_Y + MAX_Y) * 0.5;
 
-/// Demi-hauteur de la bouche de but, et profondeur des filets. La
-/// profondeur suit le fond du filet peint sur les calques de cage : a 90,
-/// une voiture s'y enfoncait d'une largeur de caisse au-dela du dessin.
+/// Demi-hauteur de la bouche de but, et profondeur des filets, par
+/// defaut. La profondeur suit le fond du filet peint sur les calques de
+/// cage : a 90, une voiture s'y enfoncait d'une largeur de caisse au-dela
+/// du dessin. Chaque stade peut s'en ecarter, voir `Cage`.
 pub const GOAL_HALF: f32 = 86.0;
 pub const GOAL_DEPTH: f32 = 67.0;
 /// Retrait de la bouche de but par rapport au muret. Il vaut zero : la
@@ -39,12 +40,45 @@ pub const GOAL_DEPTH: f32 = 67.0;
 /// le muret, qu'il fallait rattraper par un biseau ; le muret n'etait
 /// alors plus une ligne droite, et une planche de stade non plus.
 pub const GOAL_FRONT: f32 = 0.0;
+/// Rayon d'arrondi des poteaux. Le montant est l'angle ou le muret se
+/// retourne en joue de filet ; arrondi, il renvoie une balle selon l'endroit
+/// ou elle le mord, de plein fouet comme en biais, au lieu d'un angle vif
+/// qui la laissait filer d'un cote ou de l'autre.
+pub const POST_R: f32 = 10.0;
+/// Surepaisseur du poteau. Le montant est un disque d'un rayon de poteau
+/// plus cette valeur, affleurant le muret : il ne deborde jamais sur le
+/// terrain, mais mord d'autant sur la bouche du but, cote joue.
+pub const POST_BULGE: f32 = 2.0;
+
+/// Forme des buts d'un stade : demi-ouverture, profondeur du filet et
+/// rayon des poteaux. Chaque planche peint ses cages a sa facon, et F6 les
+/// cale en jeu ; ce sont des reglages (`goal_half`, `goal_depth`, `post_r`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Cage {
+    pub half: f32,
+    pub depth: f32,
+    pub post: f32,
+}
+
+impl Cage {
+    pub const FACTORY: Cage = Cage { half: GOAL_HALF, depth: GOAL_DEPTH, post: POST_R };
+
+    /// Bornee a ce qui reste un but : un reglage aberrant ne doit ni fermer
+    /// la bouche, ni l'ouvrir sur toute la largeur du muret.
+    pub fn new(half: f32, depth: f32, post: f32) -> Cage {
+        Cage {
+            half: half.clamp(30.0, 200.0),
+            depth: depth.clamp(15.0, 150.0),
+            post: post.clamp(0.0, 40.0),
+        }
+    }
+}
 
 
 /// Le tir allait-il au but de cette equipe ? On prolonge la trajectoire
 /// jusqu'au plan de but et on regarde si elle passe dans la bouche. Sert a
 /// reconnaitre un arret : une balle cadree qui ne l'est plus.
-pub fn on_target(p: V2, v: V2, team: u8) -> bool {
+pub fn on_target(p: V2, v: V2, team: u8, cage: &Cage) -> bool {
     let mouth = goal_mouth(team == 0);
     let dx = mouth - p.x;
     // Il faut aller vers ce but, et assez vite pour que ce soit un tir.
@@ -55,7 +89,7 @@ pub fn on_target(p: V2, v: V2, team: u8) -> bool {
     if !(0.0..=2.5).contains(&t) {
         return false;
     }
-    (p.y + v.y * t - CY).abs() < GOAL_HALF
+    (p.y + v.y * t - CY).abs() < cage.half
 }
 
 /// Plan de la bouche de but d'un cote ou de l'autre.
@@ -68,14 +102,14 @@ pub fn goal_mouth(left: bool) -> f32 {
 }
 
 /// Renvoie `true` si `y` est dans la bande verticale des buts.
-pub fn in_goal_lane(y: f32) -> bool {
-    (y - CY).abs() < GOAL_HALF
+pub fn in_goal_lane(y: f32, cage: &Cage) -> bool {
+    (y - CY).abs() < cage.half
 }
 
 /// Equipe dont le but vient d'etre franchi, une fois la balle entierement
 /// derriere la ligne. 0 = bleu (but a gauche), 1 = orange (but a droite).
-pub fn conceded(p: V2, r: f32) -> Option<u8> {
-    if !in_goal_lane(p.y) {
+pub fn conceded(p: V2, r: f32, cage: &Cage) -> Option<u8> {
+    if !in_goal_lane(p.y, cage) {
         return None;
     }
     if p.x + r < goal_mouth(true) {
@@ -129,14 +163,17 @@ pub fn respawn(team: u8, rank: usize) -> (V2, f32) {
 }
 
 /// Un contact resolu : normale sortante et profondeur de penetration.
+/// `post` dit si c'est l'arrondi d'un poteau qui a ete touche, et non un
+/// muret ou le filet : le poteau a son propre bruit.
 pub struct Hit {
     pub n: V2,
     pub depth: f32,
+    pub post: bool,
 }
 
 fn push(n: V2, depth: f32) -> Option<Hit> {
     if depth > 0.0 {
-        Some(Hit { n, depth })
+        Some(Hit { n, depth, post: false })
     } else {
         None
     }
@@ -144,22 +181,43 @@ fn push(n: V2, depth: f32) -> Option<Hit> {
 
 /// Contact d'un disque de rayon `r` avec l'enceinte. La bouche des buts est
 /// ouverte : on y bascule sur les parois du filet, poteaux compris.
-pub fn contact(p: V2, r: f32, corner: f32) -> Option<Hit> {
+pub fn contact(p: V2, r: f32, corner: f32, cage: &Cage) -> Option<Hit> {
     // Un arrondi ne peut deborder de la demi-largeur du terrain, ni etre
     // negatif : une valeur aberrante venue d'un reglage ferait un terrain
     // sans milieu plutot que d'echouer franchement.
     let corner = corner.clamp(0.0, (MAX_Y - MIN_Y) * 0.5);
-    // Dans la bande des buts, la bouche est ouverte sur toute la hauteur du
-    // muret : seul le filet borne, et rien ne barre l'entree. Y laisser
-    // l'enceinte la fermerait, puisque le muret arrete un mobile a un rayon
-    // de son plan, donc avant qu'il ait pu franchir la ligne.
-    if in_goal_lane(p.y) {
-        return net_contact(p, r);
+    let ecart = (p.y - CY).abs();
+    // Autour des buts, c'est le montant qui borne : muret, poteau et joue de
+    // filet y forment un seul solide. La bande est elargie d'un rayon de
+    // mobile et d'un rayon de poteau, pour qu'un corps qui arrive par
+    // l'exterieur trouve l'arrondi avant le muret droit.
+    let but = if ecart < cage.half + cage.post + POST_BULGE + r {
+        goal_contact(p, r, cage)
+    } else {
+        None
+    };
+    // Face a la bouche, rien d'autre ne borne : l'enceinte la fermerait,
+    // puisque le muret arrete un mobile a un rayon de son plan. Au-dela de
+    // l'arrondi du poteau, en revanche, le muret reprend — et avec lui les
+    // coins, qu'une cage tres ouverte pourrait sinon venir chevaucher.
+    if ecart < cage.half + cage.post {
+        return but;
     }
-    // Rectangle a coins arrondis : on ramene le centre dans le rectangle
-    // interieur, la distance restante decrit aussi bien les bords droits
-    // (distance nulle sur un axe) que les arcs de coin. Les murets sont
-    // deux lignes droites, la bouche des buts s'y ouvre sans decrochement.
+    deepest(but, enclosure(p, r, corner))
+}
+
+/// Le plus enfonce de deux contacts : c'est lui qu'il faut resoudre.
+fn deepest(a: Option<Hit>, b: Option<Hit>) -> Option<Hit> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(if a.depth > b.depth { a } else { b }),
+        (a, b) => a.or(b),
+    }
+}
+
+/// Rectangle a coins arrondis : on ramene le centre dans le rectangle
+/// interieur, la distance restante decrit aussi bien les bords droits
+/// (distance nulle sur un axe) que les arcs de coin.
+fn enclosure(p: V2, r: f32, corner: f32) -> Option<Hit> {
     let qx = p.x.clamp(MIN_X + corner, MAX_X - corner);
     let qy = p.y.clamp(MIN_Y + corner, MAX_Y - corner);
     let d = p.sub(v2(qx, qy));
@@ -171,34 +229,60 @@ pub fn contact(p: V2, r: f32, corner: f32) -> Option<Hit> {
     push(n, l - (corner - r))
 }
 
-/// Parois interieures d'un filet : fond et deux joues, la bouche reste libre.
-fn net_contact(p: V2, r: f32) -> Option<Hit> {
+/// Contact pres d'un but : fond du filet, et le solide qui entoure la
+/// bouche — muret d'un cote du poteau, joue du filet de l'autre, le
+/// poteau arrondi entre les deux.
+///
+/// On travaille dans le repere du poteau le plus proche : `u` croit en
+/// s'enfoncant dans le filet, `w` en s'eloignant de l'axe du but au-dela
+/// du poteau. Le solide est le quart de plan `u >= 0, w >= 0`, coin
+/// arrondi du rayon du poteau : le muret en est la face `u = 0`, la joue la face
+/// `w = 0`. Un seul calcul donne donc les trois surfaces et leurs
+/// raccords, sans jamais laisser d'angle par ou la balle se faufile.
+fn goal_contact(p: V2, r: f32, cage: &Cage) -> Option<Hit> {
     let left = p.x < CX;
-    let mouth = goal_mouth(left);
-    let back = if left {
-        mouth - GOAL_DEPTH
+    // Sens qui s'enfonce dans le filet, et cote du poteau le plus proche.
+    let sx = if left { -1.0 } else { 1.0 };
+    let sy = if p.y < CY { -1.0 } else { 1.0 };
+    let u = (p.x - goal_mouth(left)) * sx;
+    let w = (p.y - CY).abs() - cage.half;
+    let rp = cage.post;
+
+    let fond = if u + r > cage.depth {
+        Some(Hit { n: v2(-sx, 0.0), depth: u + r - cage.depth, post: false })
     } else {
-        mouth + GOAL_DEPTH
+        None
     };
-    if left && p.x - r < back {
-        return push(v2(1.0, 0.0), back - (p.x - r));
-    }
-    if !left && p.x + r > back {
-        return push(v2(-1.0, 0.0), (p.x + r) - back);
-    }
-    // Les joues ne mordent qu'une fois la bouche franchie, sinon elles
-    // repousseraient une balle qui longe simplement la ligne de but.
-    let inside = if left { p.x < mouth } else { p.x > mouth };
-    if !inside {
-        return None;
-    }
-    if p.y - r < CY - GOAL_HALF {
-        return push(v2(0.0, 1.0), (CY - GOAL_HALF) - (p.y - r));
-    }
-    if p.y + r > CY + GOAL_HALF {
-        return push(v2(0.0, -1.0), (p.y + r) - (CY + GOAL_HALF));
-    }
-    None
+
+    // Distance au quart de plan retreci du rayon du poteau, puis on regonfle.
+    let d = v2(u - u.max(rp), w - w.max(rp));
+    let l = d.len();
+    let (n, depth) = if l > 1e-6 {
+        (d.mul(1.0 / l), r + rp - l)
+    } else if u < w {
+        // Centre en plein dans le montant : on ressort par la face la plus
+        // proche, cote terrain ou cote filet.
+        (v2(-1.0, 0.0), u + r)
+    } else {
+        (v2(0.0, -1.0), w + r)
+    };
+    // Sur une face droite, l'un des deux ecarts est nul : muret ou joue.
+    // Les deux a la fois, c'est l'arrondi, donc le poteau.
+    let arrondi = l > 1e-6 && d.x != 0.0 && d.y != 0.0;
+    let montant = push(v2(n.x * sx, n.y * sy), depth).map(|h| Hit { post: arrondi, ..h });
+
+    // Le poteau lui-meme : un disque plus large que l'arrondi, recule
+    // d'autant dans le filet pour affleurer le muret sans le depasser. Il
+    // deborde donc la joue de `POST_BULGE`, vers l'axe du but.
+    let c = v2(u - (rp + POST_BULGE), w - rp);
+    let lc = c.len();
+    let poteau = if lc > 1e-6 {
+        let nc = c.mul(1.0 / lc);
+        push(v2(nc.x * sx, nc.y * sy), r + rp + POST_BULGE - lc).map(|h| Hit { post: true, ..h })
+    } else {
+        None
+    };
+    deepest(fond, deepest(montant, poteau))
 }
 
 /// Applique un contact : on ressort le mobile puis on reflechit la vitesse,

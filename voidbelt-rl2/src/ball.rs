@@ -18,6 +18,14 @@ pub const WALL_REST: f32 = 0.6;
 pub const SPIN_MAX: f32 = 6.0;
 pub const WALL_FRIC: f32 = 0.715;
 
+/// Rebond d'une image : vitesse d'impact, et si c'est un poteau qui l'a
+/// renvoyee.
+#[derive(Clone, Copy, Default)]
+pub struct Rebond {
+    pub force: f32,
+    pub poteau: bool,
+}
+
 #[derive(Clone, Copy)]
 pub struct Ball {
     pub pos: V2,
@@ -53,7 +61,7 @@ impl Ball {
 
     /// Avance la balle et renvoie la vitesse d'impact d'un eventuel mur,
     /// que l'appelant traduit en son de rebond.
-    pub fn step(&mut self, dt: f32, t: &Tune) -> f32 {
+    pub fn step(&mut self, dt: f32, t: &Tune) -> Rebond {
         self.vel = self.vel.mul((-t.ball_drag * dt).exp()).clamp_len(t.ball_max_speed);
         self.pos = self.pos.add(self.vel.mul(dt));
         let vitesse = self.vel.len();
@@ -68,11 +76,12 @@ impl Ball {
             let pas = Quat::autour(self.vel.y, self.vel.x, 0.0, tour * dt);
             self.spin = pas.mul(self.spin).norm();
         }
-        match arena::contact(self.pos, t.ball_radius, t.arena_corner) {
-            Some(h) => {
-                arena::bounce(&mut self.pos, &mut self.vel, &h, t.ball_wall_rest, t.ball_wall_fric)
-            }
-            None => 0.0,
+        match arena::contact(self.pos, t.ball_radius, t.arena_corner, &t.cage()) {
+            Some(h) => Rebond {
+                force: arena::bounce(&mut self.pos, &mut self.vel, &h, t.ball_wall_rest, t.ball_wall_fric),
+                poteau: h.post,
+            },
+            None => Rebond::default(),
         }
     }
 
