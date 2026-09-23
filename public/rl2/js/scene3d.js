@@ -81,10 +81,49 @@ export function makeSky(scene, geom) {
   };
 }
 
+/** Les huit lampes Area de `ball.blend`, aux coins d'un cube autour de la
+ *  balle (rayon 1) et tournees vers elle. glTF ne sait pas decrire une
+ *  lampe de surface : l'export les perd, on les recopie donc ici, position
+ *  et teinte. Blender est en Z vers le haut, comme cette scene. */
+const LAMPES = [
+  [-3.1, -4.0, 4.1, 0xffd69e], [3.1, -4.0, 4.1, 0xffffff],
+  [-3.1, 4.0, 4.1, 0xb39670], [3.1, 4.0, 4.1, 0xffffff],
+  [-3.1, 4.0, -4.1, 0xffd69e], [3.1, 4.0, -4.1, 0xffffff],
+  [-3.1, -4.0, -4.1, 0xb39670], [3.1, -4.0, -4.1, 0xffffff],
+];
+/** Eclat des panneaux : c'est lui qui regle la clarte de la balle. */
+const ECLAT = 60;
+/** Le fond gris du monde de Blender, qui debouche les zones sans lampe. */
+const FOND = 0x303030;
+
+/** Le studio de Blender, reduit a son reflet. La balle est metallique : un
+ *  metal ne renvoie que ce qui l'entoure, et sans entourage il vire au noir.
+ *  On photographie donc une fois les panneaux lumineux tout autour d'un
+ *  point, et la balle s'y reflete. Ils ne tournent pas avec elle : un
+ *  reflet appartient au monde, pas a l'objet. */
+function studio(renderer) {
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(FOND);
+  const panneau = new THREE.PlaneGeometry(1, 1);
+  for (const [x, y, z, teinte] of LAMPES) {
+    const lampe = new THREE.Mesh(panneau, new THREE.MeshBasicMaterial({
+      color: new THREE.Color(teinte).multiplyScalar(ECLAT),
+      side: THREE.DoubleSide,
+    }));
+    lampe.position.set(x, y, z);
+    lampe.lookAt(0, 0, 0);
+    scene.add(lampe);
+  }
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const carte = pmrem.fromScene(scene, 0.02).texture;
+  pmrem.dispose();
+  return carte;
+}
+
 /** Charge la balle en trois dimensions. Tant qu'elle n'est pas la, c'est
  *  le disque peint qui tient le role : un reseau lent ne doit pas priver
  *  de balle, et un fichier absent non plus. */
-export function makeBall(groupe, geom, onReady) {
+export function makeBall(groupe, geom, renderer, onReady) {
   new GLTFLoader().load(
     'assets/ball/ball.glb',
     (gltf) => {
@@ -93,6 +132,7 @@ export function makeBall(groupe, geom, onReady) {
       const taille = boite.getSize(new THREE.Vector3());
       const centre = boite.getCenter(new THREE.Vector3());
       const rayon = Math.max(taille.x, taille.y, taille.z) / 2;
+      const reflet = studio(renderer);
 
       modele.traverse((o) => {
         if (!o.isMesh) return;
@@ -106,6 +146,7 @@ export function makeBall(groupe, geom, onReady) {
         // Le dessin de la balle vient de sa texture : on ne veut pas que
         // le moteur de rendu la reinterprete comme une couleur lineaire.
         if (o.material.map) o.material.map.colorSpace = THREE.SRGBColorSpace;
+        o.material.envMap = reflet;
       });
       // Le modele arrive a la taille ou il a ete dessine : on le ramene au
       // rayon que le moteur applique, quel qu'il soit.

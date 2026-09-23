@@ -44,6 +44,7 @@ export const STADIUMS = [
     name: 'Arène Orbitale d’Astréon',
     groupe: 'v1',
     art: 'assets/stadium/ArèneOrbitaled’Astréon.jpg',
+    cage: 'assets/stadium/ArèneOrbitaled’Astréon_cage.png',
     thumb: 'assets/stadium/ArèneOrbitaled’Astréon_min.jpg',
     // Cale au mode F4 et valide a l'ecran. C'est la methode a reprendre
     // pour les autres planches : F4, on pose le contour sur le muret, on
@@ -123,96 +124,6 @@ export const STADIUMS = [
     fit: [228, 1444, 168, 723],
     corner: 120,
   },
-  {
-    id: 'v2-sahralis',
-    name: 'Arène de Sahralis',
-    groupe: 'v2',
-    art: 'assets/stadium/v2/ArènedeSahralis.jpg',
-    thumb: 'assets/stadium/v2/ArènedeSahralis_min.jpg',
-    fit: [173, 1498, 125, 784],
-    corner: 83,
-  },
-  {
-    id: 'v2-talzaka',
-    name: 'Arène de Talzaka',
-    groupe: 'v2',
-    art: 'assets/stadium/v2/ArènedeTalzaka.jpg',
-    thumb: 'assets/stadium/v2/ArènedeTalzaka_min.jpg',
-    fit: [173, 1498, 125, 784],
-    corner: 83,
-  },
-  {
-    id: 'v2-vorkane',
-    name: 'Arène de Vorkane',
-    groupe: 'v2',
-    art: 'assets/stadium/v2/ArènedeVorkane.jpg',
-    thumb: 'assets/stadium/v2/ArènedeVorkane_min.jpg',
-    fit: [173, 1498, 125, 784],
-    corner: 83,
-  },
-  {
-    id: 'v2-valdore',
-    name: 'Grand Stade de Valdoré',
-    groupe: 'v2',
-    art: 'assets/stadium/v2/GrandStadedeValdoré.jpg',
-    thumb: 'assets/stadium/v2/GrandStadedeValdoré_min.jpg',
-    fit: [173, 1498, 125, 784],
-    corner: 83,
-  },
-  {
-    id: 'v2-daurelys',
-    name: 'Grand Stade d’Aurélys',
-    groupe: 'v2',
-    art: 'assets/stadium/v2/GrandStaded’Aurélys.jpg',
-    thumb: 'assets/stadium/v2/GrandStaded’Aurélys_min.jpg',
-    fit: [173, 1498, 125, 784],
-    corner: 83,
-  },
-  {
-    id: 'v2-selenor',
-    name: 'Stade Orbital de Sélénor',
-    groupe: 'v2',
-    art: 'assets/stadium/v2/StadeOrbitaldeSélénor.jpg',
-    thumb: 'assets/stadium/v2/StadeOrbitaldeSélénor_min.jpg',
-    fit: [173, 1498, 125, 784],
-    corner: 83,
-  },
-  {
-    id: 'v2-nivoren',
-    name: 'Stade de Nivoren',
-    groupe: 'v2',
-    art: 'assets/stadium/v2/StadedeNivoren.jpg',
-    thumb: 'assets/stadium/v2/StadedeNivoren_min.jpg',
-    fit: [173, 1498, 125, 784],
-    corner: 83,
-  },
-  {
-    id: 'v2-dazureve',
-    name: 'Stade de la Baie d’Azurève',
-    groupe: 'v2',
-    art: 'assets/stadium/v2/StadedelaBaied’Azurève.jpg',
-    thumb: 'assets/stadium/v2/StadedelaBaied’Azurève_min.jpg',
-    fit: [173, 1498, 125, 784],
-    corner: 83,
-  },
-  {
-    id: 'v2-brevane',
-    name: 'Stade des Docks de Brévane',
-    groupe: 'v2',
-    art: 'assets/stadium/v2/StadedesDocksdeBrévane.jpg',
-    thumb: 'assets/stadium/v2/StadedesDocksdeBrévane_min.jpg',
-    fit: [173, 1498, 125, 784],
-    corner: 83,
-  },
-  {
-    id: 'v2-dambreve',
-    name: 'Stade du Val d’Ambrève',
-    groupe: 'v2',
-    art: 'assets/stadium/v2/StadeduVald’Ambrève.jpg',
-    thumb: 'assets/stadium/v2/StadeduVald’Ambrève_min.jpg',
-    fit: [173, 1498, 125, 784],
-    corner: 83,
-  },
 ];
 
 // Calages repris a la main depuis le mode F4. Ils vivent dans le navigateur
@@ -250,11 +161,10 @@ export function saveOverride(id, values) {
   return all;
 }
 
-/** Onglets du selecteur, dans l'ordre d'affichage. Le second lot a ete
- *  dessine sur le gabarit : meme enceinte, meme arrondi, aucun calage. */
+/** Onglets du selecteur, dans l'ordre d'affichage. Le lot v2 est retire
+ *  le temps que ses planches soient refaites ; il revient ici avec elles. */
 export const GROUPES = [
   ['v1', 'Stades'],
-  ['v2', 'Stades V2'],
 ];
 
 /** Stade d'un identifiant, calage en cours applique, la planche d'origine

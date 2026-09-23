@@ -2,8 +2,8 @@
 //
 // Une premiere direction ouvre un groupe de quatre messages, affiche a
 // gauche de l'ecran ; la meme direction, ou une autre, en choisit un. Le
-// message part alors dans le journal, en bas a gauche, ou il reste quelques
-// secondes avant de s'effacer.
+// message s'affiche alors dans une bulle, entre la voiture qui parle et son
+// pseudo, le temps de quelques secondes.
 //
 // Le vrai jeu range seize messages en quatre groupes, un par direction de
 // la croix. Le detail des libelles n'est pas documente ailleurs que dans le
@@ -36,33 +36,24 @@ const ORDRE = ['up', 'left', 'right', 'down'];
 
 /** Temps laisse pour choisir dans un groupe ouvert, en secondes. */
 const OUVERT = 3;
-/** Duree de vie d'un message au journal, et nombre de lignes gardees. */
-const VIE = 9;
-const LIGNES = 5;
-
 export class Chat {
   /** `envoi(groupe, choix)` part au serveur quand on joue en ligne. Dans
    *  ce cas le message n'est pas affiche tout de suite : il revient par le
-   *  salon, comme celui des autres, et tout le monde lit le meme ordre. */
-  constructor(envoi = null) {
+   *  salon, comme celui des autres, et tout le monde lit le meme ordre.
+   *  `bulle(siege, texte)` affiche le message au-dessus de la voiture. */
+  constructor(envoi, bulle) {
     this.envoi = envoi;
-    this.log = document.getElementById('chat-log');
+    this.bulle = bulle;
     this.quick = document.getElementById('chat-quick');
     this.groupe = null;
     this.jusqua = 0;
-    this.lignes = [];
-    this.moi = 'Vous';
   }
 
-  /** Message rapide recu du salon. `g` et `m` sont les deux directions. */
-  recu(qui, g, m) {
+  /** Message rapide recu du salon : le siege de l'auteur, puis les deux
+   *  directions. */
+  recu(siege, g, m) {
     const texte = QUICK[g]?.msg[m];
-    if (texte) this.say(qui || 'Joueur', texte);
-  }
-
-  /** Nom affiche pour les messages du joueur. */
-  setName(nom) {
-    this.moi = nom || 'Vous';
+    if (texte && siege >= 0) this.bulle(siege, texte);
   }
 
   /** Une direction vient d'etre pressee. Ouvre un groupe, ou envoie. */
@@ -75,8 +66,9 @@ export class Chat {
       const groupe = this.groupe;
       this.groupe = null;
       const texte = QUICK[groupe]?.msg[dir];
-      // En ligne, c'est le retour du serveur qui ecrira la ligne.
-      if (texte && !this.envoi?.(groupe, dir)) this.say(this.moi, texte);
+      // En ligne, c'est le retour du serveur qui posera la bulle. En solo
+      // le joueur occupe toujours le premier siege.
+      if (texte && !this.envoi?.(groupe, dir)) this.bulle(0, texte);
     }
     this._paintQuick();
   }
@@ -88,31 +80,17 @@ export class Chat {
     this._paintQuick();
   }
 
-  /** Ajoute une ligne au journal. */
-  say(qui, texte) {
-    this.lignes.push({ qui, texte, ne: performance.now() / 1000 });
-    if (this.lignes.length > LIGNES) this.lignes.shift();
-    this._paintLog();
-  }
-
-  /** Efface ce qui a fait son temps. A appeler a chaque image. */
+  /** Referme un groupe reste ouvert trop longtemps. A chaque image. */
   update(now) {
     if (this.groupe && now > this.jusqua) {
       this.groupe = null;
       this._paintQuick();
     }
-    const reste = this.lignes.filter((l) => now - l.ne < VIE);
-    if (reste.length !== this.lignes.length) {
-      this.lignes = reste;
-      this._paintLog();
-    }
   }
 
-  /** Vide tout : entre deux matchs, la conversation ne se poursuit pas. */
+  /** Referme le groupe : entre deux matchs, on repart de zero. */
   clear() {
-    this.lignes = [];
     this.groupe = null;
-    this._paintLog();
     this._paintQuick();
   }
 
@@ -136,23 +114,6 @@ export class Chat {
       t.textContent = g.msg[dir];
       l.append(f, t);
       el.append(l);
-    }
-  }
-
-  _paintLog() {
-    const el = this.log;
-    if (!el) return;
-    el.hidden = this.lignes.length === 0;
-    el.innerHTML = '';
-    for (const l of this.lignes) {
-      const d = document.createElement('div');
-      d.className = 'chat-ligne';
-      const q = document.createElement('b');
-      q.textContent = `${l.qui} :`;
-      const t = document.createElement('span');
-      t.textContent = l.texte;
-      d.append(q, t);
-      el.append(d);
     }
   }
 }

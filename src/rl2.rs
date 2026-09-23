@@ -432,11 +432,17 @@ fn handle_text(room: &mut Room, id: u32, text: &str) -> bool {
             let (Some(g), Some(m)) = (dir("g"), dir("m")) else {
                 return false;
             };
-            let Some(seat) = room.seats.iter().flatten().find(|s| s.id == id) else {
+            // Le siege dit au-dessus de quelle voiture poser la bulle.
+            let Some((slot, seat)) = room
+                .seats
+                .iter()
+                .enumerate()
+                .find_map(|(i, s)| s.as_ref().filter(|s| s.id == id).map(|s| (i, s)))
+            else {
                 return false;
             };
             room.shout(
-                json!({ "t": "chat", "from": seat.name, "team": seat.team, "g": g, "m": m })
+                json!({ "t": "chat", "from": seat.name, "slot": slot, "team": seat.team, "g": g, "m": m })
                     .to_string(),
             );
             // Deja diffuse : inutile de renvoyer la composition derriere.

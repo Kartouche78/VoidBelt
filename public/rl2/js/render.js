@@ -16,7 +16,7 @@ import { applySpin, makeBall, makeSky } from './scene3d.js';
 export const TEAM = [0x2f7ce0, 0xf07a25];
 /** Carrosseries, dans l'ordre des equipes. `car_white.png` reste en reserve. */
 const CAR_ART = ['assets/car_bleue.png', 'assets/car_orange.png'];
-const Z = { TERRAIN: 0, PAD: 1, STADE: 2, SKID: 3, CAR: 4, BALL: 6, NAME: 7, BLAST: 8 };
+const Z = { TERRAIN: 0, PAD: 1, STADE: 2, SKID: 3, CAR: 4, BALL: 6, NAME: 7, BLAST: 8, CAGE: 9 };
 
 function plane(w, h, material) {
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
@@ -155,6 +155,16 @@ export class Renderer {
       m.position.set(box.x, -box.y, i === 0 ? Z.TERRAIN : Z.STADE);
       this.field.add(m);
     });
+    // Les cages du stade, s'il en a : un calque detoure, dessine sur la
+    // meme planche que le fond et donc recale avec lui. Sans test de
+    // profondeur : la balle en volume depasse la hauteur du calque et
+    // passerait sinon par-dessus.
+    if (stadium.cage) {
+      const cage = plane(box.w, box.h, flat(this.load(stadium.cage), { depthTest: false }));
+      cage.position.set(box.x, -box.y, Z.CAGE);
+      cage.renderOrder = 1;
+      this.field.add(cage);
+    }
   }
 
   _buildPads() {
@@ -205,7 +215,7 @@ export class Renderer {
 
     // La balle en volume prend le relais des qu'elle est chargee. Le disque
     // et son ombre peinte s'effacent alors : le modele porte la sienne.
-    makeBall(this.ball, this.geom, (modele) => {
+    makeBall(this.ball, this.geom, this.renderer, (modele) => {
       this.ballModel = modele;
       this.ballDisc.visible = false;
       bs.visible = false;

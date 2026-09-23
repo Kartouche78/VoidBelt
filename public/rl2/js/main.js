@@ -94,7 +94,7 @@ async function boot() {
     if (app.mode !== 'online' || !net.connected) return false;
     net.chat(groupe, choix);
     return true;
-  });
+  }, (siege, texte) => view.names.say(siege, texte));
   applyStadium(settings.stadium);
 
   const app = {
@@ -169,7 +169,12 @@ async function boot() {
     showTeams(net.room, net.you);
     if (menu.screen === 'online') menu.refreshRooms();
   };
-  net.onChat = (m) => chat.recu(m.from, m.g, m.m);
+  // Le siege vient du serveur ; un serveur plus ancien ne donne que le
+  // pseudo, qu'on retrouve alors dans le salon.
+  net.onChat = (m) => {
+    const siege = m.slot ?? net.room?.players.find((p) => p.name === m.from)?.slot ?? -1;
+    chat.recu(siege, m.g, m.m);
+  };
   net.onClose = () => {
     if (app.mode === 'online') leaveOnline('Connexion au salon perdue.');
   };
@@ -198,8 +203,8 @@ async function boot() {
     audio.unlock();
     audio.applyLevels(settings.audio);
     audio.stopAll();
-    chat.setName(menu.playerName() || 'Vous');
     chat.clear();
+    view.names.hush();
     app.mode = 'online';
     app.stadium = null;
     app.running = true;
@@ -280,8 +285,8 @@ async function boot() {
     audio.unlock();
     audio.applyLevels(settings.audio);
     audio.stopAll();
-    chat.setName(settings.name || 'Vous');
     chat.clear();
+    view.names.hush();
     engine.start(seed(), settings.match.level, settings.match.duration);
     app.running = true;
     app.paused = false;

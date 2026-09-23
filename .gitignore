@@ -9,6 +9,9 @@
 # derives : garder les .png doublerait le poids du site pour rien, et
 # Cloudflare Pages deploie tout ce qui est dans public/.
 /public/rl2/assets/stadium/*.png
+# Sauf les cages : un calque detoure pose au-dessus des voitures, que le
+# jeu sert tel quel.
+!/public/rl2/assets/stadium/*_cage.png
 /public/rl2/assets/stadium/v2/*.png
 /public/rl2/assets/menu/*.png
 

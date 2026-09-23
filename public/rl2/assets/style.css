@@ -940,8 +940,8 @@ button.stadium.active span { color: var(--orange); }
 
 /* ------------------------------------------------------ messagerie ------ */
 
-/* Tout se range en bas a gauche : le groupe ouvert juste au-dessus du
-   journal, pour que l'oeil n'ait pas a traverser l'ecran entre les deux. */
+/* Le groupe ouvert se range en bas a gauche. Les messages envoyes, eux,
+   s'affichent en bulle au-dessus des voitures (names.js). */
 #chat {
   position: absolute;
   left: 18px;
@@ -962,7 +962,7 @@ button.stadium.active span { color: var(--orange); }
   background: #070b12e8;
   animation: chat-in .12s ease-out;
 }
-#chat-quick[hidden], #chat-log[hidden] { display: none; }
+#chat-quick[hidden] { display: none; }
 .chat-groupe {
   font-size: 9px;
   letter-spacing: .26em;
@@ -978,16 +978,6 @@ button.stadium.active span { color: var(--orange); }
   color: var(--ink);
 }
 .chat-choix b { color: #7f8ba0; font-size: 12px; width: 11px; text-align: center; }
-
-#chat-log { display: grid; gap: 3px; }
-.chat-ligne {
-  font-size: 11.5px;
-  line-height: 1.5;
-  color: #dce3ee;
-  text-shadow: 0 1px 6px #000c;
-  animation: chat-in .14s ease-out;
-}
-.chat-ligne b { color: var(--orange); margin-right: 6px; font-weight: 400; }
 
 @keyframes chat-in {
   from { opacity: 0; transform: translateX(-8px); }
