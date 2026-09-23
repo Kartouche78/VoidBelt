@@ -2,6 +2,7 @@
 
 mod physics;
 mod rules;
+mod score;
 
 use crate::arena;
 use crate::car::{Car, Input};

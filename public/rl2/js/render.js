@@ -10,7 +10,7 @@ import { Effects } from './effects.js';
 import { makeFlames } from './flame.js';
 import { makeTrails } from './trail.js';
 import { Names } from './names.js';
-import { fitPlank, stadiumById } from './stadiums.js';
+import { fitPlank, plankSize, stadiumById } from './stadiums.js';
 import { applySpin, makeBall, makeSky } from './scene3d.js';
 
 export const TEAM = [0x2f7ce0, 0xf07a25];
@@ -144,8 +144,12 @@ export class Renderer {
     // En calage (F4) la planche se pose telle quelle, centree sur le
     // cadre : c'est le contour qu'on deplace pour venir dessus, pas
     // l'inverse. Le reste du temps elle est recalee sur l'enceinte.
+    // En calage, la planche est ramenee a la largeur du cadre quelle que
+    // soit sa taille : `calage` fait la meme conversion pour le contour.
+    const size = plankSize(stadium);
+    const k = this.geom.boardW / size.w;
     const box = raw
-      ? { w: this.geom.boardW, h: this.geom.boardH, x: this.geom.boardW / 2, y: this.geom.boardH / 2 }
+      ? { w: size.w * k, h: size.h * k, x: (size.w * k) / 2, y: (size.h * k) / 2 }
       : fitPlank(stadium, this.geom);
     // Le stade d'origine garde ses deux calques transparents ; les autres
     // sont des planches pleines, terrain et decor deja composes.
@@ -366,7 +370,9 @@ export class Renderer {
     // et plots y seraient a cote de tout. On degage la vue.
     const show = !this.raw;
     this.padGroup.visible = show;
-    this.ball.visible = show;
+    // Apres un but, la balle a explose dans la cage : elle ne reparait
+    // qu'a l'engagement suivant.
+    this.ball.visible = show && !this.ballGone;
     this.ball.position.set(state[6], -state[7], Z.BALL);
     if (this.ballModel) applySpin(this.ballModel, state, STATE.BALL_SPIN);
     else this.ballDisc.rotation.z = -state[10] * 0.25;

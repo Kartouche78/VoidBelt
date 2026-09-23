@@ -15,7 +15,7 @@
 //   R              revenir aux valeurs du fichier
 //   C              copier la ligne a recopier dans `stadiums.js`
 
-import { REV, clearOverride, saveOverride, stadiumById } from './stadiums.js';
+import { REV, clearOverride, plankSize, saveOverride, stadiumById } from './stadiums.js';
 
 const PAS = 1;
 const PAS_RAPIDE = 10;
@@ -70,7 +70,10 @@ export class FitEdit {
   frame(geom) {
     if (!this.on) return null;
     this.geom = geom;
-    const [minX, maxX, minY, maxY] = this.fit;
+    // `fit` est en pixels de la planche ; le cadre, lui, est dans le repere
+    // du jeu, ou la planche est posee a la largeur du terrain.
+    const k = geom.boardW / plankSize(stadiumById(this.id)).w;
+    const [minX, maxX, minY, maxY] = this.fit.map((v) => v * k);
     const kx = (maxX - minX) / (geom.maxX - geom.minX);
     const ky = (maxY - minY) / (geom.maxY - geom.minY);
     return {

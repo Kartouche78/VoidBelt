@@ -20,12 +20,19 @@
 // profondeur du filet et rayon des poteaux, en unites de jeu, calees sur
 // les cages peintes avec F6. Sans elle, le stade garde la cage de base.
 
+// `size` = [largeur, hauteur] de la planche en pixels, facultatif : sans
+// lui, c'est le format des premieres planches, 1672 x 941, celui qui a
+// donne ses unites au moteur. `fit` se mesure toujours en pixels de LA
+// planche, quelle que soit sa taille.
+
 // Pour une planche neuve, inutile de repasser par le calage : le gabarit
-// `assets/stadium/Gabarit.jpg` porte le contour exact du moteur, a
-// l'echelle 1:1 sur les 1672 x 941, cages et poteaux arrondis compris, et
-// la ligne de but qui prolonge le muret devant chaque cage. Une planche
-// dessinee dessus se declare `fit: [173, 1498, 125, 784], corner: 83,
+// `assets/stadium/Gabarit.jpg` est en 1920 x 1080 et porte le contour
+// exact du moteur, cages et poteaux arrondis compris, et la ligne de but
+// qui prolonge le muret devant chaque cage. Une planche dessinee dessus se
+// declare `size: [1920, 1080], fit: [199, 1721, 143, 900], corner: 83,
 // goal: { half: 86, depth: 75, post: 7 }` et tombe juste du premier coup.
+// `corner` et `goal` sont en unites de jeu : ils ne changent pas avec la
+// taille de la planche.
 
 /** Aire de jeu peinte sur la planche d'origine. Ce n'est qu'une mesure de
  *  cette image-la, pas l'enceinte du moteur : depuis que celle-ci a gagne
@@ -189,12 +196,39 @@ export const GROUPES = [
   ['v1', 'Stades'],
 ];
 
+/** Ajoute les arenes creees depuis l'admin, rangees sur le serveur. Leurs
+ *  images sont servies par l'API : on leur donne donc son adresse. Sans
+ *  reponse sous trois secondes, le jeu part avec les stades du fichier. */
+export async function loadCreated(base) {
+  try {
+    const res = await fetch(`${base}/api/arenes`, { cache: 'no-store', signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return;
+    const { stades } = await res.json();
+    for (const s of stades || []) {
+      if (STADIUMS.some((x) => x.id === s.id)) continue;
+      STADIUMS.push({ ...s, groupe: 'crees', art: base + s.art, thumb: base + s.thumb });
+    }
+    if (stades?.length && !GROUPES.some(([id]) => id === 'crees')) GROUPES.push(['crees', 'Créées']);
+  } catch {
+    // Pas d'API (site statique hors ligne, serveur arrete) : rien a ajouter.
+  }
+}
+
 /** Stade d'un identifiant, calage en cours applique, la planche d'origine
  *  a defaut. */
 export function stadiumById(id) {
   const base = STADIUMS.find((s) => s.id === id) || STADIUMS[0];
   const over = loadOverrides()[base.id];
   return over ? { ...base, ...over } : base;
+}
+
+/** Format des premieres planches, par defaut. */
+const FORMAT_HISTORIQUE = [1672, 941];
+
+/** Taille d'une planche en pixels : `size` si le stade la declare. */
+export function plankSize(stadium) {
+  const [w, h] = stadium?.size || FORMAT_HISTORIQUE;
+  return { w, h };
 }
 
 /** Echelle et position a donner a la planche pour que son aire de jeu
@@ -209,7 +243,7 @@ export function fitPlank(stadium, geom) {
   const [l, r, t, b] = stadium.fit;
   const sx = (geom.maxX - geom.minX) / (r - l);
   const sy = (geom.maxY - geom.minY) / (b - t);
-  const { boardW: w, boardH: h } = geom;
+  const { w, h } = plankSize(stadium);
   return {
     w: w * sx,
     h: h * sy,

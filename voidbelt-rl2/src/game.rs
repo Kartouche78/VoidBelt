@@ -40,6 +40,12 @@ pub const DECOLLE: f32 = 0.15;
 /// Ecart a la paroi en deca duquel la balle compte encore comme collee au
 /// mur. Poussee le long d'un muret, elle en rebondit de quelques unites.
 pub const FROLE: f32 = 6.0;
+/// Repos entre deux arrets ou degagements d'une meme voiture, en
+/// secondes : une meme parade, reprise en plusieurs touches, compte une fois.
+pub const REPOS_ACTION: f32 = 2.0;
+/// Repos entre deux tirs d'une meme voiture : une balle coincee ralentit
+/// une fraction de seconde, puis repart vers le but sous la meme poussee.
+pub const REPOS_TIR: f32 = 1.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Phase {
@@ -128,6 +134,18 @@ pub struct Game {
     /// Secondes depuis le dernier contact de chaque voiture avec la balle :
     /// le choc ne s'entend qu'a la reprise de contact, voir `DECOLLE`.
     colle: Vec<f32>,
+    /// Auteur du tir en cours : tant que sa balle file vers le but, il ne
+    /// marque pas un tir de plus. Pousser la balle la touche a chaque
+    /// image ; sans cela, chaque image comptait un tir.
+    tir: Option<usize>,
+    /// Repos de chaque voiture avant un nouvel arret ou degagement, puis
+    /// avant un nouveau tir.
+    repos: Vec<f32>,
+    repos_tir: Vec<f32>,
+    /// Derniere voiture de chaque camp a avoir touche la balle : un but
+    /// devie par un defenseur revient a l'attaquant, comme dans Rocket
+    /// League.
+    touche_camp: [Option<usize>; 2],
     /// Voiture dont le choc s'est deja fait entendre sur une balle restee
     /// contre un mur. Elle ne resonne plus tant que la balle y frotte ;
     /// un autre joueur, ou une balle decollee, rend la voix.
@@ -166,6 +184,10 @@ impl Game {
             scoring: Scoring::new(n),
             boom: vec![false; n],
             colle: vec![DECOLLE; n],
+            tir: None,
+            repos: vec![0.0; n],
+            repos_tir: vec![0.0; n],
+            touche_camp: [None, None],
             muet: None,
             opening: true,
             carry: 0.0,
@@ -229,6 +251,10 @@ impl Game {
         self.timer = self.tune.countdown;
         self.boom = vec![false; self.cars.len()];
         self.colle = vec![DECOLLE; self.cars.len()];
+        self.tir = None;
+        self.repos = vec![0.0; self.cars.len()];
+        self.repos_tir = vec![0.0; self.cars.len()];
+        self.touche_camp = [None, None];
         self.muet = None;
         self.events.push((ev::KICKOFF, 0.0));
     }
@@ -306,6 +332,17 @@ impl Game {
             self.events.push((code, choc.force));
         }
         let (rayon, coin, cage) = (self.tune.ball_radius, self.tune.arena_corner, self.tune.cage());
+        for r in self.repos.iter_mut().chain(self.repos_tir.iter_mut()) {
+            *r = (*r - dt).max(0.0);
+        }
+        // La balle ne va plus au but : le tir est fini, son auteur pourra en
+        // tenter un autre.
+        if let Some(c) = self.tir {
+            let team = self.cars.get(c).map_or(0, |c| c.team);
+            if !score::is_shot(team, self.ball.pos, self.ball.vel, &cage) {
+                self.tir = None;
+            }
+        }
         if arena::contact(self.ball.pos, rayon + FROLE, coin, &cage).is_none() {
             self.muet = None;
         }
@@ -324,8 +361,16 @@ impl Game {
             } else {
                 // Tout contact compte pour le jeu, mais seul le premier
                 // d'un appui continu fait du bruit.
-                if self.colle[i] >= DECOLLE && self.muet != Some(i) {
+                let nouveau = self.colle[i] >= DECOLLE;
+                if nouveau && self.muet != Some(i) {
                     self.events.push((ev::HIT, force));
+                }
+                // Un autre joueur reprend la balle : le tir en cours est
+                // fini, celui qui l'avait tire pourra en marquer un nouveau.
+                // Seule une nouvelle touche compte : une balle coincee
+                // contre une voiture la touche a chaque image.
+                if nouveau && self.tir.is_some_and(|c| c != i) {
+                    self.tir = None;
                 }
                 self.colle[i] = 0.0;
                 if arena::contact(self.ball.pos, rayon + FROLE, coin, &cage).is_some() {
@@ -345,13 +390,21 @@ impl Game {
                     }
                 }
                 let team = self.cars[i].team;
+                self.touche_camp[(team & 1) as usize] = Some(i);
+                // Les points ne se gagnent qu'en jeu : pendant la celebration
+                // d'un but, pousser la balle au fond du filet ne rapporte rien.
+                if !matches!(self.phase, Phase::Play | Phase::Warmup) {
+                    continue;
+                }
                 if self.scoring.touch(i) {
                     self.events.push((ev::TOUCH, i as f32));
                 }
                 let goal = arena::goal_mouth(team == 0);
                 let dist = (before.pos.x - goal).abs();
                 let close = dist < self.tune.save_range;
+                let libre = self.repos[i] <= 0.0;
                 if close
+                    && libre
                     && before.vel.len() > 170.0
                     && arena::on_target(before.pos, before.vel, team, &cage)
                     && !arena::on_target(self.ball.pos, self.ball.vel, team, &cage)
@@ -359,15 +412,21 @@ impl Game {
                     // Proximite du but, de 0 au bord de la zone a 1 sur la
                     // ligne : c'est elle qui distingue l'arret spectaculaire.
                     let pres = 1.0 - (dist / self.tune.save_range).clamp(0.0, 1.0);
+                    self.repos[i] = REPOS_ACTION;
                     let epic = self.scoring.save(i, pres);
                     self.events.push((ev::SAVE, i as f32));
                     if epic {
                         self.events.push((ev::EPIC_SAVE, i as f32));
                     }
                 } else if score::is_shot(team, self.ball.pos, self.ball.vel, &cage) {
-                    self.scoring.shot(i);
-                    self.events.push((ev::SHOT, i as f32));
-                } else if score::is_clear(team, before.pos, self.ball.vel, &self.tune) {
+                    if self.tir != Some(i) && self.repos_tir[i] <= 0.0 {
+                        self.tir = Some(i);
+                        self.repos_tir[i] = REPOS_TIR;
+                        self.scoring.shot(i);
+                        self.events.push((ev::SHOT, i as f32));
+                    }
+                } else if libre && score::is_clear(team, before.pos, self.ball.vel, &self.tune) {
+                    self.repos[i] = REPOS_ACTION;
                     self.scoring.clear(i);
                     self.events.push((ev::CLEAR, i as f32));
                 }
@@ -411,9 +470,11 @@ impl Game {
         if let Some(team) = arena::conceded(self.ball.pos, self.tune.ball_radius, &self.tune.cage()) {
             let scorer = 1 - team;
             self.events.push((ev::GOAL, scorer as f32));
-            // Le buteur est le dernier a avoir touche, quel que soit son
-            // camp : un contre son camp ne rapporte donc rien a personne.
-            if let Some(auteur) = self.scoring.last_touch() {
+            // Le buteur est le dernier du camp qui marque a avoir touche la
+            // balle : une deviation adverse ne lui vole pas son but. Si aucun
+            // de ses joueurs ne l'a touchee, c'est un contre son camp, et
+            // personne ne marque.
+            if let Some(auteur) = self.touche_camp[scorer as usize] {
                 if self.cars.get(auteur).map(|c| c.team) == Some(scorer) {
                     let but = arena::goal_mouth(scorer == 1);
                     let loin = (self.ball.pos.x - but).abs();

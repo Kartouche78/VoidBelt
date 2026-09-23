@@ -13,3 +13,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 # Le moteur du jeu RL2 : la meme simulation cote navigateur et cote serveur.
 voidbelt-rl2 = { path = "voidbelt-rl2" }
+# Appels aux fournisseurs d'IA (generateurs de l'admin), en TLS pur Rust :
+# pas d'OpenSSL a installer sur le VPS.
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+base64 = "0.22"

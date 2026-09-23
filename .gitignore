@@ -30,3 +30,7 @@
 # Cles des fournisseurs d'IA, posees depuis l'admin : elles ne quittent
 # jamais la machine.
 /data/ia-keys.json
+
+# Arenes generees depuis l'admin et leurs brouillons : des donnees du
+# serveur, conservees d'une mise a jour a l'autre par deploy-api.sh.
+/data/arenes/

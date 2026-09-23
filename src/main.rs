@@ -1,5 +1,7 @@
 //! VOIDBELT ? pages statiques, transmissions et salons Jump'n Bump.
 
+mod arenes;
+mod generer;
 mod ia;
 mod jumpnbump;
 mod leaderboard;
@@ -11,7 +13,7 @@ use axum::{
     Json, Router,
     http::{HeaderValue, Method, header},
     response::Redirect,
-    routing::get,
+    routing::{delete, get, post},
 };
 use std::net::SocketAddr;
 use tower_http::{
@@ -88,6 +90,19 @@ async fn main() {
         .route("/api/rl2/ws", get(rl2::ws))
         // Cles des fournisseurs d'IA pour les generateurs de l'admin.
         .route("/api/ia/keys", get(ia::keys_get).put(ia::keys_put))
+        // Generateur d'arenes de l'admin, et catalogue des arenes creees.
+        .route("/api/arenes", get(arenes::catalog))
+        .route("/api/arenes/img/{file}", get(arenes::arena_image))
+        .route("/api/arenes/stades/{id}", delete(arenes::remove))
+        .route("/api/arenes/generer", post(arenes::generate))
+        .route("/api/arenes/modeles/{provider}", get(arenes::models))
+        .route("/api/arenes/jobs/{id}", get(arenes::job))
+        .route("/api/arenes/jobs/{id}/annuler", post(arenes::cancel))
+        .route("/api/arenes/brouillons/{id}", get(arenes::draft).delete(arenes::drop_draft))
+        .route("/api/arenes/retoucher", post(arenes::retouch))
+        .route("/api/arenes/accepter", post(arenes::accept))
+        // Une planche en base64 depasse la limite par defaut de 2 Mo.
+        .layer(axum::extract::DefaultBodyLimit::max(30 * 1024 * 1024))
         .with_state(rl2::Hub::new());
 
     let multiplayer = Router::new()
@@ -99,7 +114,7 @@ async fn main() {
         .allow_origin(HeaderValue::from_static("https://voidbelt.com"))
         // PUT et le jeton : l'admin servi par voidbelt.com publie sur
         // api.voidbelt.com, reglages du jeu comme cles d'IA.
-        .allow_methods([Method::GET, Method::POST, Method::PUT])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
         .allow_headers([
             header::ACCEPT,
             header::CONTENT_TYPE,

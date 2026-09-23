@@ -16,6 +16,8 @@ const HOST = STATIC ? 'api.voidbelt.com' : location.host;
 const SECURE = STATIC || location.protocol === 'https:';
 const HTTP = `${SECURE ? 'https' : 'http'}://${HOST}`;
 const WS = `${SECURE ? 'wss' : 'ws'}://${HOST}`;
+/** Adresse de l'API, pour qui en a besoin hors des salons. */
+export const API_HTTP = HTTP;
 
 /** On affiche le monde legerement dans le passe, pour avoir toujours deux
  *  images encadrant l'instant rendu et lisser la gigue du reseau. */

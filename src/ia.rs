@@ -77,6 +77,16 @@ fn public(all: &Map<String, Value>) -> Value {
     Value::Object(out)
 }
 
+/// Cle et modele d'un fournisseur, pour les generateurs. `None` si aucune
+/// cle n'est branchee. Le modele est vide quand l'admin n'en a pas choisi.
+pub(crate) fn credentials(provider: &str) -> Option<(String, String)> {
+    let all = read_all();
+    let e = all.get(provider)?;
+    let key = e.get("key").and_then(Value::as_str).filter(|k| !k.is_empty())?;
+    let model = e.get("model").and_then(Value::as_str).unwrap_or("");
+    Some((key.to_string(), model.to_string()))
+}
+
 fn refuse() -> (StatusCode, Json<Value>) {
     (
         StatusCode::FORBIDDEN,

@@ -7,6 +7,7 @@
 // pour qu'un rechargement retombe au meme endroit.
 
 import { drawKeys } from './ia.js';
+import { drawStade } from './arenes/stade.js';
 
 export const SECTIONS = [
   { id: 'jeu', label: 'Gestion du jeu' },
@@ -111,6 +112,10 @@ function drawPage(section, [id, label, what]) {
 
   if (section.id === 'ia' && id === 'cles') {
     drawKeys(page);
+    return;
+  }
+  if (section.id === 'arenes' && id === 'stade') {
+    drawStade(page);
     return;
   }
 

@@ -8,8 +8,8 @@ import { Hud } from './hud.js';
 import { Scores } from './scores.js';
 import { Menu } from './menu.js';
 import { load as loadSettings, save as saveSettings } from './settings.js';
-import { Net } from './net.js';
-import { stadiumById } from './stadiums.js';
+import { API_HTTP, Net } from './net.js';
+import { loadCreated, stadiumById } from './stadiums.js';
 import { Debug } from './debug.js';
 import { FitEdit } from './fitedit.js';
 import { CageEdit } from './cageedit.js';
@@ -48,6 +48,12 @@ async function boot() {
   // geometrie : la taille des voitures et de la balle en depend, et le
   // rendu se construit dessus.
   await applyPublishedTune(engine);
+
+  // Arenes creees dans l'admin, et `?stade=…&jouer` pour en essayer une
+  // directement depuis son apercu, sans toucher au stade enregistre.
+  await loadCreated(API_HTTP);
+  const demande = new URLSearchParams(location.search);
+  if (demande.get('stade')) settings.stadium = demande.get('stade');
 
   let geom = engine.geometry();
   const padTable = engine.pads();
@@ -459,6 +465,7 @@ async function boot() {
       if (events) handleEvents(events, state);
 
       const player = readCar(state, me);
+      view.ballGone = (state[STATE.PHASE] | 0) === PHASE.GOAL;
       view.update(state, readCar, dt);
       debug.update(state, readCar, carsIn(state));
       hud.update(state, player, state[STATE.PHASE] | 0, geom.boostMax, lobbyInfo());
@@ -516,6 +523,7 @@ async function boot() {
     }
     requestAnimationFrame(frame);
   });
+  if (demande.has('jouer')) startMatch();
 
   function handleEvents(buf, state) {
     // Pendant la celebration d'un but, seule l'ovation s'entend.
@@ -538,7 +546,8 @@ async function boot() {
         }
         case EV.GOAL:
           audio.goal();
-          view.kick(18);
+          // La balle explose dans la cage, aux couleurs de qui marque.
+          view.explode(state[6], state[7], e.value | 0);
           break;
         case EV.SAVE:
           audio.save();
