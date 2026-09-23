@@ -37,6 +37,8 @@ pub struct Seat {
     pub tx: UnboundedSender<Message>,
     /// Instants des derniers messages rapides, pour borner le flood.
     pub chats: Vec<Instant>,
+    /// Skin de voiture choisi (`car-...`), vide pour la livree du camp.
+    pub skin: String,
 }
 
 /// Messages rapides permis par fenetre glissante : deux toutes les dix
@@ -249,7 +251,7 @@ impl Room {
             .enumerate()
             .filter_map(|(slot, s)| {
                 s.as_ref().map(|s| {
-                    json!({ "id": s.id, "name": s.name, "slot": slot, "team": s.team })
+                    json!({ "id": s.id, "name": s.name, "slot": slot, "team": s.team, "skin": s.skin })
                 })
             })
             .collect();
@@ -298,7 +300,15 @@ mod tests {
     #[test]
     fn deux_messages_rapides_par_fenetre_de_dix_secondes() {
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
-        let mut s = Seat { id: 1, name: String::new(), team: 0, idle: 0.0, tx, chats: Vec::new() };
+        let mut s = Seat {
+            id: 1,
+            name: String::new(),
+            team: 0,
+            idle: 0.0,
+            tx,
+            chats: Vec::new(),
+            skin: String::new(),
+        };
         let t0 = Instant::now();
         assert!(s.may_chat(t0));
         assert!(s.may_chat(t0 + Duration::from_secs(1)));

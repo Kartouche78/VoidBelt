@@ -10,6 +10,7 @@ import { Menu } from './menu.js';
 import { load as loadSettings, save as saveSettings } from './settings.js';
 import { API_HTTP, Net } from './net.js';
 import { loadCreated, stadiumById } from './stadiums.js';
+import { loadSkins } from './skins.js';
 import { Debug } from './debug.js';
 import { FitEdit } from './fitedit.js';
 import { CageEdit } from './cageedit.js';
@@ -51,9 +52,11 @@ async function boot() {
 
   // Arenes creees dans l'admin, et `?stade=…&jouer` pour en essayer une
   // directement depuis son apercu, sans toucher au stade enregistre.
-  await loadCreated(API_HTTP);
+  // Meme chose pour les skins de voitures : `?skin=…` en essaie un.
+  await Promise.all([loadCreated(API_HTTP), loadSkins(API_HTTP)]);
   const demande = new URLSearchParams(location.search);
   if (demande.get('stade')) settings.stadium = demande.get('stade');
+  if (demande.has('skin')) settings.skin = demande.get('skin');
 
   let geom = engine.geometry();
   const padTable = engine.pads();
@@ -135,13 +138,13 @@ async function boot() {
   function roster() {
     if (app.mode !== 'online' || !net.room) {
       return [
-        { name: settings.name || 'Vous', team: 0 },
+        { name: settings.name || 'Vous', team: 0, skin: settings.skin },
         { name: 'Bot', team: 1 },
       ];
     }
     const seats = Math.max(net.cars, ...net.room.players.map((p) => p.slot + 1), 1);
     const out = Array.from({ length: seats }, (_, i) => ({ name: '', team: i % 2 }));
-    for (const p of net.room.players) out[p.slot] = { name: p.name, team: p.team & 1 };
+    for (const p of net.room.players) out[p.slot] = { name: p.name, team: p.team & 1, skin: p.skin };
     return out;
   }
 
@@ -219,7 +222,7 @@ async function boot() {
   async function joinOnline(code) {
     menu.status(code ? `Connexion au salon ${code}…` : 'Creation du salon…');
     try {
-      await net.connect(code, menu.playerName());
+      await net.connect(code, menu.playerName(), settings.skin);
     } catch (err) {
       menu.status(err.message);
       return;
@@ -330,8 +333,9 @@ async function boot() {
   };
 
   input.onPause = () => {
-    // Depuis les parametres, la touche pause sert de retour arriere.
-    if (menu.screen === 'settings') {
+    // Dans les ecrans de menu, la touche pause sert de retour arriere,
+    // comme B a la manette.
+    if (['settings', 'garage', 'stadium', 'online'].includes(menu.screen)) {
       menu.back();
       return;
     }

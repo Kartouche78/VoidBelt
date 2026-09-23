@@ -49,6 +49,8 @@ export const DEFAULTS = {
   match: { duration: 300, level: 1 },
   /// Stade choisi pour le solo, par identifiant de `stadiums.js`.
   stadium: 'voidbelt',
+  /// Skin de voiture equipe (`car-...`), vide pour la livree du camp.
+  skin: '',
   camera: 'arena',
   deadzone: 15,
   name: '',

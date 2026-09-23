@@ -11,35 +11,38 @@
 //! Une demande de plusieurs images devient une tache : elle tourne en fond,
 //! trois appels a la fois, et l'admin vient en lire l'avancement.
 
+use crate::catalogue::{
+    Collection, Reponse, decode, err, guard, image, name_of, new_id, num, valid_id,
+};
+use crate::generer::Format;
 use axum::{
     Json,
-    body::Body,
     extract::{ConnectInfo, Path},
-    http::{HeaderMap, StatusCode, header},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
-use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use serde_json::{Map, Value, json};
 use std::{
     collections::HashMap,
     net::SocketAddr,
-    sync::{
-        Arc, Mutex, OnceLock,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::{SystemTime, UNIX_EPOCH},
+    sync::{Arc, Mutex, OnceLock},
 };
 use tokio::sync::Semaphore;
 
-const DIR: &str = "data/arenes";
 const DRAFTS: &str = "data/arenes/brouillons";
-const CATALOG: &str = "data/arenes/catalog.json";
+
+/// Arenes acceptees : planches JPEG, recalees en 1920 x 1080.
+pub const ARENES: Collection = Collection {
+    dir: "data/arenes",
+    url: "/api/arenes/img",
+    prefix: "gen",
+    ext: "jpg",
+    sans_nom: "Arène créée",
+};
 /// Au-dela, une demande est refusee : cent images, c'est deja une facture.
 const MAX_IMAGES: usize = 100;
 /// Appels simultanes vers le fournisseur, par tache.
 const EN_PARALLELE: usize = 3;
-
-type Reponse = (StatusCode, Json<Value>);
 
 #[derive(Default)]
 struct Job {
@@ -54,33 +57,13 @@ fn jobs() -> &'static Mutex<HashMap<String, Job>> {
     JOBS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Identifiant court et imprevisible : un brouillon est servi sans jeton,
-/// il ne doit pas se deviner.
-fn new_id() -> String {
-    static N: AtomicU64 = AtomicU64::new(0);
-    let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos() as u64;
-    let n = N.fetch_add(1, Ordering::Relaxed);
-    let mut x = t ^ n.wrapping_mul(0x9E37_79B9_7F4A_7C15);
-    // Brassage de splitmix64 : deux instants voisins donnent des noms sans
-    // rapport.
-    x = (x ^ (x >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    x = (x ^ (x >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    format!("{:016x}", x ^ (x >> 31))
-}
-
-fn valid_id(id: &str) -> bool {
-    !id.is_empty() && id.len() <= 40 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
-}
-
-fn err(code: StatusCode, msg: impl Into<String>) -> Reponse {
-    (code, Json(json!({ "error": msg.into() })))
-}
-
-fn guard(headers: &HeaderMap, who: SocketAddr) -> Result<(), Reponse> {
-    if crate::rl2::allowed(headers, who) {
-        Ok(())
+/// Format demande a l'IA selon ce qu'on genere : `kind` vaut `voiture`
+/// pour un skin, une arene sinon.
+fn format_of(body: &Value) -> Format {
+    if body.get("kind").and_then(Value::as_str) == Some("voiture") {
+        Format::VOITURE
     } else {
-        Err(err(StatusCode::FORBIDDEN, "Generateur reserve a l'hote du serveur."))
+        Format::ARENE
     }
 }
 
@@ -130,16 +113,6 @@ pub async fn models(
     }
 }
 
-fn decode(body: &Value, field: &str) -> Result<Vec<u8>, Reponse> {
-    let b64 = body.get(field).and_then(Value::as_str).unwrap_or("");
-    // Une adresse `data:` arrive telle quelle depuis un canevas.
-    let b64 = b64.split_once(',').map_or(b64, |(_, d)| d);
-    B64.decode(b64)
-        .ok()
-        .filter(|b| !b.is_empty())
-        .ok_or_else(|| err(StatusCode::BAD_REQUEST, format!("Image `{field}` illisible.")))
-}
-
 fn save_draft(bytes: &[u8]) -> Result<String, String> {
     std::fs::create_dir_all(DRAFTS).map_err(|e| e.to_string())?;
     let id = new_id();
@@ -172,6 +145,7 @@ pub async fn generate(
     }
     let n = body.get("n").and_then(Value::as_u64).unwrap_or(1).clamp(1, MAX_IMAGES as u64) as usize;
     let model = Arc::new(model_of(&body));
+    let format = format_of(&body);
     if crate::ia::credentials(&provider).is_none() {
         return err(StatusCode::BAD_REQUEST, format!("Aucune cle {provider} : branche-la dans IA & API."));
     }
@@ -189,7 +163,7 @@ pub async fn generate(
             if annule {
                 return;
             }
-            let out = crate::generer::redraw(&provider, &model, &gabarit, &prompt)
+            let out = crate::generer::redraw(&provider, &model, &gabarit, &prompt, format)
                 .await
                 .and_then(|img| save_draft(&img));
             if let Some(j) = jobs().lock().expect("taches").get_mut(&job) {
@@ -246,14 +220,6 @@ pub async fn draft(Path(id): Path<String>) -> Response {
     }
 }
 
-fn image(bytes: Vec<u8>, cache: &'static str) -> Response {
-    Response::builder()
-        .header(header::CONTENT_TYPE, crate::generer::mime_of(&bytes))
-        .header(header::CACHE_CONTROL, cache)
-        .body(Body::from(bytes))
-        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
-}
-
 pub async fn drop_draft(headers: HeaderMap, info: ConnectInfo<SocketAddr>, Path(id): Path<String>) -> Reponse {
     if let Err(r) = guard(&headers, info.0) {
         return r;
@@ -286,7 +252,7 @@ pub async fn retouch(headers: HeaderMap, info: ConnectInfo<SocketAddr>, Json(bod
     let Ok(base) = tokio::fs::read(format!("{DRAFTS}/{id}.img")).await else {
         return err(StatusCode::NOT_FOUND, "Brouillon introuvable.");
     };
-    match crate::generer::redraw(&provider, &model_of(&body), &base, prompt)
+    match crate::generer::redraw(&provider, &model_of(&body), &base, prompt, format_of(&body))
         .await
         .and_then(|img| save_draft(&img))
     {
@@ -297,35 +263,14 @@ pub async fn retouch(headers: HeaderMap, info: ConnectInfo<SocketAddr>, Json(bod
 
 // ------------------------------------------------------------- catalogue --
 
-fn read_catalog() -> Vec<Value> {
-    std::fs::read_to_string(CATALOG)
-        .ok()
-        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-        .and_then(|v| v.as_array().cloned())
-        .unwrap_or_default()
-}
-
 /// Arenes creees, pour le jeu. Public : c'est une liste de stades.
 pub async fn catalog() -> Json<Value> {
-    Json(json!({ "stades": read_catalog() }))
+    Json(json!({ "stades": ARENES.read() }))
 }
 
 /// Planche ou miniature d'une arene acceptee.
 pub async fn arena_image(Path(file): Path<String>) -> Response {
-    let Some(stem) = file.strip_suffix(".jpg") else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    if !valid_id(stem.trim_end_matches("_min")) || stem.matches('_').count() > 1 {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    match tokio::fs::read(format!("{DIR}/{file}")).await {
-        Ok(bytes) => image(bytes, "public, max-age=86400"),
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
-    }
-}
-
-fn num(v: Option<&Value>, lo: f64, hi: f64) -> Option<f64> {
-    v.and_then(Value::as_f64).filter(|x| x.is_finite()).map(|x| x.clamp(lo, hi).round())
+    ARENES.serve(&file).await
 }
 
 /// Accepte une planche : `{ name, image, thumb, fit: [l, r, t, b], corner,
@@ -363,41 +308,15 @@ pub async fn accept(headers: HeaderMap, info: ConnectInfo<SocketAddr>, Json(body
         .map(|a| a.iter().filter_map(|v| num(Some(v), 64.0, 8192.0)).collect())
         .filter(|s: &Vec<f64>| s.len() == 2)
         .unwrap_or_else(|| vec![1920.0, 1080.0]);
-    let name: String = body
-        .get("name")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .chars()
-        .filter(|c| !c.is_control())
-        .take(48)
-        .collect::<String>()
-        .trim()
-        .to_string();
-    let name = if name.is_empty() { String::from("Arène créée") } else { name };
-
-    let id = format!("gen-{}", &new_id()[..10]);
-    let ecrit = std::fs::create_dir_all(DIR)
-        .and_then(|_| std::fs::write(format!("{DIR}/{id}.jpg"), &img))
-        .and_then(|_| std::fs::write(format!("{DIR}/{id}_min.jpg"), &thumb));
-    if let Err(e) = ecrit {
-        return err(StatusCode::INTERNAL_SERVER_ERROR, format!("Ecriture impossible : {e}"));
-    }
-    let mut entry = Map::new();
-    entry.insert("id".into(), json!(id));
-    entry.insert("name".into(), json!(name));
-    entry.insert("art".into(), json!(format!("/api/arenes/img/{id}.jpg")));
-    entry.insert("thumb".into(), json!(format!("/api/arenes/img/{id}_min.jpg")));
-    entry.insert("size".into(), json!(size));
-    entry.insert("fit".into(), json!(fit));
-    entry.insert("corner".into(), json!(corner));
-    entry.insert("goal".into(), json!({ "half": half, "depth": depth, "post": post }));
-    let entry = Value::Object(entry);
-    let mut all = read_catalog();
-    all.push(entry.clone());
-    let text = serde_json::to_string_pretty(&all).unwrap_or_default();
-    if std::fs::write(CATALOG, text).is_err() {
-        return err(StatusCode::INTERNAL_SERVER_ERROR, "Catalogue non enregistre.");
-    }
+    let mut extra = Map::new();
+    extra.insert("size".into(), json!(size));
+    extra.insert("fit".into(), json!(fit));
+    extra.insert("corner".into(), json!(corner));
+    extra.insert("goal".into(), json!({ "half": half, "depth": depth, "post": post }));
+    let entry = match ARENES.add(name_of(&body, ARENES.sans_nom), &img, &thumb, extra) {
+        Ok(e) => e,
+        Err(r) => return r,
+    };
     (StatusCode::OK, Json(json!({ "stade": entry })))
 }
 
@@ -406,29 +325,5 @@ pub async fn remove(headers: HeaderMap, info: ConnectInfo<SocketAddr>, Path(id):
     if let Err(r) = guard(&headers, info.0) {
         return r;
     }
-    if !valid_id(&id) || !id.starts_with("gen-") {
-        return err(StatusCode::BAD_REQUEST, "Seules les arenes creees se retirent ici.");
-    }
-    let mut all = read_catalog();
-    all.retain(|s| s.get("id").and_then(Value::as_str) != Some(id.as_str()));
-    let text = serde_json::to_string_pretty(&all).unwrap_or_default();
-    let _ = std::fs::write(CATALOG, text);
-    let _ = std::fs::remove_file(format!("{DIR}/{id}.jpg"));
-    let _ = std::fs::remove_file(format!("{DIR}/{id}_min.jpg"));
-    (StatusCode::OK, Json(json!({ "ok": true })))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{new_id, valid_id};
-
-    #[test]
-    fn les_identifiants_sont_uniques_et_propres() {
-        let a = new_id();
-        let b = new_id();
-        assert_ne!(a, b);
-        assert!(valid_id(&a) && valid_id(&format!("gen-{a}")));
-        assert!(!valid_id("../catalog"), "un chemin est passe pour un identifiant");
-        assert!(!valid_id(""));
-    }
+    ARENES.remove(&id)
 }

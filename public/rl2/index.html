@@ -76,6 +76,7 @@
     <nav class="title-menu">
       <button id="btn-play">Jouer</button>
       <button id="btn-online">Multijoueur</button>
+      <button id="btn-garage">Personnalisation</button>
       <button id="btn-settings">Param&egrave;tres</button>
       <button id="btn-quit-site">Quitter</button>
     </nav>
@@ -93,6 +94,24 @@
     </div>
     <nav class="sheet-menu">
       <button id="btn-stadium-back">Retour</button>
+    </nav>
+  </section>
+
+  <!-- Personnalisation : voiture, et bientot boost, trainee, ballon -->
+  <section id="screen-garage" class="screen sheet" hidden>
+    <div class="sheet-head">
+      <p class="eyebrow">VOIDBELT &middot; ARCADE</p>
+      <h2>Personnalisation</h2>
+    </div>
+    <div class="sheet-body garage">
+      <div class="garage-choix">
+        <nav class="tabs" id="garage-tabs"></nav>
+        <div id="garage-list"></div>
+      </div>
+      <div id="garage-vue" aria-live="polite"></div>
+    </div>
+    <nav class="sheet-menu">
+      <button id="btn-garage-back">Retour</button>
     </nav>
   </section>
 

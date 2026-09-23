@@ -7,6 +7,7 @@ import { DEFAULTS, reset } from './settings.js';
 import { PANNEAU } from './settings-panel.js';
 import { listRooms } from './net.js';
 import { GROUPES, renderPicker, stadiumById } from './stadiums.js';
+import { CATEGORIES, renderGarage } from './garage.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -59,6 +60,7 @@ export class Menu {
       result: $('screen-result'),
       online: $('screen-online'),
       stadium: $('screen-stadium'),
+      garage: $('screen-garage'),
     };
 
     this.cursor = null;
@@ -116,7 +118,7 @@ export class Menu {
    *  cette direction : on sort alors vers les onglets ou le pied de page,
    *  pour que l'ecran entier reste accessible. */
   _grille(cur, dx, dy) {
-    const grille = cur.closest('#stadium-list');
+    const grille = cur.closest('#stadium-list, #garage-list');
     const cases = [...grille.querySelectorAll('button')];
     const cible = voisin(cur, cases, dx, dy);
     if (cible) {
@@ -176,7 +178,7 @@ export class Menu {
     // Une grille ne se parcourt pas comme une liste : la case du dessous
     // n'est pas la suivante dans l'ordre du document, elle est une ligne
     // plus bas. Les quatre directions y servent donc vraiment.
-    if (cur?.closest('#stadium-list') && (pulse.x || pulse.y)) {
+    if (cur?.closest('#stadium-list, #garage-list') && (pulse.x || pulse.y)) {
       if (this._grille(cur, pulse.x, pulse.y)) return;
     }
 
@@ -217,6 +219,13 @@ export class Menu {
 
   /** Passe a l'onglet suivant ou precedent, si l'ecran en a. */
   _shiftTab(dir) {
+    if (this.screen === 'garage') {
+      const ids = CATEGORIES.map(([id]) => id);
+      const i = ids.indexOf(this.cat);
+      this.cat = ids[((i < 0 ? 0 : i) + dir + ids.length) % ids.length];
+      this._garage();
+      return;
+    }
     if (this.screen === 'stadium') {
       const ids = GROUPES.map(([id]) => id);
       const i = ids.indexOf(this.lot);
@@ -240,6 +249,7 @@ export class Menu {
     const exits = {
       settings: 'btn-settings-back',
       stadium: 'btn-stadium-back',
+      garage: 'btn-garage-back',
       online: 'btn-online-back',
       pause: 'btn-resume',
       result: 'btn-result-menu',
@@ -287,6 +297,12 @@ export class Menu {
       window.location.href = '/';
     };
     $('btn-online').onclick = () => this.showOnline();
+    $('btn-garage').onclick = () => {
+      this.cat = 'voiture';
+      this.show('garage');
+      this._garage();
+    };
+    $('btn-garage-back').onclick = () => this.show('title');
     $('btn-online-create').onclick = () => this.hooks.host('');
     $('btn-online-refresh').onclick = () => this.refreshRooms();
     $('btn-online-back').onclick = () => this.show('title');
@@ -342,6 +358,32 @@ export class Menu {
         this.hooks.play();
       },
     );
+  }
+
+  /** Repeint la personnalisation ; choisir une voiture l'equipe aussitot,
+   *  sans quitter l'ecran, pour comparer d'un coup d'oeil. */
+  _garage() {
+    renderGarage(
+      $('garage-tabs'),
+      $('garage-list'),
+      $('garage-vue'),
+      this.cat,
+      this.settings.skin || '',
+      (id) => {
+        this.cat = id;
+        this._garage();
+      },
+      (id) => {
+        this.settings.skin = id;
+        this.hooks.change(this.settings);
+        this._garage();
+      },
+    );
+    // La grille vient d'etre refaite : le curseur retombe sur ce qui est
+    // equipe, ou sur l'onglet si l'onglet est encore vide.
+    const box = $('garage-list');
+    this._focus(box.querySelector('button.active') ?? box.querySelector('button')
+      ?? $('garage-tabs').querySelector('button.active'));
   }
 
   /** Vise le stade en cours dans la grille, ou le premier a defaut. */

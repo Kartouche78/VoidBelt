@@ -79,9 +79,10 @@ export class Net {
   }
 
   /** `code` vide cree un salon. Resout une fois le salon rejoint. */
-  connect(code, name) {
+  connect(code, name, skin = '') {
     return new Promise((resolve, reject) => {
-      const url = `${WS}/api/rl2/ws?room=${encodeURIComponent(code || '')}&name=${encodeURIComponent(name || '')}`;
+      const url = `${WS}/api/rl2/ws?room=${encodeURIComponent(code || '')}&name=${encodeURIComponent(name || '')}`
+        + `&skin=${encodeURIComponent(skin || '')}`;
       const sock = new WebSocket(url);
       sock.binaryType = 'arraybuffer';
       this.sock = sock;

@@ -8,6 +8,7 @@
 
 import { drawKeys } from './ia.js';
 import { drawStade } from './arenes/stade.js';
+import { drawVoiture } from './voitures/voiture.js';
 
 export const SECTIONS = [
   { id: 'jeu', label: 'Gestion du jeu' },
@@ -116,6 +117,10 @@ function drawPage(section, [id, label, what]) {
   }
   if (section.id === 'arenes' && id === 'stade') {
     drawStade(page);
+    return;
+  }
+  if (section.id === 'voitures' && id === 'voiture') {
+    drawVoiture(page);
     return;
   }
 

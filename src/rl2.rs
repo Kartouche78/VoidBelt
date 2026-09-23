@@ -138,6 +138,9 @@ pub struct JoinParams {
     pub room: String,
     #[serde(default)]
     pub name: String,
+    /// Skin de voiture du joueur, tel que le catalogue le nomme.
+    #[serde(default)]
+    pub skin: String,
 }
 
 pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
@@ -240,6 +243,14 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
     let (tx, mut rx) = unbounded_channel::<Message>();
     let id = hub.next_id.fetch_add(1, Ordering::Relaxed);
     let name = clean_name(&params.name);
+    // Un identifiant de skin, rien d'autre : il repart vers tous les joueurs
+    // du salon, qui le cherchent dans le catalogue.
+    let skin: String = params
+        .skin
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .take(40)
+        .collect();
 
     // Entree dans un salon, ou creation quand aucun code n'est fourni. Tout
     // se joue sous le verrou, sans `await` au milieu.
@@ -265,6 +276,7 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                         idle: 0.0,
                         tx: tx.clone(),
                         chats: Vec::new(),
+                        skin: skin.clone(),
                     });
                     Ok((wanted, slot))
                 }
@@ -283,6 +295,7 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                 idle: 0.0,
                 tx: tx.clone(),
                 chats: Vec::new(),
+                skin: skin.clone(),
             });
             rooms.insert(code.clone(), room);
             Ok((code, slot))

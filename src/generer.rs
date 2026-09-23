@@ -29,6 +29,21 @@ fn client() -> Result<reqwest::Client, String> {
         .map_err(|e| format!("client HTTP : {e}"))
 }
 
+/// Ce qu'on attend de l'image produite : son format, et si le fond doit
+/// etre transparent (un sprite de voiture) ou plein (une planche).
+#[derive(Clone, Copy)]
+pub struct Format {
+    pub size: &'static str,
+    pub transparent: bool,
+}
+
+impl Format {
+    /// Planche de stade : paysage, fond plein.
+    pub const ARENE: Format = Format { size: "1536x1024", transparent: false };
+    /// Sprite de voiture : portrait comme `car_exemple.png`, fond transparent.
+    pub const VOITURE: Format = Format { size: "1024x1536", transparent: true };
+}
+
 /// Modele pris par defaut chez un fournisseur.
 pub fn default_model(provider: &str) -> &'static str {
     if provider == "google" { GOOGLE_MODEL } else { OPENAI_MODEL }
@@ -37,13 +52,19 @@ pub fn default_model(provider: &str) -> &'static str {
 /// Redessine `image` (PNG ou JPEG) selon `prompt`, avec le modele `choisi`
 /// (vide : celui des « Cles API », sinon celui par defaut). Rend les octets
 /// de l'image produite.
-pub async fn redraw(provider: &str, choisi: &str, image: &[u8], prompt: &str) -> Result<Vec<u8>, String> {
+pub async fn redraw(
+    provider: &str,
+    choisi: &str,
+    image: &[u8],
+    prompt: &str,
+    format: Format,
+) -> Result<Vec<u8>, String> {
     let Some((key, model)) = crate::ia::credentials(provider) else {
         return Err(format!("Aucune cle {provider} : branche-la dans IA & API."));
     };
     let model = if choisi.trim().is_empty() { model } else { choisi.trim().to_string() };
     match provider {
-        "openai" => openai(&key, pick(&model, OPENAI_MODEL), image, prompt).await,
+        "openai" => openai(&key, pick(&model, OPENAI_MODEL), image, prompt, format).await,
         "google" => google(&key, pick(&model, GOOGLE_MODEL), image, prompt).await,
         _ => Err(format!("{provider} ne sait pas redessiner une image.")),
     }
@@ -136,20 +157,24 @@ async fn refus(res: reqwest::Response, qui: &str) -> String {
     format!("{qui} a refuse ({code}) : {detail}")
 }
 
-/// OpenAI : `images/edits`, l'image en piece jointe. On demande le format
-/// paysage le plus proche des planches (3:2) ; l'admin le recale ensuite.
-async fn openai(key: &str, model: &str, image: &[u8], prompt: &str) -> Result<Vec<u8>, String> {
+/// OpenAI : `images/edits`, l'image en piece jointe, au format demande ;
+/// l'admin recale ensuite le resultat.
+async fn openai(key: &str, model: &str, image: &[u8], prompt: &str, format: Format) -> Result<Vec<u8>, String> {
     let ext = if mime_of(image) == "image/png" { "png" } else { "jpg" };
     let part = reqwest::multipart::Part::bytes(image.to_vec())
         .file_name(format!("gabarit.{ext}"))
         .mime_str(mime_of(image))
         .map_err(|e| e.to_string())?;
-    let form = reqwest::multipart::Form::new()
+    let mut form = reqwest::multipart::Form::new()
         .text("model", model.to_string())
         .text("prompt", prompt.to_string())
-        .text("size", "1536x1024")
-        .text("n", "1")
-        .part("image", part);
+        .text("size", format.size)
+        .text("n", "1");
+    // Un sprite doit sortir detoure : fond transparent, donc en PNG.
+    if format.transparent {
+        form = form.text("background", "transparent").text("output_format", "png");
+    }
+    let form = form.part("image", part);
     let res = client()?
         .post("https://api.openai.com/v1/images/edits")
         .bearer_auth(key)

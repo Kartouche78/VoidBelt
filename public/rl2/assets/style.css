@@ -896,6 +896,46 @@ button.stadium.active span { color: var(--orange); }
 .sheet button.stadium.active { border-color: var(--orange); opacity: 1; }
 #stadium-list { max-height: none; }
 
+/* Personnalisation : la grille des choix a gauche, la voiture equipee en
+   grand a droite, nez vers le haut comme sur les planches. */
+.sheet-body.garage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(180px, 24vw, 320px);
+  gap: clamp(18px, 3vw, 40px);
+  align-items: start;
+}
+#garage-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+button.stadium.voiture img {
+  aspect-ratio: 2 / 3;
+  object-fit: contain;
+  padding: 10px 14px 0;
+  background: radial-gradient(circle at 50% 45%, #ffffff14, transparent 70%);
+}
+#garage-vue { text-align: center; }
+#garage-vue img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 30px #000c);
+}
+.garage-nom {
+  margin: 12px 0 0;
+  font-size: 12px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--orange);
+}
+.garage-bientot { margin: 8px 0 0; }
+@media (max-width: 720px) {
+  .sheet-body.garage { grid-template-columns: 1fr; }
+  #garage-vue { max-width: 200px; margin: 0 auto; }
+}
+
 /* Salons et saisie du pseudo, poses sur la photo plutot que dans une boite. */
 .sheet .salon { background: #04060a99; border-color: #ffffff1a; }
 .sheet input[type="text"] { background: #04060a99; border-color: #ffffff26; }

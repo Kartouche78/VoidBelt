@@ -104,6 +104,12 @@ textarea.champ.grand { min-height: 320px; }
   letter-spacing: 0;
 }
 .carre.danger:hover { border-color: #ff6b5a; color: #ff8f7a; }
+/* Pastilles de couleur des voitures : la teinte elle-meme, cerclee quand
+   elle est appliquee. */
+.pastille::after { content: ''; width: 16px; height: 16px; border-radius: 50%; }
+.pastille.bleu::after { background: #2f7ce0; }
+.pastille.rouge::after { background: #d6262c; }
+.pastille.active { border-color: #fff; box-shadow: 0 0 0 2px #ffffff33; }
 
 .planche {
   display: block;
@@ -114,6 +120,24 @@ textarea.champ.grand { min-height: 320px; }
   touch-action: none;
 }
 .planche:active { cursor: grabbing; }
+
+/* Voitures : sprites en portrait, plus etroits que les planches. */
+.brouillons.voitures { grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
+.creees.voitures { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.creees.voitures .creee img { aspect-ratio: 2 / 3; object-fit: contain; background: #121925; }
+.creees.voitures .tete { flex-wrap: wrap; }
+.sprite {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  cursor: grab;
+  touch-action: none;
+}
+.sprite:active { cursor: grabbing; }
+.sprite:focus { outline: 2px solid var(--orange); outline-offset: 2px; }
+.exemple { display: block; width: 180px; border: 1px solid var(--line); border-radius: 8px; margin: 4px 0 6px; background: #121925; }
+.joint img.portrait { width: 90px; aspect-ratio: 2 / 3; object-fit: contain; }
 .planche:focus { outline: 2px solid var(--orange); outline-offset: 2px; }
 .chiffres { margin: 0; font-size: 10.5px; color: var(--dim); }
 

@@ -1,6 +1,7 @@
 //! VOIDBELT ? pages statiques, transmissions et salons Jump'n Bump.
 
 mod arenes;
+mod catalogue;
 mod generer;
 mod ia;
 mod jumpnbump;
@@ -8,6 +9,7 @@ mod leaderboard;
 mod multiplayer;
 mod rl2;
 mod transmissions;
+mod voitures;
 
 use axum::{
     Json, Router,
@@ -101,6 +103,12 @@ async fn main() {
         .route("/api/arenes/brouillons/{id}", get(arenes::draft).delete(arenes::drop_draft))
         .route("/api/arenes/retoucher", post(arenes::retouch))
         .route("/api/arenes/accepter", post(arenes::accept))
+        // Skins de voitures : generes par les memes routes (`kind: voiture`),
+        // ranges dans leur propre catalogue.
+        .route("/api/voitures", get(voitures::catalog))
+        .route("/api/voitures/img/{file}", get(voitures::car_image))
+        .route("/api/voitures/{id}", delete(voitures::remove))
+        .route("/api/voitures/accepter", post(voitures::accept))
         // Une planche en base64 depasse la limite par defaut de 2 Mo.
         .layer(axum::extract::DefaultBodyLimit::max(30 * 1024 * 1024))
         .with_state(rl2::Hub::new());

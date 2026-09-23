@@ -12,6 +12,7 @@ import { makeTrails } from './trail.js';
 import { Names } from './names.js';
 import { fitPlank, plankSize, stadiumById } from './stadiums.js';
 import { applySpin, makeBall, makeSky } from './scene3d.js';
+import { skinArt } from './skins.js';
 
 export const TEAM = [0x2f7ce0, 0xf07a25];
 /** Carrosseries, dans l'ordre des equipes. `car_white.png` reste en reserve. */
@@ -250,8 +251,14 @@ export class Renderer {
     }
   }
 
+  /** Carrosserie d'un siege : son skin s'il en a un, la livree de son
+   *  camp sinon. */
+  _art(entry) {
+    return skinArt(entry.skin) || CAR_ART[entry.team & 1];
+  }
+
   /** Cree une voiture de plus, dans la livree de son camp. */
-  _addCar(team) {
+  _addCar(team, art = CAR_ART[team & 1]) {
     const { carLen, carWid } = this.geom;
     const g = new THREE.Group();
     const sh = plane(carLen * 1.5, carWid * 2.2, flat(this.carShadow, { opacity: 0.75 }));
@@ -259,7 +266,7 @@ export class Renderer {
     // Les planches sont dessinees nez vers le haut alors que le monde met
     // le cap sur +x : le chassis porte donc un quart de tour a lui seul,
     // par-dessus la rotation du groupe.
-    const body = plane(carWid, carLen, flat(this.load(CAR_ART[team & 1])));
+    const body = plane(carWid, carLen, flat(this.load(art)));
     body.rotation.z = -Math.PI / 2;
     g.add(sh, body);
     // Les reacteurs se montent apres le chassis : ils s'accrochent aux
@@ -267,6 +274,7 @@ export class Renderer {
     g.userData = {
       body,
       team: team & 1,
+      art,
       flames: makeFlames(g, this.geom, this.load),
       trails: makeTrails(g, this.geom, this.load),
     };
@@ -282,12 +290,14 @@ export class Renderer {
     this.roster = list;
     for (let i = 0; i < list.length; i += 1) {
       const team = list[i].team & 1;
+      const art = this._art(list[i]);
       const g = this.cars[i];
       if (!g) {
-        this._addCar(team);
-      } else if (g.userData.team !== team) {
+        this._addCar(team, art);
+      } else if (g.userData.team !== team || g.userData.art !== art) {
         g.userData.team = team;
-        g.userData.body.material.map = this.load(CAR_ART[team]);
+        g.userData.art = art;
+        g.userData.body.material.map = this.load(art);
         g.userData.body.material.needsUpdate = true;
       }
     }
