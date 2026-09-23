@@ -28,9 +28,11 @@ pub const CORNER: f32 = 46.0;
 pub const CX: f32 = (MIN_X + MAX_X) * 0.5;
 pub const CY: f32 = (MIN_Y + MAX_Y) * 0.5;
 
-/// Demi-hauteur de la bouche de but, et profondeur des filets.
+/// Demi-hauteur de la bouche de but, et profondeur des filets. La
+/// profondeur suit le fond du filet peint sur les calques de cage : a 90,
+/// une voiture s'y enfoncait d'une largeur de caisse au-dela du dessin.
 pub const GOAL_HALF: f32 = 86.0;
-pub const GOAL_DEPTH: f32 = 90.0;
+pub const GOAL_DEPTH: f32 = 67.0;
 /// Retrait de la bouche de but par rapport au muret. Il vaut zero : la
 /// bouche est dans le plan du muret, qui file donc droit d'un coin a
 /// l'autre. Une bouche en retrait creusait une poche entre le montant et

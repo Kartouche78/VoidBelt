@@ -496,17 +496,9 @@ async function boot() {
     for (const e of readEvents(buf)) {
       switch (e.code) {
         case EV.HIT:
+          // Aucun contact ne secoue l'ecran, balle, voiture ou coincement :
+          // la camera ne bouge qu'au but.
           if (!fete) audio.ballTouch(e.value);
-          if (e.value > 120) view.kick(e.value / 90);
-          break;
-        case EV.BUMP:
-          view.kick(4);
-          break;
-        case EV.PINCH:
-          // Pas de son ajoute : la frappe de la meme image en a deja joue
-          // un, et les deux ensemble faisaient un grondement. C'est la
-          // secousse, plus forte qu'a l'ordinaire, qui dit le coincement.
-          view.kick(6 + e.value / 60);
           break;
         case EV.DEMO: {
           // La carcasse n'a pas bouge : c'est la qu'on fait sauter la bombe.

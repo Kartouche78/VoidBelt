@@ -91,8 +91,12 @@ const LAMPES = [
   [-3.1, 4.0, -4.1, 0xffd69e], [3.1, 4.0, -4.1, 0xffffff],
   [-3.1, -4.0, -4.1, 0xb39670], [3.1, -4.0, -4.1, 0xffffff],
 ];
-/** Eclat des panneaux : c'est lui qui regle la clarte de la balle. */
-const ECLAT = 60;
+/** Eclat des panneaux. Au-dela d'environ 100, le reflet calcule decroche
+ *  et la balle s'assombrit au lieu de s'eclaircir : pour aller plus fort,
+ *  c'est `FORCE` qu'on monte, pas lui. */
+const ECLAT = 90;
+/** Force du reflet sur la balle : multiplie chaque lampe d'un coup. */
+const FORCE = 2;
 /** Le fond gris du monde de Blender, qui debouche les zones sans lampe. */
 const FOND = 0x303030;
 
@@ -147,6 +151,7 @@ export function makeBall(groupe, geom, renderer, onReady) {
         // le moteur de rendu la reinterprete comme une couleur lineaire.
         if (o.material.map) o.material.map.colorSpace = THREE.SRGBColorSpace;
         o.material.envMap = reflet;
+        o.material.envMapIntensity = FORCE;
       });
       // Le modele arrive a la taille ou il a ete dessine : on le ramene au
       // rayon que le moteur applique, quel qu'il soit.
