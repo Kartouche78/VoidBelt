@@ -21,8 +21,10 @@ const FONDU = 0.4;
 const FONT = '"Space Mono", ui-monospace, monospace';
 
 /** Dessine un pseudo sur un canevas : contour sombre pour rester lisible
- *  aussi bien sur le beton clair que sur la pelouse sombre. */
-function draw(text, color) {
+ *  aussi bien sur le beton clair que sur la pelouse sombre. Un membre de
+ *  clan porte la couleur de son clan ; un trait dessous, a la couleur de
+ *  son equipe, dit toujours de quel cote il joue. */
+function draw(text, color, equipe) {
   const px = 44;
   const c = document.createElement('canvas');
   let g = c.getContext('2d');
@@ -30,7 +32,7 @@ function draw(text, color) {
   const w = Math.ceil(g.measureText(text).width);
   // Redimensionner remet le contexte a zero : la police se repose apres.
   c.width = w + 24;
-  c.height = px + 20;
+  c.height = px + (equipe ? 34 : 20);
   g = c.getContext('2d');
   g.font = `700 ${px}px ${FONT}`;
   g.textAlign = 'center';
@@ -38,9 +40,17 @@ function draw(text, color) {
   g.lineJoin = 'round';
   g.lineWidth = 8;
   g.strokeStyle = 'rgba(4, 6, 10, 0.9)';
-  g.strokeText(text, c.width / 2, c.height / 2);
+  const y = (px + 20) / 2;
+  g.strokeText(text, c.width / 2, y);
   g.fillStyle = color;
-  g.fillText(text, c.width / 2, c.height / 2);
+  g.fillText(text, c.width / 2, y);
+  if (equipe) {
+    const bw = Math.min(w, 90);
+    g.fillStyle = 'rgba(4, 6, 10, 0.9)';
+    g.fillRect(c.width / 2 - bw / 2 - 3, px + 17, bw + 6, 12);
+    g.fillStyle = equipe;
+    g.fillRect(c.width / 2 - bw / 2, px + 20, bw, 6);
+  }
   return c;
 }
 
@@ -113,22 +123,32 @@ export class Names {
     this.bulles = [];
   }
 
-  /** `list` donne un `{ name, team }` par voiture, dans l'ordre des sieges. */
+  /** Couleur d'un siege : celle de son clan, sinon de son equipe. */
+  _couleur(e, team) {
+    return e?.couleur || this.colors[team & 1];
+  }
+
+  /** `list` donne un `{ name, team, couleur }` par voiture, dans l'ordre
+   *  des sieges. */
   set(list) {
     this.list = list;
     for (let i = 0; i < list.length; i += 1) {
       const { name, team } = list[i];
+      const couleur = list[i].couleur || '';
       const text = String(name || '').slice(0, MAX_CHARS);
       const tag = this.tags[i];
-      if (tag && tag.text === text && tag.team === team) continue;
+      if (tag && tag.text === text && tag.team === team && tag.couleur === couleur) continue;
       if (tag) drop(this.scene, tag.mesh);
       if (!text) {
         this.tags[i] = null;
         continue;
       }
-      const mesh = label(draw(text, this.colors[team & 1]), SIZE, this.z);
+      const equipe = couleur ? this.colors[team & 1] : null;
+      const canvas = draw(text, this._couleur(list[i], team), equipe);
+      // Le trait d'equipe allonge l'etiquette : le texte garde sa taille.
+      const mesh = label(canvas, SIZE * (canvas.height / (44 + 20)), this.z);
       this.scene.add(mesh);
-      this.tags[i] = { mesh, text, team };
+      this.tags[i] = { mesh, text, team, couleur };
     }
     // Les sieges disparus emportent leur etiquette, et leur bulle.
     for (let i = list.length; i < this.tags.length; i += 1) {
@@ -144,7 +164,7 @@ export class Names {
   say(i, text) {
     this._pop(i);
     const team = this.list?.[i]?.team ?? i % 2;
-    const mesh = label(bubble(text, this.colors[team & 1]), BULLE, this.z);
+    const mesh = label(bubble(text, this._couleur(this.list?.[i], team)), BULLE, this.z);
     this.scene.add(mesh);
     this.bulles[i] = { mesh, fin: performance.now() / 1000 + VIE };
   }

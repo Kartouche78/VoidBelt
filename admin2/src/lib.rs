@@ -61,6 +61,12 @@ pub fn machine_hote(headers: &HeaderMap, who: std::net::SocketAddr) -> bool {
     who.ip().is_loopback() && !relayee
 }
 
+/// Couleur du clan d'un compte (`#rrggbb`), vide sans clan ou sans
+/// couleur : le salon de jeu en peint la voiture du joueur.
+pub fn couleur_clan(compte: i64) -> String {
+    clans::couleur_de(&base::base(), compte)
+}
+
 /// Vrai si la requete vient d'un admin connecte.
 pub fn est_admin(headers: &HeaderMap) -> bool {
     compte_de(headers).is_some_and(|c| c.est_admin())

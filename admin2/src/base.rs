@@ -133,7 +133,9 @@ pub fn prepare(c: &Connection) -> rusqlite::Result<()> {
     )?;
     // Colonnes ajoutees apres coup : une base deja en service les recoit
     // ici, une base neuve aussi.
-    ajoute_colonne(c, "comptes", "avatar_maj", "INTEGER NOT NULL DEFAULT 0")
+    ajoute_colonne(c, "comptes", "avatar_maj", "INTEGER NOT NULL DEFAULT 0")?;
+    // Couleur unie du clan (`#rrggbb`), vide sans couleur choisie.
+    ajoute_colonne(c, "clans", "couleur", "TEXT NOT NULL DEFAULT ''")
 }
 
 /// Ajoute une colonne si elle manque. `CREATE TABLE IF NOT EXISTS` ne

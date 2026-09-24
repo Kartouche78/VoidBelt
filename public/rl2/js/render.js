@@ -13,10 +13,14 @@ import { Names } from './names.js';
 import { fitPlank, plankSize, stadiumById } from './stadiums.js';
 import { applySpin, makeBall, makeSky } from './scene3d.js';
 import { skinArt } from './skins.js';
+import { carrosseriePeinte, hex } from './peinture.js';
 
+/** Couleurs des equipes : bleu a gauche, orange a droite. */
 export const TEAM = [0x2f7ce0, 0xf07a25];
-/** Carrosseries, dans l'ordre des equipes. `car_white.png` reste en reserve. */
+/** Carrosseries deja peintes, dans l'ordre des equipes. */
 const CAR_ART = ['assets/car_bleue.png', 'assets/car_orange.png'];
+/** Carrosserie blanche, a peindre aux couleurs d'un clan. */
+const CAR_BLANCHE = 'assets/car_white.png';
 const Z = { TERRAIN: 0, PAD: 1, STADE: 2, SKID: 3, CAR: 4, BALL: 6, NAME: 7, BLAST: 8, CAGE: 9 };
 
 function plane(w, h, material) {
@@ -251,14 +255,32 @@ export class Renderer {
     }
   }
 
-  /** Carrosserie d'un siege : son skin s'il en a un, la livree de son
-   *  camp sinon. */
-  _art(entry) {
-    return skinArt(entry.skin) || CAR_ART[entry.team & 1];
+  /** Peinture d'un siege : `{ url, couleur }`. Un skin (dessine blanc)
+   *  prend la couleur du clan, sinon celle de l'equipe ; sans skin, un
+   *  membre de clan roule la voiture blanche peinte a ses couleurs, les
+   *  autres la livree deja peinte de leur equipe. */
+  _peinture(entry) {
+    const team = (entry?.team ?? 0) & 1;
+    const skin = skinArt(entry?.skin);
+    const clan = entry?.couleur || '';
+    if (skin) return { url: skin, couleur: clan || hex(TEAM[team]) };
+    if (clan) return { url: CAR_BLANCHE, couleur: clan };
+    return { url: CAR_ART[team], couleur: '' };
+  }
+
+  _texture(p) {
+    return p.couleur ? carrosseriePeinte(p.url, p.couleur) : this.load(p.url);
+  }
+
+  /** Couleur d'une voiture : celle de son clan, sinon de son equipe. */
+  couleurVoiture(i) {
+    const e = this.roster[i];
+    const c = e?.couleur;
+    return c ? parseInt(c.slice(1), 16) : TEAM[(e?.team ?? i) & 1];
   }
 
   /** Cree une voiture de plus, dans la livree de son camp. */
-  _addCar(team, art = CAR_ART[team & 1]) {
+  _addCar(team, peinture = { url: CAR_ART[team & 1], couleur: '' }) {
     const { carLen, carWid } = this.geom;
     const g = new THREE.Group();
     const sh = plane(carLen * 1.5, carWid * 2.2, flat(this.carShadow, { opacity: 0.75 }));
@@ -266,7 +288,7 @@ export class Renderer {
     // Les planches sont dessinees nez vers le haut alors que le monde met
     // le cap sur +x : le chassis porte donc un quart de tour a lui seul,
     // par-dessus la rotation du groupe.
-    const body = plane(carWid, carLen, flat(this.load(art)));
+    const body = plane(carWid, carLen, flat(this._texture(peinture)));
     body.rotation.z = -Math.PI / 2;
     g.add(sh, body);
     // Les reacteurs se montent apres le chassis : ils s'accrochent aux
@@ -274,7 +296,7 @@ export class Renderer {
     g.userData = {
       body,
       team: team & 1,
-      art,
+      art: `${peinture.url}|${peinture.couleur}`,
       flames: makeFlames(g, this.geom, this.load),
       trails: makeTrails(g, this.geom, this.load),
     };
@@ -290,14 +312,15 @@ export class Renderer {
     this.roster = list;
     for (let i = 0; i < list.length; i += 1) {
       const team = list[i].team & 1;
-      const art = this._art(list[i]);
+      const peinture = this._peinture(list[i]);
+      const art = `${peinture.url}|${peinture.couleur}`;
       const g = this.cars[i];
       if (!g) {
-        this._addCar(team, art);
+        this._addCar(team, peinture);
       } else if (g.userData.team !== team || g.userData.art !== art) {
         g.userData.team = team;
         g.userData.art = art;
-        g.userData.body.material.map = this.load(art);
+        g.userData.body.material.map = this._texture(peinture);
         g.userData.body.material.needsUpdate = true;
       }
     }
@@ -355,9 +378,16 @@ export class Renderer {
     this._frame();
   }
 
-  /** Boule de feu a l'endroit ou la voiture a saute. */
+  /** Boule de feu aux couleurs d'une equipe (un but). */
   explode(x, y, team) {
     this.blasts.explode(x, -y, TEAM[team] ?? 0xffffff);
+    this.skids.smoke(x, -y);
+    this.kick(22);
+  }
+
+  /** Voiture `i` demolie : sa boule de feu prend sa couleur. */
+  demolition(x, y, i) {
+    this.blasts.explode(x, -y, this.couleurVoiture(i));
     this.skids.smoke(x, -y);
     this.kick(22);
   }
@@ -392,7 +422,9 @@ export class Renderer {
     // quelqu'un rejoint le salon.
     const count = carsIn(state);
     while (this.cars.length < count) {
-      this._addCar(this.roster[this.cars.length]?.team ?? this.cars.length % 2);
+      const e = this.roster[this.cars.length];
+      const team = e?.team ?? this.cars.length % 2;
+      this._addCar(team, this._peinture(e ?? { team }));
     }
     for (let i = 0; i < this.cars.length; i += 1) {
       const g = this.cars[i];

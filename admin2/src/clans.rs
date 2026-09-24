@@ -11,7 +11,6 @@
 
 use crate::base::maintenant;
 use crate::joueurs::{self, Joueur};
-use crate::messages::{TEXTE_MAX, rafale};
 use crate::{R, Refus};
 use axum::http::StatusCode;
 use rusqlite::{Connection, OptionalExtension, params};
@@ -30,6 +29,9 @@ pub struct Clan {
     pub ouvert: bool,
     /// Adresse de l'image (sur l'API), vide sans image.
     pub image: String,
+    /// Couleur unie du clan, `#rrggbb` ; vide, ses membres gardent la
+    /// couleur de leur equipe.
+    pub couleur: String,
     pub cree: i64,
     pub membres: i64,
 }
@@ -67,6 +69,26 @@ pub fn nom_valide(brut: &str) -> Option<String> {
     ok.then_some(n)
 }
 
+/// Couleur : `#rrggbb` (mise en minuscules), ou vide pour aucune.
+pub fn couleur_valide(brut: &str) -> Option<String> {
+    let c = brut.trim().to_lowercase();
+    let ok = c.is_empty()
+        || (c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|x| x.is_ascii_hexdigit()));
+    ok.then_some(c)
+}
+
+/// Couleur du clan d'un joueur, vide s'il n'a pas de clan ou pas de
+/// couleur. Le serveur de jeu la donne au salon.
+pub fn couleur_de(c: &Connection, compte: i64) -> String {
+    c.query_row(
+        "SELECT clans.couleur FROM clan_membres JOIN clans ON clans.id = clan_membres.clan_id
+         WHERE clan_membres.compte_id = ?1",
+        params![compte],
+        |r| r.get(0),
+    )
+    .unwrap_or_default()
+}
+
 /// Tag : 2 a 5 lettres ou chiffres, en majuscules.
 pub fn tag_valide(brut: &str) -> Option<String> {
     let t = brut.trim().to_uppercase();
@@ -83,6 +105,7 @@ fn clan(r: &rusqlite::Row) -> rusqlite::Result<Clan> {
         description: r.get("description")?,
         ouvert: r.get("ouvert")?,
         image: if maj > 0 { format!("/api/clans/{id}/image?v={maj}") } else { String::new() },
+        couleur: r.get("couleur")?,
         cree: r.get("cree")?,
         membres: r.get("membres")?,
     })
@@ -112,7 +135,7 @@ fn mon_rang(c: &Connection, moi: i64) -> R<(i64, String)> {
 pub fn bref(c: &Connection, moi: i64) -> Option<Value> {
     let (id, rang) = rang_de(c, moi)?;
     let k = par_id(c, id)?;
-    Some(json!({ "id": k.id, "nom": k.nom, "tag": k.tag, "image": k.image, "rang": rang }))
+    Some(json!({ "id": k.id, "nom": k.nom, "tag": k.tag, "image": k.image, "couleur": k.couleur, "rang": rang }))
 }
 
 /// Message du clan lui-meme : arrivee, depart, promotion.
@@ -353,9 +376,10 @@ pub struct Reglages<'a> {
     pub tag: Option<&'a str>,
     pub description: Option<&'a str>,
     pub ouvert: Option<bool>,
+    pub couleur: Option<&'a str>,
 }
 
-/// Reglages du chef : nom, tag, description, clan ouvert ou ferme.
+/// Reglages du chef : nom, tag, description, clan ouvert ou ferme, couleur.
 pub fn regler(c: &Connection, moi: i64, r: Reglages) -> R<()> {
     let clan = chef(c, moi)?;
     let k = par_id(c, clan).ok_or(Refus(StatusCode::NOT_FOUND, "Clan introuvable."))?;
@@ -374,10 +398,14 @@ pub fn regler(c: &Connection, moi: i64, r: Reglages) -> R<()> {
         Some(d) => joueurs::texte_propre(d, DESCRIPTION_MAX, false).unwrap_or_default(),
         None => k.description.clone(),
     };
+    let couleur = match r.couleur {
+        Some(x) => couleur_valide(x).ok_or(Refus(StatusCode::BAD_REQUEST, "Couleur illisible (#rrggbb)."))?,
+        None => k.couleur.clone(),
+    };
     let tx = c.unchecked_transaction()?;
     tx.execute(
-        "UPDATE clans SET nom = ?1, tag = ?2, description = ?3, ouvert = ?4 WHERE id = ?5",
-        params![nom, tag, description, r.ouvert.unwrap_or(k.ouvert), clan],
+        "UPDATE clans SET nom = ?1, tag = ?2, description = ?3, ouvert = ?4, couleur = ?5 WHERE id = ?6",
+        params![nom, tag, description, r.ouvert.unwrap_or(k.ouvert), couleur, clan],
     )?;
     if nom != k.nom || tag != k.tag {
         annonce(&tx, clan, format!("Le clan s'appelle desormais [{tag}] {nom}."))?;
@@ -404,72 +432,10 @@ pub fn dissoudre(c: &Connection, moi: i64) -> R<()> {
     Ok(())
 }
 
-// --------------------------------------------------------- discussion ---
-
-fn message_clan(c: &Connection, r: &rusqlite::Row) -> rusqlite::Result<MessageClan> {
-    let de: Option<i64> = r.get("de")?;
-    Ok(MessageClan {
-        id: r.get("id")?,
-        de: de.and_then(|d| joueurs::par_id(c, d)),
-        texte: r.get("texte")?,
-        cree: r.get("cree")?,
-    })
-}
-
-pub fn ecrire(c: &Connection, moi: i64, brut: &str) -> R<MessageClan> {
-    let (clan, _) = mon_rang(c, moi)?;
-    let texte = joueurs::texte_propre(brut, TEXTE_MAX, true).ok_or(Refus(StatusCode::BAD_REQUEST, "Message vide."))?;
-    rafale(c, moi)?;
-    c.execute(
-        "INSERT INTO clan_messages (clan_id, de, texte, cree) VALUES (?1, ?2, ?3, ?4)",
-        params![clan, moi, texte, maintenant()],
-    )?;
-    let id = c.last_insert_rowid();
-    Ok(c.query_row("SELECT * FROM clan_messages WHERE id = ?1", params![id], |r| message_clan(c, r))?)
-}
-
-/// Discussion du clan : les derniers messages, ou ceux venus depuis
-/// `apres`. Tout devient lu.
-pub fn fil(c: &Connection, moi: i64, apres: i64) -> R<Vec<MessageClan>> {
-    let (clan, _) = mon_rang(c, moi)?;
-    let mut q = c.prepare(
-        "SELECT * FROM (SELECT * FROM clan_messages WHERE clan_id = ?1 AND id > ?2 ORDER BY id DESC LIMIT ?3)
-         ORDER BY id",
-    )?;
-    let v: Vec<MessageClan> = q
-        .query_map(params![clan, apres, if apres > 0 { 200 } else { 60 }], |r| message_clan(c, r))?
-        .collect::<rusqlite::Result<_>>()?;
-    if let Some(m) = v.last() {
-        c.execute("UPDATE clan_membres SET lu = max(lu, ?1) WHERE compte_id = ?2", params![m.id, moi])?;
-    }
-    Ok(v)
-}
-
-/// Pour la colonne du panneau : non lus, dernier message, demandes.
-pub fn resume(c: &Connection, moi: i64) -> Option<Value> {
-    let (clan, rang) = rang_de(c, moi)?;
-    let k = par_id(c, clan)?;
-    let non_lus: i64 = c
-        .query_row(
-            "SELECT count(*) FROM clan_messages
-             WHERE clan_id = ?1 AND id > (SELECT lu FROM clan_membres WHERE compte_id = ?2)
-               AND (de IS NULL OR de <> ?2)",
-            params![clan, moi],
-            |r| r.get(0),
-        )
-        .unwrap_or(0);
-    let dernier = c
-        .query_row(
-            "SELECT * FROM clan_messages WHERE clan_id = ?1 ORDER BY id DESC LIMIT 1",
-            params![clan],
-            |r| message_clan(c, r),
-        )
-        .optional()
-        .ok()
-        .flatten();
-    let demandes = if poids(&rang) >= 2 { demandes(c, clan).map(|d| d.len()).unwrap_or(0) } else { 0 };
-    Some(json!({ "clan": k, "rang": rang, "non_lus": non_lus, "dernier": dernier, "demandes": demandes }))
-}
+// La discussion du clan (messages, non lus) vit dans `clan_discussion.rs`.
+#[path = "clan_discussion.rs"]
+mod discussion;
+pub use discussion::{ecrire, fil, resume};
 
 #[cfg(test)]
 #[path = "clans_tests.rs"]

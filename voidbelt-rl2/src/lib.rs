@@ -17,6 +17,7 @@ pub mod pads;
 pub mod score;
 pub mod spin;
 pub mod state;
+pub mod teinte;
 pub mod tune;
 #[cfg(test)]
 mod tests;
@@ -228,4 +229,17 @@ pub extern "C" fn rl_tune_set(ptr: *const f32, len: u32) {
     let c = ctx();
     c.game.tune.read(v);
     c.geom = state::geometry(&c.game.tune);
+}
+
+// ------------------------------------------------------------ peinture ----
+
+/// Repeint en place l'image RGBA posee a `ptr` (`len` octets) : le blanc
+/// de carrosserie prend la couleur `(r, g, b)`. Voir `teinte.rs`.
+#[no_mangle]
+pub extern "C" fn rl_teinte(ptr: *mut u8, len: u32, r: u32, g: u32, b: u32) {
+    if ptr.is_null() {
+        return;
+    }
+    let px = unsafe { std::slice::from_raw_parts_mut(ptr, len as usize) };
+    teinte::teinter(px, r as u8, g as u8, b as u8);
 }

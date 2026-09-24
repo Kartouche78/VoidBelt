@@ -184,3 +184,22 @@ span.pn-conv-img { display: grid; place-items: center; }
 }
 .pg-boutons > .pp-bouton:first-child { flex: 1; }
 .pa-section.pa-form[hidden] { display: none; }
+
+/* Couleur du clan : apercu de la voiture, pastilles, couleur libre. */
+.cc-bloc { display: flex; align-items: center; gap: 12px; }
+.cc-apercu { width: 44px; height: auto; flex: none; filter: drop-shadow(0 4px 8px #000a); }
+.cc-texte { display: grid; gap: 6px; min-width: 0; }
+.cc-pastilles { display: flex; flex-wrap: wrap; gap: 6px; }
+.cc-pastille, .cc-libre {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #ffffff26;
+  cursor: pointer;
+}
+.cc-libre { background: conic-gradient(#e5484d, #facc15, #22c55e, #06b6d4, #8b5cf6, #ec4899, #e5484d); }
+.cc-libre::-webkit-color-swatch-wrapper { padding: 0; opacity: 0; }
+.cc-aucune { background: none; color: #8a93a6; font-size: 12px; line-height: 1; }
+.cc-pastille:hover, .cc-libre:hover { border-color: #ffffff88; }
+.cc-pastille.choisie, .cc-libre.choisie { border-color: #fff; box-shadow: 0 0 0 2px var(--orange, #f07a25); }

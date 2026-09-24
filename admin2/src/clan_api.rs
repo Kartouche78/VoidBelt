@@ -78,9 +78,11 @@ pub struct Reglages {
     tag: Option<String>,
     description: Option<String>,
     ouvert: Option<bool>,
+    couleur: Option<String>,
 }
 
-/// Le chef modifie son clan : nom, tag, description, ouvert ou ferme.
+/// Le chef modifie son clan : nom, tag, description, ouvert ou ferme,
+/// couleur.
 pub async fn regler(headers: HeaderMap, Json(r): Json<Reglages>) -> R<Json<Value>> {
     let moi = connecte(&headers)?;
     let reglages = clans::Reglages {
@@ -88,6 +90,7 @@ pub async fn regler(headers: HeaderMap, Json(r): Json<Reglages>) -> R<Json<Value
         tag: r.tag.as_deref(),
         description: r.description.as_deref(),
         ouvert: r.ouvert,
+        couleur: r.couleur.as_deref(),
     };
     clans::regler(&base::base(), moi.id, reglages)?;
     Ok(ok())

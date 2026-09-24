@@ -141,6 +141,10 @@ pub struct JoinParams {
     /// Skin de voiture du joueur, tel que le catalogue le nomme.
     #[serde(default)]
     pub skin: String,
+    /// Couleur du clan du joueur : lue sur son compte par le serveur,
+    /// jamais prise dans l'adresse.
+    #[serde(skip)]
+    pub couleur: String,
 }
 
 pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
@@ -240,6 +244,7 @@ pub async fn ws(
             if !nom.is_empty() {
                 params.name = nom.clone();
             }
+            params.couleur = admin2::couleur_clan(c.id);
         }
         None if admin2::machine_hote(&headers, who) => {}
         None => {
@@ -300,6 +305,7 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                         tx: tx.clone(),
                         chats: Vec::new(),
                         skin: skin.clone(),
+                        couleur: params.couleur.clone(),
                     });
                     Ok((wanted, slot))
                 }
@@ -319,6 +325,7 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                 tx: tx.clone(),
                 chats: Vec::new(),
                 skin: skin.clone(),
+                couleur: params.couleur.clone(),
             });
             rooms.insert(code.clone(), room);
             Ok((code, slot))

@@ -39,6 +39,9 @@ pub struct Seat {
     pub chats: Vec<Instant>,
     /// Skin de voiture choisi (`car-...`), vide pour la livree du camp.
     pub skin: String,
+    /// Couleur du clan (`#rrggbb`), vide sans clan : la voiture et
+    /// l'etiquette prennent alors la couleur de l'equipe.
+    pub couleur: String,
 }
 
 /// Messages rapides permis par fenetre glissante : deux toutes les dix
@@ -251,7 +254,7 @@ impl Room {
             .enumerate()
             .filter_map(|(slot, s)| {
                 s.as_ref().map(|s| {
-                    json!({ "id": s.id, "name": s.name, "slot": slot, "team": s.team, "skin": s.skin })
+                    json!({ "id": s.id, "name": s.name, "slot": slot, "team": s.team, "skin": s.skin, "couleur": s.couleur })
                 })
             })
             .collect();
@@ -308,6 +311,7 @@ mod tests {
             tx,
             chats: Vec::new(),
             skin: String::new(),
+            couleur: String::new(),
         };
         let t0 = Instant::now();
         assert!(s.may_chat(t0));

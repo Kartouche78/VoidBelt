@@ -156,6 +156,15 @@ export async function loadEngine(url) {
       w.dealloc(ptr, out.length * 4);
       return this.tune();
     },
+    /// Repeint en place les pixels RGBA `px` : le blanc de carrosserie
+    /// prend la couleur `[r, g, b]` (voir `teinte.rs`).
+    teinter(px, [r, g, b]) {
+      const ptr = w.alloc(px.length);
+      new Uint8Array(w.memory.buffer, ptr, px.length).set(px);
+      w.rl_teinte(ptr, px.length, r, g, b);
+      px.set(new Uint8Array(w.memory.buffer, ptr, px.length));
+      w.dealloc(ptr, px.length);
+    },
     geometry() {
       const g = view(w.rl_geometry_ptr(), w.rl_geometry_len());
       return {

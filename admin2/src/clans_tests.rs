@@ -153,6 +153,29 @@ fn la_discussion_compte_les_non_lus() {
 }
 
 #[test]
+fn le_chef_choisit_la_couleur_du_clan() {
+    let c = neuve();
+    let (a, b) = (joueur(&c, "Alpha"), joueur(&c, "Bravo"));
+    let k = creer(&c, a, "Couleurs", "COL", "", true).unwrap();
+    rejoindre(&c, b, k).unwrap();
+    assert_eq!(couleur_de(&c, b), "", "une couleur sans choix");
+    let couleur = |x| Reglages { couleur: Some(x), ..Default::default() };
+    assert_eq!(regler(&c, a, couleur("rouge")).unwrap_err().0, StatusCode::BAD_REQUEST);
+    assert_eq!(regler(&c, a, couleur("#12345g")).unwrap_err().0, StatusCode::BAD_REQUEST);
+    assert_eq!(regler(&c, b, couleur("#00ff00")).unwrap_err().0, StatusCode::FORBIDDEN);
+    regler(&c, a, couleur("#22C55E")).unwrap();
+    assert_eq!(couleur_de(&c, a), "#22c55e");
+    assert_eq!(couleur_de(&c, b), "#22c55e");
+    // Une autre modification ne l'efface pas ; le vide la retire.
+    regler(&c, a, Reglages { description: Some("vert"), ..Default::default() }).unwrap();
+    assert_eq!(par_id(&c, k).unwrap().couleur, "#22c55e");
+    regler(&c, a, couleur("")).unwrap();
+    assert_eq!(couleur_de(&c, b), "");
+    quitter(&c, b).unwrap();
+    assert_eq!(couleur_de(&c, b), "", "hors clan, plus de couleur");
+}
+
+#[test]
 fn dissoudre_efface_tout() {
     let c = neuve();
     let (a, b) = (joueur(&c, "Alpha"), joueur(&c, "Bravo"));

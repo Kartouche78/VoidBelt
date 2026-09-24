@@ -11,6 +11,7 @@ import { load as loadSettings, save as saveSettings } from './settings.js';
 import { API_HTTP, Net } from './net.js';
 import { loadCreated, stadiumById } from './stadiums.js';
 import { loadSkins } from './skins.js';
+import { brancherPeinture } from './peinture.js';
 import { Debug } from './debug.js';
 import { FitEdit } from './fitedit.js';
 import { CageEdit } from './cageedit.js';
@@ -45,6 +46,7 @@ async function applyPublishedTune(engine) {
 async function boot() {
   const settings = loadSettings();
   const engine = await loadEngine('assets/rl2.wasm');
+  brancherPeinture(engine);
   engine.start(seed(), settings.match.level, settings.match.duration);
   // Reglages publies depuis /admin. Ils doivent etre pris avant de lire la
   // geometrie : la taille des voitures et de la balle en depend, et le
@@ -145,7 +147,9 @@ async function boot() {
     }
     const seats = Math.max(net.cars, ...net.room.players.map((p) => p.slot + 1), 1);
     const out = Array.from({ length: seats }, (_, i) => ({ name: '', team: i % 2 }));
-    for (const p of net.room.players) out[p.slot] = { name: p.name, team: p.team & 1, skin: p.skin };
+    for (const p of net.room.players) {
+      out[p.slot] = { name: p.name, team: p.team & 1, skin: p.skin, couleur: p.couleur || '' };
+    }
     return out;
   }
 
@@ -558,7 +562,7 @@ async function boot() {
         case EV.DEMO: {
           // La carcasse n'a pas bouge : c'est la qu'on fait sauter la bombe.
           const victim = readCar(state, e.value | 0);
-          view.explode(victim.x, victim.y, e.value | 0);
+          view.demolition(victim.x, victim.y, e.value | 0);
           break;
         }
         case EV.GOAL:

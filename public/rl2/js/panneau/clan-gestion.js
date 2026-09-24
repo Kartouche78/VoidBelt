@@ -7,6 +7,7 @@
 // demandes et exclut les membres.
 
 import { caseACocher, champsNomTag, ecusson } from './clan.js';
+import { choixCouleur } from './couleur-clan.js';
 import { appel, bouton, carre, el, messager, pastille, sur } from './outils.js';
 
 const RANGS = { chef: 'Chef', officier: 'Officier', membre: 'Membre' };
@@ -35,6 +36,8 @@ export function dessineGestion(box, ctx, d, recharger, autres) {
   // En-tete : ecusson, nom, description.
   const tete = el('div', 'pg-tete');
   const ecu = ecusson(base, k, 'pg-ecusson');
+  // La couleur du clan borde son ecusson.
+  if (k.couleur) ecu.style.borderColor = k.couleur;
   const texte = el('div', 'pa-texte');
   texte.append(
     el('h3', 'pp-titre-pop', `[${k.tag}] ${k.nom}`),
@@ -102,6 +105,7 @@ export function dessineGestion(box, ctx, d, recharger, autres) {
     });
     blocs.push(deplier);
     const nt = champsNomTag(k.nom, k.tag);
+    const couleur = choixCouleur(k.couleur);
     const description = el('textarea', 'pp-champ pa-zone');
     description.maxLength = 200;
     description.rows = 2;
@@ -129,6 +133,7 @@ export function dessineGestion(box, ctx, d, recharger, autres) {
       tag: nt.tag.value,
       description: description.value,
       ouvert: ouvert.input.checked,
+      couleur: couleur.valeur(),
     }, 'Clan modifié.', true);
     r.append(
       el('span', 'pp-titre', 'Nom et tag'),
@@ -136,6 +141,8 @@ export function dessineGestion(box, ctx, d, recharger, autres) {
       el('span', 'pp-titre', 'Description'),
       description,
       ouvert.label,
+      el('span', 'pp-titre', 'Couleur du clan'),
+      couleur.bloc,
       el('span', 'pp-titre', 'Écusson'),
       images,
       bouton('Enregistrer', '', garder),
