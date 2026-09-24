@@ -17,6 +17,37 @@ export const ENCEINTE = { l: 173, r: 1498, t: 125, b: 784 };
 /** Surepaisseur des poteaux, cote bouche (`POST_BULGE`). */
 export const BOSSE = 2;
 
+/** Hitbox 1 (par defaut). FIGEE : on n'y touche jamais sans une demande
+ *  explicite. Une autre geometrie se cree a cote, sous un autre nom.
+ *
+ *  Planche 1920 x 1080 (pixels, origine en haut a gauche) :
+ *    terrain   x 198,66 -> 1720,19   y 143,46 -> 899,81
+ *    coins     83 u, soit 95,31 px en largeur et 95,26 px en hauteur
+ *    cages     demi-ouverture 86 u (98,70 px), filet 75 u (86,12 px),
+ *              poteaux 7 u (8,04 px), plus 2 u cote bouche (`BOSSE`)
+ *  « u » : unites du moteur, celles de `arena.rs`. */
+export const HITBOX_1 = Object.freeze({
+  id: 'hitbox1',
+  nom: 'Hitbox 1 (par défaut)',
+  fit: Object.freeze([198.66, 1720.19, 143.46, 899.81]),
+  corner: 83,
+  goal: Object.freeze({ half: 86, depth: 75, post: 7 }),
+});
+
+/** Format envoye a l'IA : le paysage 3:2 que les modeles savent produire.
+ *  La planche y est etiree, puis ramenee au format du jeu a l'acceptation,
+ *  ce qui rend au trace sa geometrie exacte. */
+export const ENVOI = { w: 1536, h: 1024 };
+
+/** Ajoutee a chaque envoi, apres le prompt : le modele voit une image de
+ *  1536 x 1024, alors qu'un prompt peut parler en pixels de la planche
+ *  1920 x 1080. Sans cette precision, il recale le terrain sur des
+ *  coordonnees qui ne tombent pas dans son image, et le peint trop petit. */
+export const PRECISION = `Précision technique : l’image jointe est le gabarit en ${ENVOI.w} × ${ENVOI.h} pixels, soit la planche de 1920 × 1080 mise à cette taille. Si des coordonnées sont données en 1920 × 1080, reporte-les à l’échelle de l’image jointe. Dans tous les cas, le tracé du gabarit joint fait foi : le terrain, les murets et les cages restent exactement à leur place et à leur taille, sans recadrage, sans marge ajoutée, sans agrandir l’arène aux dépens du terrain.`;
+
+/** Hitbox connues. Les suivantes s'ajoutent ici, Hitbox 1 ne bouge pas. */
+export const HITBOXES = [HITBOX_1];
+
 export const GABARITS = [
   {
     id: 'standard',
@@ -26,9 +57,11 @@ export const GABARITS = [
     // calcule par `promptAuto`.
     prompt: PROMPT_STANDARD,
     image: '/rl2/assets/stadium/Gabarit.jpg',
-    fit: [199, 1721, 143, 900],
-    corner: 83,
-    goal: { half: 86, depth: 75, post: 7 },
+    // Le gabarit porte le trace de Hitbox 1 : ses valeurs viennent d'elle.
+    hitbox: HITBOX_1.id,
+    fit: HITBOX_1.fit,
+    corner: HITBOX_1.corner,
+    goal: HITBOX_1.goal,
   },
 ];
 

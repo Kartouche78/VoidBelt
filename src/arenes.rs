@@ -12,7 +12,7 @@
 //! trois appels a la fois, et l'admin vient en lire l'avancement.
 
 use crate::catalogue::{
-    Collection, Reponse, decode, err, guard, image, name_of, new_id, num, valid_id,
+    Collection, Reponse, decode, err, guard, image, name_of, new_id, num, num_fin, valid_id,
 };
 use crate::generer::Format;
 use axum::{
@@ -288,7 +288,7 @@ pub async fn accept(headers: HeaderMap, info: ConnectInfo<SocketAddr>, Json(body
     let fit: Vec<f64> = body
         .get("fit")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(|v| num(Some(v), -2000.0, 4000.0)).collect())
+        .map(|a| a.iter().filter_map(|v| num_fin(Some(v), -2000.0, 4000.0)).collect())
         .unwrap_or_default();
     let goal = body.get("goal").cloned().unwrap_or(Value::Null);
     let (Some(corner), Some(half), Some(depth), Some(post)) = (

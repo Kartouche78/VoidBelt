@@ -80,6 +80,11 @@ pub fn decode(body: &Value, field: &str) -> Result<Vec<u8>, Reponse> {
         .ok_or_else(|| err(StatusCode::BAD_REQUEST, format!("Image `{field}` illisible.")))
 }
 
+/// Nombre borne, au centieme : les contours se donnent a ce grain.
+pub fn num_fin(v: Option<&Value>, lo: f64, hi: f64) -> Option<f64> {
+    v.and_then(Value::as_f64).filter(|x| x.is_finite()).map(|x| (x.clamp(lo, hi) * 100.0).round() / 100.0)
+}
+
 pub fn num(v: Option<&Value>, lo: f64, hi: f64) -> Option<f64> {
     v.and_then(Value::as_f64).filter(|x| x.is_finite()).map(|x| x.clamp(lo, hi).round())
 }

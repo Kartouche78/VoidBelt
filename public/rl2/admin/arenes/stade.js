@@ -12,19 +12,16 @@
 // cours, qui continue sur le serveur.
 
 import { api, BASE } from '../api.js';
-import { GABARITS, PLANCHE, promptAuto } from './gabarits.js';
+import { ENVOI, GABARITS, HITBOXES, PLANCHE, PRECISION, promptAuto } from './gabarits.js';
 import { apercu, applique, gesteDe, GESTES, resume } from './hitbox.js';
 import { remplitFournisseurs, remplitModeles } from './fournisseurs.js';
 import { dessineCreees, versPlanche } from './creees.js';
+import { bouton, el, etape, image, json } from './outils.js';
 
 const CLE = 'voidbelt.rl2.gen-stade';
 /** A incrementer quand le prompt par defaut change : le prompt garde dans
  *  le navigateur est alors remplace par le nouveau. */
 const PROMPT_REV = 2;
-/** Format envoye a l'IA : le paysage 3:2 que les modeles savent produire.
- *  La planche y est etiree, puis ramenee au format du jeu a l'acceptation,
- *  ce qui rend au trace sa geometrie exacte. */
-const ENVOI = { w: 1536, h: 1024 };
 
 let st;
 let say;
@@ -67,49 +64,6 @@ function garde() {
 const gabarit = () => GABARITS.find((x) => x.id === st.gabarit) || GABARITS[0];
 const calageDe = (g) => ({ fit: [...g.fit], corner: g.corner, goal: { ...g.goal } });
 
-function el(tag, cls, text) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-
-function bouton(text, cls, onclick, title) {
-  const b = el('button', cls, text);
-  b.type = 'button';
-  b.onclick = onclick;
-  if (title) b.title = title;
-  return b;
-}
-
-/** Une etape numerotee de la page. */
-function etape(page, n, titre, aide) {
-  const box = el('section', 'etape');
-  const h = el('h3', null, titre);
-  h.prepend(el('span', 'num', String(n)));
-  box.append(h);
-  if (aide) box.append(el('p', 'aide', aide));
-  page.append(box);
-  return box;
-}
-
-/** Charge une image, en autorisant sa relecture dans un canevas. */
-function image(src) {
-  return new Promise((ok, ko) => {
-    const i = new Image();
-    i.crossOrigin = 'anonymous';
-    i.onload = () => ok(i);
-    i.onerror = () => ko(new Error(`Image illisible : ${src}`));
-    i.src = src;
-  });
-}
-
-async function json(res) {
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Refus du serveur (${res.status}).`);
-  return data;
-}
-
 // -------------------------------------------------------------- la page --
 
 export async function drawStade(page) {
@@ -129,7 +83,8 @@ export async function drawStade(page) {
   const note = el('p', 'aide');
   const montre = () => {
     vue.src = gabarit().image;
-    note.textContent = gabarit().note;
+    const hb = HITBOXES.find((h) => h.id === gabarit().hitbox);
+    note.textContent = `${gabarit().note} Hitbox : ${hb ? hb.nom : 'propre au gabarit'}.`;
   };
   choix.onchange = () => {
     st.gabarit = choix.value;
@@ -195,6 +150,8 @@ export async function drawStade(page) {
   joint.append(apercuJoint, legende);
   e2.append(joint, actions);
   montreJoint();
+  // Ce qui part en plus du prompt, a chaque demande : on le montre.
+  e2.append(el('p', 'aide', `Ajouté automatiquement à chaque envoi : « ${PRECISION} »`));
 
   // 3. Prompt design
   const e3 = etape(page, 3, 'Prompt supplémentaire', 'Le design : thème, ambiance, couleurs, matériaux, éclairage…');
@@ -339,7 +296,7 @@ export async function drawStade(page) {
             provider: st.provider,
             model: st.modeles[st.provider] || '',
             id: d.id,
-            prompt: `${texte.value.trim()}\n\n${st.auto}`,
+            prompt: `${texte.value.trim()}\n\n${st.auto}\n\n${PRECISION}`,
           }),
         }));
         api(`/api/arenes/brouillons/${d.id}`, { method: 'DELETE' });
@@ -365,7 +322,7 @@ export async function drawStade(page) {
       }
       calage.append(ligne);
     }
-    calage.append(bouton('Revenir au gabarit', 'small', () => {
+    calage.append(bouton('Revenir à la hitbox du gabarit', 'small', () => {
       d.calage = calageDe(gabarit());
       maj();
     }));
@@ -422,9 +379,8 @@ export async function drawStade(page) {
   };
 
   const generer = async () => {
-    const prompt = st.extra.trim()
-      ? `${st.auto.trim()}\n\nDesign demandé :\n${st.extra.trim()}`
-      : st.auto.trim();
+    const design = st.extra.trim() ? `\n\nDesign demandé :\n${st.extra.trim()}` : '';
+    const prompt = `${st.auto.trim()}${design}\n\n${PRECISION}`;
     go.disabled = true;
     avance.textContent = 'Préparation du gabarit…';
     try {
@@ -476,7 +432,8 @@ export async function drawStade(page) {
             image: planche,
             thumb: mini,
             size: [PLANCHE.w, PLANCHE.h],
-            fit: c.fit.map(Math.round),
+            // Au centieme de pixel : Hitbox 1 est donnee a ce grain.
+            fit: c.fit.map((v) => Math.round(v * 100) / 100),
             corner: Math.round(c.corner),
             goal: { half: Math.round(c.goal.half), depth: Math.round(c.goal.depth), post: Math.round(c.goal.post) },
           }),

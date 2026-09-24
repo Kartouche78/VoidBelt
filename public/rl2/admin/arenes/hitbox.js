@@ -1,6 +1,7 @@
 // Apercu d'une planche avec sa hitbox, et son calage.
 //
-// La planche est dessinee au format du jeu (1672 x 941) et la hitbox
+// La planche est dessinee au format des arenes creees (1920 x 1080) et la
+// hitbox
 // par-dessus, calculee comme le fait le moteur : contour aux coins
 // arrondis, cages, poteaux ronds. Caler, c'est deplacer ce trace jusqu'a ce
 // qu'il epouse le muret et les cages peints — a la souris, au clavier ou
@@ -107,7 +108,8 @@ export function applique(c, m, n = 1) {
 
 /** Resume lisible d'un calage. */
 export function resume(c) {
-  const [l, r, t, b] = c.fit.map(Math.round);
+  const px = (v) => String(Math.round(v * 100) / 100).replace('.', ',');
+  const [l, r, t, b] = c.fit.map(px);
   return `contour [${l}, ${r}, ${t}, ${b}] · coins ${Math.round(c.corner)} · ouverture ${Math.round(c.goal.half) * 2} · filet ${Math.round(c.goal.depth)} · poteaux ${Math.round(c.goal.post)}`;
 }
 

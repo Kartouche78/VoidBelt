@@ -29,8 +29,9 @@
 // `assets/stadium/Gabarit.jpg` est en 1920 x 1080 et porte le contour
 // exact du moteur, cages et poteaux arrondis compris, et la ligne de but
 // qui prolonge le muret devant chaque cage. Une planche dessinee dessus se
-// declare `size: [1920, 1080], fit: [199, 1721, 143, 900], corner: 83,
-// goal: { half: 86, depth: 75, post: 7 }` et tombe juste du premier coup.
+// declare les valeurs de Hitbox 1 (voir `admin/arenes/gabarits.js`) :
+// `size: [1920, 1080], fit: [198.66, 1720.19, 143.46, 899.81], corner: 83,
+// goal: { half: 86, depth: 75, post: 7 }`, et tombe juste du premier coup.
 // `corner` et `goal` sont en unites de jeu : ils ne changent pas avec la
 // taille de la planche.
 
