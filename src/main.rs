@@ -1,6 +1,7 @@
 //! VOIDBELT ? pages statiques, transmissions et salons Jump'n Bump.
 
 mod arenes;
+mod base;
 mod catalogue;
 mod generer;
 mod ia;
@@ -47,6 +48,14 @@ async fn main() {
                 .unwrap_or_else(|_| "voidbelt_server=info,tower_http=info".into()),
         )
         .init();
+
+    // Base des creations de l'admin : reprend ce qui vivait encore dans
+    // les dossiers `data/arenes` et `data/voitures`, puis se sauvegarde.
+    admin2::demarrer();
+    base::demarrer(&[
+        (arenes::ARENES.kind, arenes::ARENES.dir, arenes::ARENES.ext),
+        (voitures::VOITURES.kind, voitures::VOITURES.dir, voitures::VOITURES.ext),
+    ]);
 
     // Le dossier partage (feuilles de style, scripts, pistes audio) change
     // rarement une fois deploye : autant laisser le navigateur le garder
@@ -120,6 +129,9 @@ async fn main() {
 
     let cors = CorsLayer::new()
         .allow_origin(HeaderValue::from_static("https://voidbelt.com"))
+        // L'admin de voidbelt.com envoie son cookie de session a
+        // api.voidbelt.com : meme site, mais il faut l'autoriser.
+        .allow_credentials(true)
         // PUT et le jeton : l'admin servi par voidbelt.com publie sur
         // api.voidbelt.com, reglages du jeu comme cles d'IA.
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
@@ -139,6 +151,8 @@ async fn main() {
             "/api/velocity/leaderboard",
             get(leaderboard::list).post(leaderboard::submit),
         )
+        // Comptes des joueurs : connexion Google, sessions, profils.
+        .merge(admin2::routes())
         .merge(shared)
         .merge(jnb)
         .merge(rl2)

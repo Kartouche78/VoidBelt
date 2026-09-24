@@ -1,6 +1,7 @@
 /target
 *.log
 /voidbelt-rl2/target
+/admin2/target
 
 # Reglages d'editeur, propres a la machine.
 /.cursor
@@ -35,3 +36,5 @@
 # serveur, conservees d'une mise a jour a l'autre par deploy-api.sh.
 /data/arenes/
 /data/voitures/
+/data/voidbelt.db*
+/data/sauvegardes/

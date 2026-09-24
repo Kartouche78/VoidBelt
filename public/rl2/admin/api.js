@@ -4,12 +4,15 @@
 // cote des pages : elle est sur `api.voidbelt.com`, comme pour les salons.
 // En local ou derriere un tunnel, c'est le serveur qui sert la page.
 //
-// Hors de la machine du serveur, publier demande le jeton `RL2_ADMIN_TOKEN`.
-// Il est garde dans ce navigateur seulement, et part dans l'en-tete
-// `x-admin-token` de chaque requete.
+// Hors de la machine du serveur, agir demande d'etre connecte avec un compte
+// admin : le cookie de session part avec chaque requete (`credentials`).
+// Le jeton `RL2_ADMIN_TOKEN` reste accepte en secours, pour des scripts.
 
 const STATIC = /(^|\.)voidbelt\.com$|\.pages\.dev$/.test(location.hostname);
 export const BASE = STATIC ? 'https://api.voidbelt.com' : '';
+/** Vrai quand l'admin ecrit dans la base du site en ligne, celle que lisent
+ *  tous les joueurs ; faux sur une copie locale du serveur. */
+export const EN_LIGNE = STATIC;
 
 const CLE = 'voidbelt.rl2.admin-token';
 
@@ -37,5 +40,5 @@ let memo = token();
 export function api(path, opts = {}) {
   const headers = { ...(opts.headers || {}) };
   if (memo) headers['x-admin-token'] = memo;
-  return fetch(`${BASE}${path}`, { cache: 'no-store', ...opts, headers });
+  return fetch(`${BASE}${path}`, { cache: 'no-store', credentials: 'include', ...opts, headers });
 }

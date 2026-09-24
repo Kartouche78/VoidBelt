@@ -16,6 +16,7 @@ use serde_json::{Map, Value, json};
 use std::net::SocketAddr;
 
 pub const VOITURES: Collection = Collection {
+    kind: "voiture",
     dir: "data/voitures",
     url: "/api/voitures/img",
     prefix: "car",

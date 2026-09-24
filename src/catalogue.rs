@@ -1,9 +1,9 @@
 //! Catalogues d'objets crees dans l'admin : arenes, skins de voitures.
 //!
-//! Chaque sorte d'objet est une `Collection` : un dossier sous `data/`, un
-//! `catalog.json` que le jeu lit, et des images servies par l'API. Les
-//! outils communs aux generateurs (identifiants, garde, decodage) vivent
-//! ici aussi.
+//! Chaque sorte d'objet est une `Collection` : une sorte dans la base des
+//! creations (`base.rs`), un catalogue que le jeu lit, et des images
+//! servies par l'API. Les outils communs aux generateurs (identifiants,
+//! garde, decodage) vivent ici aussi.
 
 use axum::{
     Json,
@@ -21,9 +21,12 @@ use std::{
 
 pub type Reponse = (StatusCode, Json<Value>);
 
-/// Une sorte d'objet cree.
+/// Une sorte d'objet cree. Tout vit dans la base (`base.rs`) ; `dir` ne
+/// sert plus qu'a reprendre les creations d'avant elle.
 pub struct Collection {
-    /// Dossier des fichiers et du catalogue.
+    /// Sorte, telle que la base la range.
+    pub kind: &'static str,
+    /// Ancien dossier des fichiers et du `catalog.json`.
     pub dir: &'static str,
     /// Adresse publique des images, sans barre finale.
     pub url: &'static str,
@@ -105,73 +108,58 @@ pub fn image(bytes: Vec<u8>, cache: &'static str) -> Response {
 }
 
 impl Collection {
-    fn catalog_path(&self) -> String {
-        format!("{}/catalog.json", self.dir)
+    /// Entree de catalogue, telle que le jeu la lit.
+    fn entree(&self, c: crate::base::Creation) -> Value {
+        let mut e = Map::new();
+        e.insert("id".into(), json!(c.id));
+        e.insert("name".into(), json!(c.name));
+        e.insert("art".into(), json!(format!("{}/{}.{}", self.url, c.id, self.ext)));
+        e.insert("thumb".into(), json!(format!("{}/{}_min.{}", self.url, c.id, self.ext)));
+        e.extend(c.meta);
+        Value::Object(e)
     }
 
+    /// Catalogue de la collection, dans l'ordre de creation.
     pub fn read(&self) -> Vec<Value> {
-        std::fs::read_to_string(self.catalog_path())
-            .ok()
-            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-            .and_then(|v| v.as_array().cloned())
-            .unwrap_or_default()
+        crate::base::list(self.kind).into_iter().map(|c| self.entree(c)).collect()
     }
 
-    fn write(&self, all: &[Value]) -> bool {
-        let text = serde_json::to_string_pretty(all).unwrap_or_default();
-        std::fs::write(self.catalog_path(), text).is_ok()
-    }
-
-    /// Image ou miniature d'un objet accepte.
+    /// Image ou miniature d'un objet accepte (`<id>.ext`, `<id>_min.ext`).
     pub async fn serve(&self, file: &str) -> Response {
         let Some(stem) = file.strip_suffix(&format!(".{}", self.ext)) else {
             return StatusCode::NOT_FOUND.into_response();
         };
-        if !valid_id(stem.trim_end_matches("_min")) || stem.matches('_').count() > 1 {
+        let (id, mini) = match stem.strip_suffix("_min") {
+            Some(id) => (id, true),
+            None => (stem, false),
+        };
+        if !valid_id(id) {
             return StatusCode::NOT_FOUND.into_response();
         }
-        match tokio::fs::read(format!("{}/{file}", self.dir)).await {
-            Ok(bytes) => image(bytes, "public, max-age=86400"),
-            Err(_) => StatusCode::NOT_FOUND.into_response(),
+        let (kind, id) = (self.kind, id.to_string());
+        match tokio::task::spawn_blocking(move || crate::base::image(kind, &id, mini)).await {
+            // Une creation ne change jamais sous le meme identifiant : le
+            // navigateur peut la garder longtemps.
+            Ok(Some(bytes)) => image(bytes, "public, max-age=604800, immutable"),
+            _ => StatusCode::NOT_FOUND.into_response(),
         }
     }
 
-    /// Range un objet : ses deux images, puis son entree au catalogue avec
-    /// les champs propres a sa sorte (`extra`). Rend l'entree ecrite.
+    /// Range un objet dans la base : ses deux images et les champs propres
+    /// a sa sorte (`extra`). Rend l'entree de catalogue.
     pub fn add(&self, name: String, img: &[u8], thumb: &[u8], extra: Map<String, Value>) -> Result<Value, Reponse> {
         let id = format!("{}-{}", self.prefix, &new_id()[..10]);
-        let ext = self.ext;
-        let ecrit = std::fs::create_dir_all(self.dir)
-            .and_then(|_| std::fs::write(format!("{}/{id}.{ext}", self.dir), img))
-            .and_then(|_| std::fs::write(format!("{}/{id}_min.{ext}", self.dir), thumb));
-        if let Err(e) = ecrit {
-            return Err(err(StatusCode::INTERNAL_SERVER_ERROR, format!("Ecriture impossible : {e}")));
-        }
-        let mut entry = Map::new();
-        entry.insert("id".into(), json!(id));
-        entry.insert("name".into(), json!(name));
-        entry.insert("art".into(), json!(format!("{}/{id}.{ext}", self.url)));
-        entry.insert("thumb".into(), json!(format!("{}/{id}_min.{ext}", self.url)));
-        entry.extend(extra);
-        let entry = Value::Object(entry);
-        let mut all = self.read();
-        all.push(entry.clone());
-        if !self.write(&all) {
-            return Err(err(StatusCode::INTERNAL_SERVER_ERROR, "Catalogue non enregistre."));
-        }
-        Ok(entry)
+        crate::base::add(self.kind, &id, &name, &extra, img, thumb)
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        Ok(self.entree(crate::base::Creation { id, name, meta: extra }))
     }
 
-    /// Retire un objet du catalogue, fichiers compris.
+    /// Retire un objet de la base.
     pub fn remove(&self, id: &str) -> Reponse {
         if !valid_id(id) || !id.starts_with(&format!("{}-", self.prefix)) {
             return err(StatusCode::BAD_REQUEST, "Identifiant inconnu.");
         }
-        let mut all = self.read();
-        all.retain(|s| s.get("id").and_then(Value::as_str) != Some(id));
-        self.write(&all);
-        let _ = std::fs::remove_file(format!("{}/{id}.{}", self.dir, self.ext));
-        let _ = std::fs::remove_file(format!("{}/{id}_min.{}", self.dir, self.ext));
+        crate::base::remove(self.kind, id);
         (StatusCode::OK, Json(json!({ "ok": true })))
     }
 }

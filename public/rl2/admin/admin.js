@@ -11,7 +11,8 @@
 import { loadEngine } from '../js/wasm.js';
 import { TABS, describe } from '../js/tuning.js';
 import { initSections } from './sections.js';
-import { api, setToken, token } from './api.js';
+import { api, EN_LIGNE } from './api.js';
+import { initCompte } from './compte.js';
 
 const $ = (id) => document.getElementById(id);
 const API = '/api/rl2/tune';
@@ -274,6 +275,9 @@ function resetAll() {
 // -------------------------------------------------------------- vie -----
 
 async function boot() {
+  // Qui est connecte ? En ligne, rien ne se charge tant qu'un compte admin
+  // ne l'est pas : la porte reste fermee.
+  if (!(await initCompte())) return;
   // Le moteur est la reference : noms et valeurs d'usine viennent de lui.
   const engine = await loadEngine('/rl2/assets/rl2.wasm');
   engine.start(1, 1, 300);
@@ -313,12 +317,13 @@ async function boot() {
     drawTabs();
     drawFields();
   };
-  // Jeton d'hote : indispensable pour publier depuis le site en ligne.
-  $('token').value = token();
-  $('token').onchange = (e) => {
-    setToken(e.target.value.trim());
-    say(e.target.value.trim() ? 'Jeton enregistré dans ce navigateur.' : 'Jeton retiré.', 'ok');
-  };
+  // Sur quelle base on travaille : c'est elle qui dit qui verra les
+  // creations validees ici.
+  $('serveur').textContent = EN_LIGNE ? 'Base en ligne · tous les joueurs' : 'Base locale · ta machine seulement';
+  $('serveur').classList.toggle('local', !EN_LIGNE);
+  $('serveur').title = EN_LIGNE
+    ? 'Ce qui est valide ici part sur api.voidbelt.com : tous les joueurs le voient.'
+    : 'Ce qui est valide ici reste sur ce serveur local : les joueurs de voidbelt.com ne le voient pas.';
   $('btn-reset').onclick = resetAll;
   $('btn-export').onclick = exportJson;
   $('btn-publish').onclick = publish;

@@ -33,6 +33,7 @@ const DRAFTS: &str = "data/arenes/brouillons";
 
 /// Arenes acceptees : planches JPEG, recalees en 1920 x 1080.
 pub const ARENES: Collection = Collection {
+    kind: "arene",
     dir: "data/arenes",
     url: "/api/arenes/img",
     prefix: "gen",

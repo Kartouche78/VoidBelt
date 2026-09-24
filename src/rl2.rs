@@ -199,12 +199,18 @@ pub async fn tune_put(
     )
 }
 
-/// Vrai si la requete vient de la machine hote, ou porte le jeton attendu.
+/// Vrai si la requete peut agir en admin : un compte admin connecte avec
+/// Google, le jeton du serveur, ou la machine hote elle-meme.
 ///
 /// Une requete relayee par un proxy (nginx sur le VPS) arrive elle aussi de
 /// `127.0.0.1` : l'adresse ne prouve alors plus rien. Des qu'elle porte un
-/// en-tete de relais, seul le jeton ouvre la porte.
+/// en-tete de relais, seuls la session et le jeton ouvrent la porte.
 pub(crate) fn allowed(headers: &axum::http::HeaderMap, who: SocketAddr) -> bool {
+    // La voie normale : un compte admin connecte avec Google (`admin2`).
+    if admin2::est_admin(headers) {
+        return true;
+    }
+    // En secours, pour des scripts : le jeton du serveur.
     if let Ok(expected) = std::env::var("RL2_ADMIN_TOKEN") {
         if !expected.is_empty() {
             let given = headers

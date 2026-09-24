@@ -46,8 +46,74 @@ h1 span { color: var(--orange); }
 
 /* Sections : la barre principale de l'admin. */
 #sections { display: flex; gap: 4px; flex-wrap: wrap; }
-#token {
+.serveur {
   margin-left: auto;
+  font-size: 10.5px;
+  letter-spacing: .08em;
+  padding: 5px 10px;
+  border-radius: 20px;
+  border: 1px solid #7fd58a;
+  color: #7fd58a;
+  white-space: nowrap;
+}
+.serveur.local { border-color: var(--orange); color: #ffc79d; }
+/* Compte connecte, en haut a droite. */
+.compte { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.compte .avatar { width: 26px; height: 26px; border-radius: 50%; }
+.compte .qui { color: var(--ink); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compte .role {
+  font-size: 9.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+.compte .role.admin { border-color: var(--orange); color: var(--orange); }
+a.google {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 7px;
+  background: #fff;
+  color: #1f1f1f;
+  font-weight: 700;
+  font-size: 12px;
+  text-decoration: none;
+}
+a.google::before {
+  content: 'G';
+  font-family: 'Archivo Black', system-ui, sans-serif;
+  color: #4285f4;
+}
+a.google:hover { background: #e8eefc; }
+
+/* Porte : en ligne, l'admin reste cache tant qu'aucun admin n'est connecte. */
+.porte {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+.porte-carte {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+  max-width: 420px;
+  padding: 34px;
+  text-align: center;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.porte-carte h2 { margin: 0; font-family: 'Archivo Black', system-ui, sans-serif; font-size: 22px; }
+.porte-carte p { margin: 0; color: var(--dim); line-height: 1.6; }
+
+#token {
   width: 170px;
   padding: 7px 10px;
   border-radius: 7px;
