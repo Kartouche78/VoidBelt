@@ -74,13 +74,22 @@ pub async fn creer(headers: HeaderMap, Json(c): Json<Creation>) -> R<Json<Value>
 
 #[derive(Deserialize)]
 pub struct Reglages {
+    nom: Option<String>,
+    tag: Option<String>,
     description: Option<String>,
     ouvert: Option<bool>,
 }
 
+/// Le chef modifie son clan : nom, tag, description, ouvert ou ferme.
 pub async fn regler(headers: HeaderMap, Json(r): Json<Reglages>) -> R<Json<Value>> {
     let moi = connecte(&headers)?;
-    clans::regler(&base::base(), moi.id, r.description.as_deref(), r.ouvert)?;
+    let reglages = clans::Reglages {
+        nom: r.nom.as_deref(),
+        tag: r.tag.as_deref(),
+        description: r.description.as_deref(),
+        ouvert: r.ouvert,
+    };
+    clans::regler(&base::base(), moi.id, reglages)?;
     Ok(ok())
 }
 

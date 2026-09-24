@@ -182,3 +182,5 @@ span.pn-conv-img { display: grid; place-items: center; }
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.08); }
 }
+.pg-boutons > .pp-bouton:first-child { flex: 1; }
+.pa-section.pa-form[hidden] { display: none; }

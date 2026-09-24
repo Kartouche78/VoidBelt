@@ -27,7 +27,58 @@ fn le_fondateur_est_chef_et_le_nom_est_unique() {
     assert_eq!(par_id(&c, k).unwrap().tag, "RAP");
     assert_eq!(creer(&c, b, "les rapides", "ZZ", "", true).unwrap_err().0, StatusCode::CONFLICT);
     assert_eq!(creer(&c, b, "Autre", "Rap", "", true).unwrap_err().0, StatusCode::CONFLICT);
-    assert_eq!(creer(&c, a, "Second", "SEC", "", true).unwrap_err().0, StatusCode::CONFLICT, "deux clans a la fois");
+    // Fonder un second clan fait quitter le premier (vide, il disparait).
+    let k2 = creer(&c, a, "Second", "SEC", "", true).unwrap();
+    assert_eq!(rang_de(&c, a), Some((k2, "chef".into())));
+    assert!(par_id(&c, k).is_none());
+}
+
+#[test]
+fn rejoindre_un_autre_clan_fait_quitter_le_sien() {
+    let c = neuve();
+    let (a, b, d) = (joueur(&c, "Alpha"), joueur(&c, "Bravo"), joueur(&c, "Delta"));
+    let k1 = creer(&c, a, "Premier", "UN", "", true).unwrap();
+    rejoindre(&c, b, k1).unwrap();
+    let k2 = creer(&c, d, "Deuxieme", "DEUX", "", true).unwrap();
+    assert_eq!(rejoindre(&c, a, k1).unwrap_err().0, StatusCode::CONFLICT, "deja dedans");
+    // Le chef part chez Delta : Bravo reprend le premier clan.
+    assert_eq!(rejoindre(&c, a, k2).unwrap(), "membre");
+    assert_eq!(rang_de(&c, a), Some((k2, "membre".into())));
+    assert_eq!(rang_de(&c, b), Some((k1, "chef".into())));
+    assert_eq!(par_id(&c, k1).unwrap().membres, 1);
+}
+
+#[test]
+fn une_demande_acceptee_fait_changer_de_clan() {
+    let c = neuve();
+    let (a, b, d) = (joueur(&c, "Alpha"), joueur(&c, "Bravo"), joueur(&c, "Delta"));
+    let k1 = creer(&c, a, "Premier", "UN", "", true).unwrap();
+    rejoindre(&c, b, k1).unwrap();
+    let k2 = creer(&c, d, "Ferme", "FER", "", false).unwrap();
+    // La demande ne fait rien quitter tant qu'elle attend.
+    assert_eq!(rejoindre(&c, b, k2).unwrap(), "demande");
+    assert_eq!(rang_de(&c, b).map(|r| r.0), Some(k1));
+    agir(&c, d, b, "accepter").unwrap();
+    assert_eq!(rang_de(&c, b), Some((k2, "membre".into())));
+    assert_eq!(par_id(&c, k1).unwrap().membres, 1);
+}
+
+#[test]
+fn le_chef_modifie_son_clan() {
+    let c = neuve();
+    let (a, b, d) = (joueur(&c, "Alpha"), joueur(&c, "Bravo"), joueur(&c, "Delta"));
+    let k = creer(&c, a, "Ancien Nom", "OLD", "desc", true).unwrap();
+    rejoindre(&c, d, k).unwrap();
+    creer(&c, b, "Pris", "PRIS", "", true).unwrap();
+    let r = |nom, tag| Reglages { nom, tag, ..Default::default() };
+    assert_eq!(regler(&c, a, r(Some("pris"), None)).unwrap_err().0, StatusCode::CONFLICT);
+    assert_eq!(regler(&c, a, r(None, Some("x"))).unwrap_err().0, StatusCode::BAD_REQUEST);
+    assert_eq!(regler(&c, d, r(Some("Vol"), None)).unwrap_err().0, StatusCode::FORBIDDEN, "un membre a renomme le clan");
+    // Garder son propre nom en changeant de casse passe.
+    regler(&c, a, r(Some("ancien nom"), Some("new"))).unwrap();
+    let apres = par_id(&c, k).unwrap();
+    assert_eq!((apres.nom.as_str(), apres.tag.as_str(), apres.description.as_str()), ("ancien nom", "NEW", "desc"));
+    assert!(fil(&c, a, 0).unwrap().last().unwrap().texte.contains("[NEW]"));
 }
 
 #[test]
@@ -39,7 +90,7 @@ fn un_clan_ferme_passe_par_une_demande() {
     assert_eq!(rang(&c, b), None);
     assert_eq!(demandes(&c, k).unwrap().len(), 1);
     // Un simple membre ne peut pas accepter.
-    regler(&c, a, None, Some(true)).unwrap();
+    regler(&c, a, Reglages { ouvert: Some(true), ..Default::default() }).unwrap();
     rejoindre(&c, d, k).unwrap();
     assert_eq!(agir(&c, d, b, "accepter").unwrap_err().0, StatusCode::FORBIDDEN);
     agir(&c, a, b, "accepter").unwrap();
@@ -64,7 +115,7 @@ fn les_rangs_se_respectent() {
     // Le chef passe la main.
     agir(&c, a, b, "chef").unwrap();
     assert_eq!((rang(&c, a).as_deref(), rang(&c, b).as_deref()), (Some("officier"), Some("chef")));
-    assert_eq!(regler(&c, a, Some("x"), None).unwrap_err().0, StatusCode::FORBIDDEN);
+    assert_eq!(regler(&c, a, Reglages { description: Some("x"), ..Default::default() }).unwrap_err().0, StatusCode::FORBIDDEN);
 }
 
 #[test]

@@ -1,11 +1,17 @@
 // Pop-up « Clan ». Sans clan : chercher et rejoindre un clan, ou fonder le
-// sien. Dans un clan : sa gestion (`clan-gestion.js`). Le serveur
+// sien. Dans un clan : sa gestion (`clan-gestion.js`), d'ou l'on peut aussi
+// parcourir les autres clans et changer de clan. Le serveur
 // (`admin2/clans.rs`) fait foi sur les rangs et les regles.
+//
+// Un joueur n'est que dans un clan a la fois : rejoindre ou fonder un
+// autre clan fait quitter le sien (le serveur passe la main si l'on etait
+// chef). Une demande a un clan ferme ne fait rien quitter tant qu'elle
+// attend.
 //
 // `ctx` : { api, base, moi, change(), clanChange(), discuter(clan) }.
 
 import { dessineGestion } from './clan-gestion.js';
-import { adresse, appel, bouton, el, messager } from './outils.js';
+import { adresse, appel, bouton, el, messager, sur } from './outils.js';
 
 /** Ecusson du clan : son image, sinon son tag. */
 export function ecusson(base, k, cls = 'pa-avatar') {
@@ -24,33 +30,62 @@ export async function dessineClan(box, ctx) {
   box.append(el('p', 'pa-vide', 'Chargement…'));
   try {
     const d = await appel(ctx.api, '/api/clan');
-    if (d.clan) dessineGestion(box, ctx, d, () => dessineClan(box, ctx));
-    else sansClan(box, ctx, d.demandes_envoyees);
+    if (d.clan) dessineGestion(box, ctx, d, () => dessineClan(box, ctx), () => parcourir(box, ctx, d.clan));
+    else parcourir(box, ctx, null);
   } catch (err) {
     box.textContent = '';
     box.append(el('p', 'pp-msg ko', err.message));
   }
 }
 
-function sansClan(box, ctx, demandes) {
+/** Champs nom et tag d'un clan, le tag en majuscules a la frappe. */
+export function champsNomTag(nom = '', tag = '') {
+  const champ = (place, max, valeur) => {
+    const c = el('input', 'pp-champ');
+    c.type = 'text';
+    c.placeholder = place;
+    c.maxLength = max;
+    c.autocomplete = 'off';
+    c.value = valeur;
+    return c;
+  };
+  const n = champ('Nom du clan (3 à 24)', 24, nom);
+  const t = champ('Tag (2 à 5)', 5, tag);
+  t.classList.add('pa-tag');
+  t.oninput = () => {
+    t.value = t.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  };
+  const rang = el('div', 'pp-rang');
+  rang.append(n, t);
+  return { rang, nom: n, tag: t };
+}
+
+/** Cherche un clan, le rejoint, ou fonde le sien. `actuel` : le clan du
+ *  joueur s'il en a un (changer de clan le fait quitter). */
+function parcourir(box, ctx, actuel) {
   const { api, base } = ctx;
   const [msg, dire] = messager();
-  const attente = new Set(demandes);
+  const attente = new Set();
   const recharger = () => dessineClan(box, ctx);
+  // Changer de clan : un clic arme, le second confirme.
+  const action = (texte, faire) => (actuel ? sur(texte, faire) : bouton(texte, '', faire));
 
   // Chercher un clan par son nom ou son tag ; vide, les plus peuples.
   const champ = el('input', 'pp-champ');
   champ.type = 'search';
   champ.placeholder = 'Nom ou tag du clan…';
   champ.autocomplete = 'off';
-  const liste = el('div', 'pa-liste');
+  const liste = el('div', 'pa-liste pa-defile');
   let minuterie = 0;
   const chercher = async () => {
     try {
       const d = await appel(api, `/api/clans?q=${encodeURIComponent(champ.value.trim())}`);
+      attente.clear();
+      for (const id of d.demandes_envoyees) attente.add(id);
       liste.textContent = '';
-      if (!d.clans.length) liste.append(el('p', 'pa-vide', 'Aucun clan trouvé. Fonde le tien !'));
-      for (const k of d.clans) liste.append(ligneClan(k));
+      const autres = d.clans.filter((k) => k.id !== actuel?.id);
+      if (!autres.length) liste.append(el('p', 'pa-vide', actuel ? 'Aucun autre clan trouvé.' : 'Aucun clan trouvé. Fonde le tien !'));
+      for (const k of autres) liste.append(ligneClan(k));
     } catch (err) {
       dire(err.message, false);
     }
@@ -73,25 +108,29 @@ function sansClan(box, ctx, demandes) {
       actions.append(bouton('Annuler', 'discret', async () => {
         try {
           await appel(api, `/api/clans/${k.id}/rejoindre`, 'DELETE');
-          attente.delete(k.id);
           dire('Demande annulée.', true);
           chercher();
         } catch (err) {
           dire(err.message, false);
         }
       }));
-    } else {
-      actions.append(bouton(k.ouvert ? 'Rejoindre' : 'Demander', '', async () => {
+    } else if (!k.ouvert) {
+      // Une demande ne fait rien quitter : pas besoin de confirmer.
+      actions.append(bouton('Demander', '', async () => {
         try {
-          const { etat } = await appel(api, `/api/clans/${k.id}/rejoindre`, 'POST');
-          if (etat === 'membre') {
-            await ctx.clanChange();
-            recharger();
-          } else {
-            attente.add(k.id);
-            dire(`Demande envoyée à [${k.tag}].`, true);
-            chercher();
-          }
+          await appel(api, `/api/clans/${k.id}/rejoindre`, 'POST');
+          dire(actuel ? `Demande envoyée à [${k.tag}]. Si elle est acceptée, tu quitteras [${actuel.tag}].` : `Demande envoyée à [${k.tag}].`, true);
+          chercher();
+        } catch (err) {
+          dire(err.message, false);
+        }
+      }));
+    } else {
+      actions.append(action('Rejoindre', async () => {
+        try {
+          await appel(api, `/api/clans/${k.id}/rejoindre`, 'POST');
+          await ctx.clanChange();
+          recharger();
         } catch (err) {
           dire(err.message, false);
         }
@@ -104,29 +143,16 @@ function sansClan(box, ctx, demandes) {
   // Fonder son clan.
   const form = el('div', 'pa-form');
   form.hidden = true;
-  const champTexte = (place, max) => {
-    const c = el('input', 'pp-champ');
-    c.type = 'text';
-    c.placeholder = place;
-    c.maxLength = max;
-    c.autocomplete = 'off';
-    return c;
-  };
-  const nom = champTexte('Nom du clan (3 à 24)', 24);
-  const tag = champTexte('Tag (2 à 5)', 5);
-  tag.classList.add('pa-tag');
-  tag.oninput = () => {
-    tag.value = tag.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  };
+  const nt = champsNomTag();
   const description = el('textarea', 'pp-champ pa-zone');
   description.placeholder = 'Description (facultative)';
   description.maxLength = 200;
   description.rows = 2;
   const ouvert = caseACocher('Ouvert : on entre sans demander', true);
-  const fonder = bouton('Fonder le clan', '', async () => {
+  const fonder = action('Fonder le clan', async () => {
     try {
       await appel(api, '/api/clans', 'POST', {
-        nom: nom.value, tag: tag.value, description: description.value, ouvert: ouvert.input.checked,
+        nom: nt.nom.value, tag: nt.tag.value, description: description.value, ouvert: ouvert.input.checked,
       });
       await ctx.clanChange();
       recharger();
@@ -134,17 +160,24 @@ function sansClan(box, ctx, demandes) {
       dire(err.message, false);
     }
   });
-  const rangNom = el('div', 'pp-rang');
-  rangNom.append(nom, tag);
-  form.append(rangNom, description, ouvert.label, fonder);
-  const ouvrir = bouton('Fonder mon clan', 'discret', () => {
+  form.append(nt.rang, description, ouvert.label, fonder);
+  const ouvrir = bouton(actuel ? 'Fonder un nouveau clan' : 'Fonder mon clan', 'discret', () => {
     form.hidden = !form.hidden;
-    ouvrir.textContent = form.hidden ? 'Fonder mon clan' : 'Plutôt rejoindre un clan';
-    if (!form.hidden) nom.focus();
+    if (!form.hidden) nt.nom.focus();
   });
 
   box.textContent = '';
-  box.append(el('h3', 'pp-titre-pop', 'Clans'), champ, liste, ouvrir, form, msg);
+  if (actuel) {
+    const retour = bouton(`← [${actuel.tag}] Mon clan`, 'discret', recharger);
+    box.append(
+      el('h3', 'pp-titre-pop', 'Autres clans'),
+      retour,
+      el('p', 'pa-vide', `Rejoindre ou fonder un autre clan te fait quitter [${actuel.tag}]. Un seul clan à la fois.`),
+    );
+  } else {
+    box.append(el('h3', 'pp-titre-pop', 'Clans'));
+  }
+  box.append(champ, liste, ouvrir, form, msg);
   chercher();
   setTimeout(() => champ.focus(), 0);
 }

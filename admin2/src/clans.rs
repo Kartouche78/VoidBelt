@@ -3,7 +3,8 @@
 //! Trois rangs : chef, officier, membre. Le chef regle le clan (description,
 //! ouvert ou ferme, image), nomme et destitue les officiers, passe la main
 //! ou dissout. Chef et officiers acceptent les demandes et excluent les
-//! rangs en dessous d'eux. Un joueur n'est que dans un clan a la fois.
+//! rangs en dessous d'eux. Un joueur n'est que dans un clan a la fois :
+//! rejoindre ou fonder un autre clan fait quitter le sien.
 //!
 //! Quand le chef s'en va, l'officier le plus ancien prend sa place, sinon
 //! le membre le plus ancien ; le dernier qui part emporte le clan.
@@ -140,21 +141,15 @@ fn entrer(c: &Connection, moi: i64, clan: i64, rang: &str) -> rusqlite::Result<(
 }
 
 pub fn creer(c: &Connection, moi: i64, nom: &str, tag: &str, description: &str, ouvert: bool) -> R<i64> {
-    if rang_de(c, moi).is_some() {
-        return Err(Refus(StatusCode::CONFLICT, "Quitte d'abord ton clan."));
-    }
     let nom = nom_valide(nom).ok_or(Refus(StatusCode::BAD_REQUEST, "Nom de 3 a 24 caracteres : lettres, chiffres, espaces."))?;
     let tag = tag_valide(tag).ok_or(Refus(StatusCode::BAD_REQUEST, "Tag de 2 a 5 lettres ou chiffres."))?;
-    let pris: bool = c.query_row(
-        "SELECT EXISTS (SELECT 1 FROM clans WHERE nom = ?1 COLLATE NOCASE OR tag = ?2 COLLATE NOCASE)",
-        params![nom, tag],
-        |r| r.get(0),
-    )?;
-    if pris {
+    if pris(c, 0, &nom, &tag)? {
         return Err(Refus(StatusCode::CONFLICT, "Ce nom ou ce tag est deja pris."));
     }
     let description = joueurs::texte_propre(description, DESCRIPTION_MAX, false).unwrap_or_default();
     let tx = c.unchecked_transaction()?;
+    // Fonder un clan fait quitter l'ancien.
+    sortir(&tx, moi)?;
     tx.execute(
         "INSERT INTO clans (nom, tag, description, ouvert, cree) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![nom, tag, description, ouvert, maintenant()],
@@ -164,6 +159,15 @@ pub fn creer(c: &Connection, moi: i64, nom: &str, tag: &str, description: &str, 
     entrer(&tx, moi, id, "chef")?;
     tx.commit()?;
     Ok(id)
+}
+
+/// Vrai si un autre clan que `sauf` porte deja ce nom ou ce tag.
+fn pris(c: &Connection, sauf: i64, nom: &str, tag: &str) -> rusqlite::Result<bool> {
+    c.query_row(
+        "SELECT EXISTS (SELECT 1 FROM clans WHERE id <> ?3 AND (nom = ?1 COLLATE NOCASE OR tag = ?2 COLLATE NOCASE))",
+        params![nom, tag, sauf],
+        |r| r.get(0),
+    )
 }
 
 /// Clans dont le nom ou le tag contient `q` ; sans `q`, les plus peuples.
@@ -180,10 +184,11 @@ pub fn chercher(c: &Connection, q: &str) -> R<Vec<Clan>> {
 }
 
 /// Rejoint un clan ouvert, ou demande a entrer dans un clan ferme. Rend
-/// `"membre"` ou `"demande"`.
+/// `"membre"` ou `"demande"`. Entrer dans un clan fait quitter l'ancien ;
+/// une demande, elle, ne change rien tant qu'elle n'est pas acceptee.
 pub fn rejoindre(c: &Connection, moi: i64, id: i64) -> R<&'static str> {
-    if rang_de(c, moi).is_some() {
-        return Err(Refus(StatusCode::CONFLICT, "Quitte d'abord ton clan."));
+    if rang_de(c, moi).is_some_and(|(k, _)| k == id) {
+        return Err(Refus(StatusCode::CONFLICT, "Tu es deja dans ce clan."));
     }
     let k = par_id(c, id).ok_or(Refus(StatusCode::NOT_FOUND, "Clan introuvable."))?;
     if k.membres >= MEMBRES_MAX {
@@ -197,6 +202,7 @@ pub fn rejoindre(c: &Connection, moi: i64, id: i64) -> R<&'static str> {
         return Ok("demande");
     }
     let tx = c.unchecked_transaction()?;
+    sortir(&tx, moi)?;
     annonce(&tx, id, format!("{} rejoint le clan.", nom_de(&tx, moi)))?;
     entrer(&tx, moi, id, "membre")?;
     tx.commit()?;
@@ -234,11 +240,11 @@ pub fn demandes(c: &Connection, clan: i64) -> R<Vec<Joueur>> {
     Ok(joueurs::plusieurs(c, ids))
 }
 
-/// Quitte son clan. Le chef qui part passe la main ; le dernier emporte le
-/// clan.
-pub fn quitter(c: &Connection, moi: i64) -> R<()> {
-    let (clan, rang) = mon_rang(c, moi)?;
-    let tx = c.unchecked_transaction()?;
+/// Sort `moi` de son clan, s'il en a un. Le chef qui part passe la main a
+/// l'officier le plus ancien, sinon au membre le plus ancien ; le dernier
+/// emporte le clan. A appeler dans une transaction.
+fn sortir(tx: &Connection, moi: i64) -> rusqlite::Result<()> {
+    let Some((clan, rang)) = rang_de(tx, moi) else { return Ok(()) };
     tx.execute("DELETE FROM clan_membres WHERE compte_id = ?1", params![moi])?;
     let successeur: Option<i64> = tx
         .query_row(
@@ -253,13 +259,21 @@ pub fn quitter(c: &Connection, moi: i64) -> R<()> {
             tx.execute("DELETE FROM clans WHERE id = ?1", params![clan])?;
         }
         Some(s) => {
-            annonce(&tx, clan, format!("{} quitte le clan.", nom_de(&tx, moi)))?;
+            annonce(tx, clan, format!("{} quitte le clan.", nom_de(tx, moi)))?;
             if rang == "chef" {
                 tx.execute("UPDATE clan_membres SET rang = 'chef' WHERE compte_id = ?1", params![s])?;
-                annonce(&tx, clan, format!("{} devient chef.", nom_de(&tx, s)))?;
+                annonce(tx, clan, format!("{} devient chef.", nom_de(tx, s)))?;
             }
         }
     }
+    Ok(())
+}
+
+/// Quitte son clan.
+pub fn quitter(c: &Connection, moi: i64) -> R<()> {
+    mon_rang(c, moi)?;
+    let tx = c.unchecked_transaction()?;
+    sortir(&tx, moi)?;
     tx.commit()?;
     Ok(())
 }
@@ -280,12 +294,11 @@ pub fn agir(c: &Connection, moi: i64, cible: i64, action: &str) -> R<()> {
                 return Err(Refus(StatusCode::NOT_FOUND, "Cette demande n'existe plus."));
             }
             if action == "accepter" {
-                if rang_de(&tx, cible).is_some() {
-                    return Err(Refus(StatusCode::CONFLICT, "Ce joueur a deja rejoint un autre clan."));
-                }
                 if par_id(&tx, clan).is_some_and(|k| k.membres >= MEMBRES_MAX) {
                     return Err(Refus(StatusCode::CONFLICT, "Le clan est complet (50 membres)."));
                 }
+                // Accepte, il quitte son ancien clan pour celui-ci.
+                sortir(&tx, cible)?;
                 annonce(&tx, clan, format!("{} rejoint le clan.", nom_de(&tx, cible)))?;
                 entrer(&tx, cible, clan, "membre")?;
             }
@@ -333,16 +346,43 @@ fn chef(c: &Connection, moi: i64) -> R<i64> {
     }
 }
 
-/// Reglages du chef : description, clan ouvert ou ferme.
-pub fn regler(c: &Connection, moi: i64, description: Option<&str>, ouvert: Option<bool>) -> R<()> {
+/// Ce que le chef peut changer ; `None` laisse tel quel.
+#[derive(Default)]
+pub struct Reglages<'a> {
+    pub nom: Option<&'a str>,
+    pub tag: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub ouvert: Option<bool>,
+}
+
+/// Reglages du chef : nom, tag, description, clan ouvert ou ferme.
+pub fn regler(c: &Connection, moi: i64, r: Reglages) -> R<()> {
     let clan = chef(c, moi)?;
-    if let Some(d) = description {
-        let d = joueurs::texte_propre(d, DESCRIPTION_MAX, false).unwrap_or_default();
-        c.execute("UPDATE clans SET description = ?1 WHERE id = ?2", params![d, clan])?;
+    let k = par_id(c, clan).ok_or(Refus(StatusCode::NOT_FOUND, "Clan introuvable."))?;
+    let nom = match r.nom {
+        Some(n) => nom_valide(n).ok_or(Refus(StatusCode::BAD_REQUEST, "Nom de 3 a 24 caracteres : lettres, chiffres, espaces."))?,
+        None => k.nom.clone(),
+    };
+    let tag = match r.tag {
+        Some(t) => tag_valide(t).ok_or(Refus(StatusCode::BAD_REQUEST, "Tag de 2 a 5 lettres ou chiffres."))?,
+        None => k.tag.clone(),
+    };
+    if pris(c, clan, &nom, &tag)? {
+        return Err(Refus(StatusCode::CONFLICT, "Ce nom ou ce tag est deja pris."));
     }
-    if let Some(o) = ouvert {
-        c.execute("UPDATE clans SET ouvert = ?1 WHERE id = ?2", params![o, clan])?;
+    let description = match r.description {
+        Some(d) => joueurs::texte_propre(d, DESCRIPTION_MAX, false).unwrap_or_default(),
+        None => k.description.clone(),
+    };
+    let tx = c.unchecked_transaction()?;
+    tx.execute(
+        "UPDATE clans SET nom = ?1, tag = ?2, description = ?3, ouvert = ?4 WHERE id = ?5",
+        params![nom, tag, description, r.ouvert.unwrap_or(k.ouvert), clan],
+    )?;
+    if nom != k.nom || tag != k.tag {
+        annonce(&tx, clan, format!("Le clan s'appelle desormais [{tag}] {nom}."))?;
     }
+    tx.commit()?;
     Ok(())
 }
 

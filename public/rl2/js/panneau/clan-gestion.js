@@ -1,17 +1,19 @@
 // Gestion de son clan, dans le pop-up « Clan » : membres et rangs,
-// demandes, reglages du chef, discussion, depart.
+// demandes, modification du clan par le chef, discussion, autres clans,
+// depart.
 //
 // Les boutons suivent les regles du serveur (`admin2/clans.rs`) : le chef
 // nomme, destitue, exclut et passe la main ; un officier accepte les
 // demandes et exclut les membres.
 
-import { caseACocher, ecusson } from './clan.js';
+import { caseACocher, champsNomTag, ecusson } from './clan.js';
 import { appel, bouton, carre, el, messager, pastille, sur } from './outils.js';
 
 const RANGS = { chef: 'Chef', officier: 'Officier', membre: 'Membre' };
 const POIDS = { chef: 3, officier: 2, membre: 1 };
 
-export function dessineGestion(box, ctx, d, recharger) {
+/** `recharger()` redessine le pop-up ; `autres()` montre les autres clans. */
+export function dessineGestion(box, ctx, d, recharger, autres) {
   const { api, base } = ctx;
   const { clan: k, rang, membres, demandes } = d;
   const chef = rang === 'chef';
@@ -41,7 +43,11 @@ export function dessineGestion(box, ctx, d, recharger) {
   if (k.description) texte.append(el('span', 'pa-desc', k.description));
   tete.append(ecu, texte);
 
-  const discuter = bouton('Discussion du clan', '', () => ctx.discuter(k));
+  const haut = el('div', 'pp-rang pg-boutons');
+  haut.append(
+    bouton('Discussion du clan', '', () => ctx.discuter(k)),
+    bouton('Autres clans', 'discret', autres),
+  );
 
   // Demandes d'entree : chef et officiers.
   const blocs = [];
@@ -85,10 +91,17 @@ export function dessineGestion(box, ctx, d, recharger) {
   s.append(l);
   blocs.push(s);
 
-  // Reglages du chef : description, ouvert ou ferme, ecusson.
+  // Modifier le clan (chef) : nom, tag, description, ouvert ou ferme,
+  // ecusson. Replie tant qu'on ne l'ouvre pas.
   if (chef) {
     const r = el('div', 'pa-section pa-form');
-    r.append(el('span', 'pp-titre', 'Réglages'));
+    r.hidden = true;
+    const deplier = bouton('Modifier le clan', 'discret', () => {
+      r.hidden = !r.hidden;
+      if (!r.hidden) nt.nom.focus();
+    });
+    blocs.push(deplier);
+    const nt = champsNomTag(k.nom, k.tag);
     const description = el('textarea', 'pp-champ pa-zone');
     description.maxLength = 200;
     description.rows = 2;
@@ -111,11 +124,21 @@ export function dessineGestion(box, ctx, d, recharger) {
     const images = el('div', 'pp-rang');
     images.append(bouton('Changer l’écusson', 'discret', () => fichier.click()), fichier);
     if (k.image) images.append(bouton('Retirer', 'discret', () => agir('/api/clan/image', 'PUT', { image: null }, 'Écusson retiré.', true)));
+    const garder = () => agir('/api/clan', 'PUT', {
+      nom: nt.nom.value,
+      tag: nt.tag.value,
+      description: description.value,
+      ouvert: ouvert.input.checked,
+    }, 'Clan modifié.', true);
     r.append(
+      el('span', 'pp-titre', 'Nom et tag'),
+      nt.rang,
+      el('span', 'pp-titre', 'Description'),
       description,
       ouvert.label,
+      el('span', 'pp-titre', 'Écusson'),
       images,
-      bouton('Enregistrer', '', () => agir('/api/clan', 'PUT', { description: description.value, ouvert: ouvert.input.checked }, 'Réglages enregistrés.')),
+      bouton('Enregistrer', '', garder),
     );
     blocs.push(r);
   }
@@ -127,5 +150,5 @@ export function dessineGestion(box, ctx, d, recharger) {
 
   box.textContent = '';
   box.classList.add('pa-large');
-  box.append(tete, discuter, ...blocs, msg, fin);
+  box.append(tete, haut, ...blocs, msg, fin);
 }
