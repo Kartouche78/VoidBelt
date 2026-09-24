@@ -43,8 +43,9 @@ export const DEFAULTS = {
     boost: { kind: 'button', index: 1 },
     drift: { kind: 'button', index: 2 },
     camera: { kind: 'button', index: 3 },
-    // Start ouvre le panneau ; la pause passe par son icone « Menu », et
-    // reste sur Echap au clavier.
+    // Start ouvre le panneau : a la manette, la pause n'a plus de bouton
+    // par defaut (reassignable dans les parametres). Echap la fait au
+    // clavier.
     pause: null,
     // Back / Select : la touche qui montre le tableau dans Rocket League.
     scores: { kind: 'button', index: 8 },

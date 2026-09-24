@@ -335,10 +335,8 @@ async function boot() {
   };
 
   // Panneau du joueur (profil, amis, clan, messages) : Start ou ², a tout
-  // moment. Son icone « Menu » ouvre la pause, que Start ne fait plus.
-  const panneau = new Panneau(document.getElementById('shell'), API_HTTP, {
-    menu: () => input.onPause?.(),
-  });
+  // moment.
+  const panneau = new Panneau(document.getElementById('shell'), API_HTTP);
   input.onPanneau = () => panneau.basculer();
 
   input.onPause = () => {

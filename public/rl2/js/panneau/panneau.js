@@ -1,8 +1,8 @@
 // Panneau lateral : Start a la manette, ² au clavier, a tout moment, meme
 // en pleine partie (le jeu continue derriere, legerement floute).
 //
-// Une colonne d'icones, moins de 5 % de l'ecran : profil, ami, clan, menu
-// du jeu, puis la messagerie. Chaque icone ouvre un pop-up colle au
+// Une colonne d'icones, moins de 5 % de l'ecran : profil, ami, clan, puis
+// la messagerie. Chaque icone ouvre un pop-up colle au
 // panneau, a la hauteur de l'icone cliquee, a la taille de son contenu.
 //
 // Reserve aux joueurs connectes : sans session, Start ne fait rien.
@@ -16,7 +16,6 @@ const AIDES = {
   ami: 'Retrouver un joueur par son pseudo et l’ajouter en ami.',
   clan: 'Rejoindre un clan, ou créer le tien avec son tag et son image.',
   clanMembre: 'Ton clan : ses membres et ses nouvelles.',
-  menu: 'Pause, paramètres, recommencer ou quitter la partie.',
   message: 'Écrire à un ami. Vos conversations s’alignent juste en dessous.',
 };
 
@@ -28,10 +27,9 @@ function el(tag, cls, text) {
 }
 
 export class Panneau {
-  /** `base` : adresse de l'API. `hooks.menu()` ouvre le menu du jeu. */
-  constructor(root, base, hooks) {
+  /** `base` : adresse de l'API. */
+  constructor(root, base) {
     this.base = base;
-    this.hooks = hooks;
     this.compte = null;
     this.ouvert = false;
     this.pop = null;
@@ -138,10 +136,6 @@ export class Panneau {
       dansClan,
       clan ? AIDES.clanMembre : AIDES.clan,
     );
-    icone('menu', 'Menu du jeu', () => {
-      this.fermer();
-      this.hooks.menu?.();
-    });
 
     // Messagerie : un separateur, la demi-icone pour ecrire, puis les
     // personnes avec qui on parle.
