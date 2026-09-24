@@ -10,6 +10,16 @@
 import { ICONES } from './icones.js';
 import { dessineProfil } from './profil.js';
 
+/** Ce que fait chaque icone, dit dans son infobulle. */
+const AIDES = {
+  profil: 'Ton avatar, ton pseudo et ton compte.',
+  ami: 'Retrouver un joueur par son pseudo et l’ajouter en ami.',
+  clan: 'Rejoindre un clan, ou créer le tien avec son tag et son image.',
+  clanMembre: 'Ton clan : ses membres et ses nouvelles.',
+  menu: 'Pause, paramètres, recommencer ou quitter la partie.',
+  message: 'Écrire à un ami. Vos conversations s’alignent juste en dessous.',
+};
+
 function el(tag, cls, text) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -34,7 +44,10 @@ export class Panneau {
     this.barre.setAttribute('aria-label', 'Panneau du joueur');
     this.popup = el('div', 'pn-pop');
     this.popup.hidden = true;
-    root.append(this.voile, this.barre, this.popup);
+    this.bulle = el('div', 'pn-bulle');
+    this.bulle.hidden = true;
+    this.bulle.setAttribute('role', 'tooltip');
+    root.append(this.voile, this.barre, this.popup, this.bulle);
 
     addEventListener('keydown', (e) => {
       if (this.ouvert && e.key === 'Escape') {
@@ -75,6 +88,7 @@ export class Panneau {
   }
 
   fermer() {
+    this._cache_bulle();
     this._ferme_pop();
     this.ouvert = false;
     this.barre.hidden = true;
@@ -85,11 +99,19 @@ export class Panneau {
   _dessine() {
     const b = this.barre;
     b.textContent = '';
-    const icone = (id, titre, faire, contenu) => {
+    const icone = (id, titre, faire, contenu, aide = AIDES[id]) => {
       const x = el('button', `pn-icone pn-${id}`);
       x.type = 'button';
-      x.title = titre;
-      x.setAttribute('aria-label', titre);
+      x.setAttribute('aria-label', `${titre}. ${aide}`);
+      x.dataset.titre = titre;
+      x.dataset.aide = aide;
+      // Infobulle au survol, au clavier et a la manette (`_vise`).
+      // La souris deplace le meme repere que la manette : une seule icone
+      // visee a la fois.
+      x.onmouseenter = () => this._vise(x);
+      x.onmouseleave = () => this._cache_bulle();
+      x.onfocus = () => this._montre_bulle(x);
+      x.onblur = () => this._cache_bulle();
       if (contenu) x.append(contenu);
       else x.innerHTML = ICONES[id];
       x.onclick = () => faire(x);
@@ -109,7 +131,13 @@ export class Panneau {
     } else if (clan?.tag) {
       dansClan = el('span', 'pn-clan-tag', clan.tag);
     }
-    icone('clan', clan ? `Clan ${clan.tag || ''}`.trim() : 'Rejoindre un clan', (x) => this._ouvre_pop(x, 'clan'), dansClan);
+    icone(
+      'clan',
+      clan ? `Clan ${clan.tag || ''}`.trim() : 'Rejoindre un clan',
+      (x) => this._ouvre_pop(x, 'clan'),
+      dansClan,
+      clan ? AIDES.clanMembre : AIDES.clan,
+    );
     icone('menu', 'Menu du jeu', () => {
       this.fermer();
       this.hooks.menu?.();
@@ -126,8 +154,25 @@ export class Panneau {
     b.append(this.fil);
   }
 
+  /** Infobulle a droite de l'icone : son nom, et a quoi elle sert. Elle
+   *  s'efface quand un pop-up occupe deja cette place. */
+  _montre_bulle(x) {
+    if (this.pop || !this.ouvert) return;
+    const b = this.bulle;
+    b.textContent = '';
+    b.append(el('strong', null, x.dataset.titre), el('span', null, x.dataset.aide));
+    b.hidden = false;
+    const r = x.getBoundingClientRect();
+    b.style.top = `${Math.max(8, Math.min(r.top + r.height / 2 - b.offsetHeight / 2, innerHeight - b.offsetHeight - 8))}px`;
+  }
+
+  _cache_bulle() {
+    this.bulle.hidden = true;
+  }
+
   /** Pop-up colle au panneau, a la hauteur de l'icone `x`. */
   _ouvre_pop(x, quoi) {
+    this._cache_bulle();
     if (this.pop === quoi) {
       this._ferme_pop();
       return;
@@ -181,6 +226,7 @@ export class Panneau {
     if (!x) return;
     this.cible = x;
     x.classList.add('pn-vise');
+    this._montre_bulle(x);
     x.focus({ preventScroll: true });
   }
 
