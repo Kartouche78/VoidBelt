@@ -22,3 +22,5 @@ openidconnect = { version = "4.0.1", default-features = false, features = ["reqw
 # est gardee en base.
 getrandom = "0.3"
 sha2 = "0.10"
+# Avatars envoyes par les joueurs, en base64 depuis la page.
+base64 = "0.22"

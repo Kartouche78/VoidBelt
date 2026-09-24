@@ -32,6 +32,8 @@ export class Input {
     this.prevPause = false;
     this.prevCamera = false;
     this.onPause = null;
+    this.onPanneau = null;
+    this.prevPanneau = false;
     this.onCamera = null;
     this.onPadChange = null;
     this._prevButtons = [];
@@ -46,6 +48,9 @@ export class Input {
 
     this._down = (e) => {
       if (e.repeat) return;
+      // On ecrit dans un champ (pseudo, message) : ces touches-la ne
+      // conduisent pas la voiture.
+      if (e.target?.matches?.('input:not([type=range]), textarea, [contenteditable]')) return;
       if (this.capture) {
         e.preventDefault();
         const done = this.capture;
@@ -163,6 +168,9 @@ export class Input {
     const held = this._pressed(pad.pause, gp) || this.keys.has(keys.pause);
     if ((held && !this.prevPause) || this.tapped.has(keys.pause)) this.onPause?.();
     this.prevPause = held;
+    const panneau = this._pressed(pad.panneau, gp) || this.keys.has(keys.panneau);
+    if ((panneau && !this.prevPanneau) || this.tapped.has(keys.panneau)) this.onPanneau?.();
+    this.prevPanneau = panneau;
     this.tapped.clear();
 
     // Le tableau des scores se tient enfonce, comme dans Rocket League :

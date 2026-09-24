@@ -56,8 +56,32 @@ pub fn prepare(c: &Connection) -> rusqlite::Result<()> {
              expire    INTEGER NOT NULL,
              agent     TEXT NOT NULL DEFAULT ''
          );
-         CREATE INDEX IF NOT EXISTS sessions_par_compte ON sessions (compte_id);",
-    )
+         CREATE INDEX IF NOT EXISTS sessions_par_compte ON sessions (compte_id);
+
+         -- Avatar choisi par le joueur, a la place de celui de Google.
+         CREATE TABLE IF NOT EXISTS avatars (
+             compte_id INTEGER PRIMARY KEY REFERENCES comptes (id) ON DELETE CASCADE,
+             image     BLOB NOT NULL,
+             maj       INTEGER NOT NULL
+         );",
+    )?;
+    // Colonnes ajoutees apres coup : une base deja en service les recoit
+    // ici, une base neuve aussi.
+    ajoute_colonne(c, "comptes", "avatar_maj", "INTEGER NOT NULL DEFAULT 0")
+}
+
+/// Ajoute une colonne si elle manque. `CREATE TABLE IF NOT EXISTS` ne
+/// touche pas une table existante : c'est ainsi que le schema evolue.
+fn ajoute_colonne(c: &Connection, table: &str, colonne: &str, def: &str) -> rusqlite::Result<()> {
+    let existe: bool = c.query_row(
+        &format!("SELECT EXISTS (SELECT 1 FROM pragma_table_info('{table}') WHERE name = ?1)"),
+        [colonne],
+        |r| r.get(0),
+    )?;
+    if !existe {
+        c.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {colonne} {def};"))?;
+    }
+    Ok(())
 }
 
 /// Secondes depuis 1970.

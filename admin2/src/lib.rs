@@ -2,7 +2,8 @@
 //!
 //!   google    connexion avec Google (OpenID Connect)
 //!   sessions  la preuve de connexion, requete apres requete
-//!   comptes   comptes, roles (joueur, admin) et profils
+//!   comptes   comptes et roles (joueur, admin)
+//!   profil    pseudo et avatar du joueur connecte
 //!   ranked    le classement, a venir
 //!   base      le schema de tout ce qui precede
 //!
@@ -12,6 +13,7 @@
 pub mod base;
 pub mod comptes;
 pub mod google;
+pub mod profil;
 pub mod ranked;
 pub mod sessions;
 
@@ -19,7 +21,7 @@ use axum::{
     Json, Router,
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use comptes::Compte;
 use serde_json::{Value, json};
@@ -52,7 +54,9 @@ pub fn routes() -> Router {
         .route("/api/auth/google/callback", get(google::callback))
         .route("/api/auth/moi", get(moi))
         .route("/api/auth/deconnexion", post(deconnexion))
-        .route("/api/profil", get(profil).put(changer_profil))
+        .route("/api/profil", get(profil::lire).put(profil::changer))
+        .route("/api/profil/avatar", put(profil::poser_avatar).delete(profil::retirer_avatar))
+        .route("/api/profil/avatar/{id}", get(profil::avatar))
 }
 
 /// Qui suis-je ? L'admin s'en sert pour savoir s'il doit proposer de se
@@ -77,33 +81,4 @@ async fn deconnexion(headers: HeaderMap) -> Response {
         Json(json!({ "ok": true })),
     )
         .into_response()
-}
-
-fn non_connecte() -> Response {
-    (StatusCode::UNAUTHORIZED, Json(json!({ "error": "Connecte-toi d'abord." }))).into_response()
-}
-
-/// Profil du joueur connecte.
-async fn profil(headers: HeaderMap) -> Response {
-    match compte_de(&headers) {
-        Some(c) => Json(json!({ "compte": c })).into_response(),
-        None => non_connecte(),
-    }
-}
-
-/// Change son pseudo : `{ "pseudo": "..." }`.
-async fn changer_profil(headers: HeaderMap, Json(corps): Json<Value>) -> Response {
-    let Some(c) = compte_de(&headers) else { return non_connecte() };
-    let Some(pseudo) = corps.get("pseudo").and_then(Value::as_str).and_then(comptes::pseudo_valide) else {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "Pseudo de 3 a 16 caracteres : lettres, chiffres, espaces, - et _." })),
-        )
-            .into_response();
-    };
-    let b = base::base();
-    if comptes::changer_pseudo(&b, c.id, &pseudo).is_err() {
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Pseudo non enregistre." }))).into_response();
-    }
-    Json(json!({ "compte": comptes::par_id(&b, c.id) })).into_response()
 }

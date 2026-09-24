@@ -16,6 +16,7 @@ export const ACTIONS = [
   { id: 'camera', label: 'Changer de vue', analog: false },
   { id: 'pause', label: 'Pause', analog: false },
   { id: 'scores', label: 'Tableau des scores', analog: false },
+  { id: 'panneau', label: 'Panneau (profil, messages)', analog: false },
 ];
 
 /** Manette Xbox en mapping standard : RT accelere, LT freine, B boost,
@@ -32,6 +33,8 @@ export const DEFAULTS = {
     camera: 'KeyV',
     pause: 'Escape',
     scores: 'Tab',
+    // La touche sous Echap : ² sur un clavier francais.
+    panneau: 'Backquote',
   },
   pad: {
     accel: { kind: 'button', index: 7 },
@@ -40,9 +43,12 @@ export const DEFAULTS = {
     boost: { kind: 'button', index: 1 },
     drift: { kind: 'button', index: 2 },
     camera: { kind: 'button', index: 3 },
-    pause: { kind: 'button', index: 9 },
+    // Start ouvre le panneau ; la pause passe par son icone « Menu », et
+    // reste sur Echap au clavier.
+    pause: null,
     // Back / Select : la touche qui montre le tableau dans Rocket League.
     scores: { kind: 'button', index: 8 },
+    panneau: { kind: 'button', index: 9 },
   },
   // `sons` : volume de chaque famille, en % du mixage d'origine.
   audio: { master: 80, sfx: 90, sons: SONS_DEFAUT, sonsRev: SONS_REV },
@@ -76,6 +82,9 @@ export function load() {
     // Nouveau mixage de reference : les curseurs repartent de 100 %. On
     // lit la version gardee, pas celle fusionnee, que les valeurs par
     // defaut rempliraient d'office.
+    // Start faisait la pause avant d'ouvrir le panneau : un ancien reglage
+    // les ferait partir ensemble.
+    if (s.pad.pause?.index === 9 && s.pad.panneau?.index === 9) s.pad.pause = null;
     if (garde?.audio?.sonsRev !== SONS_REV) {
       s.audio.sons = structuredClone(SONS_DEFAUT);
       s.audio.sonsRev = SONS_REV;

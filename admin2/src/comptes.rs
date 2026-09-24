@@ -14,9 +14,13 @@ pub struct Compte {
     pub id: i64,
     pub email: String,
     pub nom: String,
+    /// Avatar a afficher : celui choisi par le joueur (adresse de l'API,
+    /// commencant par `/`), sinon celui de Google.
     pub avatar: String,
     pub pseudo: String,
     pub role: String,
+    /// Creation du compte, en secondes depuis 1970.
+    pub cree: i64,
 }
 
 impl Compte {
@@ -25,13 +29,18 @@ impl Compte {
     }
 
     pub(crate) fn depuis(r: &Row) -> rusqlite::Result<Compte> {
+        let id: i64 = r.get("id")?;
+        let maj: i64 = r.get("avatar_maj")?;
         Ok(Compte {
-            id: r.get("id")?,
+            id,
             email: r.get("email")?,
             nom: r.get("nom")?,
-            avatar: r.get("avatar")?,
+            // `?v=` change a chaque nouvel avatar : le navigateur ne garde
+            // pas l'ancien en cache.
+            avatar: if maj > 0 { format!("/api/profil/avatar/{id}?v={maj}") } else { r.get("avatar")? },
             pseudo: r.get("pseudo")?,
             role: r.get("role")?,
+            cree: r.get("cree")?,
         })
     }
 }
@@ -102,8 +111,43 @@ pub fn pseudo_valide(brut: &str) -> Option<String> {
     ok.then_some(p)
 }
 
+/// Vrai si un autre compte porte deja ce pseudo, sans tenir compte des
+/// majuscules : on doit pouvoir retrouver un joueur par son nom.
+pub fn pseudo_pris(c: &Connection, id: i64, pseudo: &str) -> bool {
+    c.query_row(
+        "SELECT EXISTS (SELECT 1 FROM comptes WHERE lower(pseudo) = lower(?1) AND id <> ?2)",
+        params![pseudo, id],
+        |r| r.get(0),
+    )
+    .unwrap_or(true)
+}
+
 pub fn changer_pseudo(c: &Connection, id: i64, pseudo: &str) -> rusqlite::Result<()> {
     c.execute("UPDATE comptes SET pseudo = ?1 WHERE id = ?2", params![pseudo, id]).map(|_| ())
+}
+
+/// Pose l'avatar choisi par le joueur (image deja verifiee).
+pub fn poser_avatar(c: &Connection, id: i64, image: &[u8]) -> rusqlite::Result<()> {
+    let t = crate::base::maintenant();
+    c.execute(
+        "INSERT INTO avatars (compte_id, image, maj) VALUES (?1, ?2, ?3)
+         ON CONFLICT (compte_id) DO UPDATE SET image = excluded.image, maj = excluded.maj",
+        params![id, image, t],
+    )?;
+    c.execute("UPDATE comptes SET avatar_maj = ?1 WHERE id = ?2", params![t, id]).map(|_| ())
+}
+
+/// Retire l'avatar choisi : celui de Google reprend sa place.
+pub fn retirer_avatar(c: &Connection, id: i64) -> rusqlite::Result<()> {
+    c.execute("DELETE FROM avatars WHERE compte_id = ?1", params![id])?;
+    c.execute("UPDATE comptes SET avatar_maj = 0 WHERE id = ?1", params![id]).map(|_| ())
+}
+
+pub fn avatar(c: &Connection, id: i64) -> Option<Vec<u8>> {
+    c.query_row("SELECT image FROM avatars WHERE compte_id = ?1", params![id], |r| r.get(0))
+        .optional()
+        .ok()
+        .flatten()
 }
 
 #[cfg(test)]
@@ -149,6 +193,31 @@ mod tests {
         let c = neuve();
         connecter(&c, &qui("1", "moi@gmail.com", true), &["moi@gmail.com".into()]).unwrap();
         assert!(!connecter(&c, &qui("1", "moi@gmail.com", true), &[]).unwrap().est_admin());
+    }
+
+    #[test]
+    fn un_pseudo_ne_se_porte_qu_une_fois() {
+        let c = neuve();
+        let a = connecter(&c, &qui("1", "a@gmail.com", true), &[]).unwrap();
+        let b = connecter(&c, &qui("2", "b@gmail.com", true), &[]).unwrap();
+        changer_pseudo(&c, a.id, "Kartouche").unwrap();
+        assert!(pseudo_pris(&c, b.id, "kartouche"), "deux joueurs ont le meme pseudo");
+        assert!(!pseudo_pris(&c, a.id, "Kartouche"), "on ne peut plus garder son propre pseudo");
+    }
+
+    #[test]
+    fn l_avatar_choisi_passe_devant_celui_de_google_puis_s_efface() {
+        let c = neuve();
+        let a = connecter(&c, &qui("1", "a@gmail.com", true), &[]).unwrap();
+        poser_avatar(&c, a.id, b"PNG").unwrap();
+        let avec = par_id(&c, a.id).unwrap();
+        assert!(avec.avatar.starts_with(&format!("/api/profil/avatar/{}?v=", a.id)), "{}", avec.avatar);
+        assert_eq!(avatar(&c, a.id).as_deref(), Some(&b"PNG"[..]));
+        // Une reconnexion Google ne l'ecrase pas.
+        assert!(connecter(&c, &qui("1", "a@gmail.com", true), &[]).unwrap().avatar.starts_with("/api/"));
+        retirer_avatar(&c, a.id).unwrap();
+        assert_eq!(par_id(&c, a.id).unwrap().avatar, "", "l'avatar de Google n'est pas revenu");
+        assert!(avatar(&c, a.id).is_none());
     }
 
     #[test]

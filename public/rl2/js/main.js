@@ -15,6 +15,7 @@ import { Debug } from './debug.js';
 import { FitEdit } from './fitedit.js';
 import { CageEdit } from './cageedit.js';
 import { Chat } from './chat.js';
+import { Panneau } from './panneau/panneau.js';
 
 const SOLO_SEAT = 0;
 
@@ -294,6 +295,7 @@ async function boot() {
     // puisque le rendu vient apres.
     try {
       const nav = input.menuPulse();
+      if (panneau.ouvert) return panneau.navigate(nav);
       if (menu.screen) return menu.navigate(nav);
       const waiting = !document.getElementById('lobby').hidden;
       if (nav?.ok && waiting && !kickoff.disabled) kickoff.click();
@@ -331,6 +333,13 @@ async function boot() {
     hud.flash(settings.camera === 'follow' ? 'Camera : suivi' : 'Camera : arene entiere');
     if (menu.screen === 'settings') menu.renderSettings();
   };
+
+  // Panneau du joueur (profil, amis, clan, messages) : Start ou ², a tout
+  // moment. Son icone « Menu » ouvre la pause, que Start ne fait plus.
+  const panneau = new Panneau(document.getElementById('shell'), API_HTTP, {
+    menu: () => input.onPause?.(),
+  });
+  input.onPanneau = () => panneau.basculer();
 
   input.onPause = () => {
     // Dans les ecrans de menu, la touche pause sert de retour arriere,
@@ -434,7 +443,7 @@ async function boot() {
       // Tchat rapide : seulement en partie, menu ferme. Ouvert, un menu
       // se sert deja de la croix pour se parcourir.
       const horloge = now / 1000;
-      if (app.running && !app.paused && !menu.screen && !fit.on && !cages.on) {
+      if (app.running && !app.paused && !menu.screen && !fit.on && !cages.on && !panneau.ouvert) {
         chat.pulse(input.chatPulse(), horloge);
       } else {
         chat.cancel();
