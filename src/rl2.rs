@@ -12,11 +12,11 @@
 use axum::{
     Json,
     extract::{
-        Query, State,
+        ConnectInfo, Query, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::StatusCode,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use std::net::SocketAddr;
 mod room;
@@ -220,15 +220,32 @@ pub(crate) fn allowed(headers: &axum::http::HeaderMap, who: SocketAddr) -> bool 
             return given == expected;
         }
     }
-    let relayee = headers.contains_key("x-forwarded-for") || headers.contains_key("x-real-ip");
-    who.ip().is_loopback() && !relayee
+    admin2::machine_hote(headers, who)
 }
 
+/// Entree dans un salon. Il faut un compte : sans session, la connexion est
+/// refusee avant meme d'ouvrir la liaison. Le nom affiche est le pseudo du
+/// compte, pas ce que le navigateur pretend. Seule la machine du serveur
+/// joue sans compte, pour les essais en local.
 pub async fn ws(
     upgrade: WebSocketUpgrade,
-    Query(params): Query<JoinParams>,
+    headers: axum::http::HeaderMap,
+    ConnectInfo(who): ConnectInfo<SocketAddr>,
+    Query(mut params): Query<JoinParams>,
     State(hub): State<Arc<Hub>>,
 ) -> Response {
+    match admin2::compte_de(&headers) {
+        Some(c) => {
+            let nom = if c.pseudo.is_empty() { &c.nom } else { &c.pseudo };
+            if !nom.is_empty() {
+                params.name = nom.clone();
+            }
+        }
+        None if admin2::machine_hote(&headers, who) => {}
+        None => {
+            return (StatusCode::UNAUTHORIZED, "Connecte-toi pour jouer en ligne.").into_response();
+        }
+    }
     upgrade.on_upgrade(move |socket| session(socket, params, hub))
 }
 

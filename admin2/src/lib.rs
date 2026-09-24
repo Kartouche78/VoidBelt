@@ -19,6 +19,7 @@ pub mod sessions;
 
 use axum::{
     Json, Router,
+    extract::ConnectInfo,
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -42,6 +43,14 @@ pub fn compte_de(headers: &HeaderMap) -> Option<Compte> {
     sessions::compte(&base::base(), &jeton)
 }
 
+/// Vrai si la requete vient de la machine du serveur elle-meme, et non
+/// d'un visiteur relaye par nginx (qui arrive lui aussi de `127.0.0.1`,
+/// mais avec un en-tete de relais). Sert aux essais en local, sans Google.
+pub fn machine_hote(headers: &HeaderMap, who: std::net::SocketAddr) -> bool {
+    let relayee = headers.contains_key("x-forwarded-for") || headers.contains_key("x-real-ip");
+    who.ip().is_loopback() && !relayee
+}
+
 /// Vrai si la requete vient d'un admin connecte.
 pub fn est_admin(headers: &HeaderMap) -> bool {
     compte_de(headers).is_some_and(|c| c.est_admin())
@@ -61,13 +70,15 @@ pub fn routes() -> Router {
 
 /// Qui suis-je ? L'admin s'en sert pour savoir s'il doit proposer de se
 /// connecter.
-async fn moi(headers: HeaderMap) -> Json<Value> {
+async fn moi(headers: HeaderMap, ConnectInfo(who): ConnectInfo<std::net::SocketAddr>) -> Json<Value> {
     let compte = compte_de(&headers);
     Json(json!({
         "connecte": compte.is_some(),
         "admin": compte.as_ref().is_some_and(Compte::est_admin),
         "compte": compte,
         "google": google::configure(),
+        // Le multijoueur demande un compte, sauf sur la machine du serveur.
+        "multi_libre": machine_hote(&headers, who),
     }))
 }
 

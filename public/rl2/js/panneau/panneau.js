@@ -148,6 +148,13 @@ export class Panneau {
     b.append(this.fil);
   }
 
+  /** Ouvre le pop-up du profil, panneau compris. */
+  async ouvrirProfil() {
+    if (!this.ouvert) await this.basculer();
+    const x = this.barre.querySelector('.pn-profil');
+    if (x && this.pop !== 'profil') this._ouvre_pop(x, 'profil');
+  }
+
   /** Infobulle a droite de l'icone : son nom, et a quoi elle sert. Elle
    *  s'efface quand un pop-up occupe deja cette place. */
   _montre_bulle(x) {
@@ -186,6 +193,7 @@ export class Panneau {
     if (quoi === 'profil') {
       dessineProfil(corps, this.compte, (c, o) => this.api(c, o), this.base, (c) => {
         this.compte = { ...this.compte, ...c };
+        dispatchEvent(new Event('vb-compte'));
       }, () => this._deconnecter());
     } else {
       const textes = {
@@ -211,6 +219,7 @@ export class Panneau {
     await this.api('/api/auth/deconnexion', { method: 'POST' }).catch(() => {});
     this.compte = null;
     this.fermer();
+    dispatchEvent(new Event('vb-compte'));
   }
 
   // -------------------------------------------------------- manette ---

@@ -8,6 +8,7 @@ import { PANNEAU } from './settings-panel.js';
 import { listRooms } from './net.js';
 import { GROUPES, renderPicker, stadiumById } from './stadiums.js';
 import { CATEGORIES, renderGarage } from './garage.js';
+import { gardeMulti } from './multi-connexion.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -417,7 +418,11 @@ export class Menu {
   async showOnline() {
     $('online-name').value = this.settings.name || '';
     this.show('online');
-    await this.refreshRooms();
+    // En ligne, il faut un compte : sans lui, la porte de connexion prend
+    // la place des salons.
+    const libre = await gardeMulti();
+    this._focus(this.items()[0]);
+    if (libre) await this.refreshRooms();
   }
 
   /** Recharge la liste des salons ouverts. */

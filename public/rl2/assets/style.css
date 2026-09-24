@@ -896,6 +896,25 @@ button.stadium.active span { color: var(--orange); }
 .sheet button.stadium.active { border-color: var(--orange); opacity: 1; }
 #stadium-list { max-height: none; }
 
+/* Porte du multijoueur : se connecter avant de jouer en ligne. */
+.porte-multi { display: grid; gap: 12px; justify-items: start; padding: 6px 0 4px; }
+.porte-multi[hidden], #online-nom[hidden], #online-list[hidden] { display: none; }
+.porte-titre { margin: 0; font-size: 14px; letter-spacing: .06em; color: var(--ink); }
+.porte-multi .note { margin: 0; max-width: 46ch; }
+.porte-multi button.google {
+  padding: 11px 18px;
+  border-radius: 8px;
+  border: none;
+  background: #fff;
+  color: #1f1f1f;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: none;
+}
+.porte-multi button.google::before { content: 'G  '; color: #4285f4; font-family: var(--display); }
+.porte-multi button.google:hover,
+.porte-multi button.google.pad-focus { background: #e8eefc; outline: 2px solid var(--orange); }
+
 /* Personnalisation : la grille des choix a gauche, la voiture equipee en
    grand a droite, nez vers le haut comme sur les planches. */
 .sheet-body.garage {

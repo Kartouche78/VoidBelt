@@ -337,6 +337,12 @@ async function boot() {
   // Panneau du joueur (profil, amis, clan, messages) : Start ou ², a tout
   // moment.
   const panneau = new Panneau(document.getElementById('shell'), API_HTTP);
+  // Retour de la connexion Google, demandee depuis le multijoueur : on y
+  // revient, profil ouvert pour choisir son pseudo et son avatar.
+  if (demande.get('ecran') === 'multi') {
+    history.replaceState(null, '', location.pathname);
+    menu.showOnline().then(() => demande.has('profil') && panneau.ouvrirProfil());
+  }
   input.onPanneau = () => panneau.basculer();
 
   input.onPause = () => {
