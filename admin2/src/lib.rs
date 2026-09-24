@@ -4,15 +4,25 @@
 //!   sessions  la preuve de connexion, requete apres requete
 //!   comptes   comptes et roles (joueur, admin)
 //!   profil    pseudo et avatar du joueur connecte
+//!   joueurs   ce que les autres voient d'un joueur
+//!   amis      demandes et amities
+//!   messages  messagerie privee entre amis
+//!   clans     creation et gestion des clans ; `clan_api` leurs routes et
+//!             leur discussion
 //!   ranked    le classement, a venir
 //!   base      le schema de tout ce qui precede
 //!
 //! Le serveur monte `routes()` et demande `est_admin()` avant toute action
 //! de l'admin : generer, valider, regler, gerer les cles.
 
+pub mod amis;
 pub mod base;
+pub mod clan_api;
+pub mod clans;
 pub mod comptes;
 pub mod google;
+pub mod joueurs;
+pub mod messages;
 pub mod profil;
 pub mod ranked;
 pub mod sessions;
@@ -66,16 +76,58 @@ pub fn routes() -> Router {
         .route("/api/profil", get(profil::lire).put(profil::changer))
         .route("/api/profil/avatar", put(profil::poser_avatar).delete(profil::retirer_avatar))
         .route("/api/profil/avatar/{id}", get(profil::avatar))
+        .route("/api/amis", get(amis::liste_route))
+        .route("/api/amis/chercher", get(amis::chercher_route))
+        .route("/api/amis/{id}", post(amis::demander_route).delete(amis::retirer_route))
+        .route("/api/messagerie", get(messages::resume_route))
+        .route("/api/messages/{id}", get(messages::fil_route).post(messages::envoyer_route))
+        .route("/api/clan", get(clan_api::mon_clan).put(clan_api::regler).delete(clan_api::dissoudre))
+        .route("/api/clan/image", put(clan_api::poser_image))
+        .route("/api/clan/quitter", post(clan_api::quitter))
+        .route("/api/clan/membres/{id}", post(clan_api::agir))
+        .route("/api/clan/messages", get(clan_api::fil).post(clan_api::ecrire))
+        .route("/api/clans", get(clan_api::chercher).post(clan_api::creer))
+        .route("/api/clans/{id}/image", get(clan_api::image))
+        .route("/api/clans/{id}/rejoindre", post(clan_api::rejoindre).delete(clan_api::annuler))
+}
+
+/// Refus d'une action, avec le code HTTP et la phrase montree au joueur.
+#[derive(Debug, PartialEq)]
+pub struct Refus(pub StatusCode, pub &'static str);
+
+pub type R<T> = Result<T, Refus>;
+
+impl From<rusqlite::Error> for Refus {
+    fn from(e: rusqlite::Error) -> Self {
+        tracing::warn!("base : {e}");
+        Refus(StatusCode::INTERNAL_SERVER_ERROR, "Erreur de la base, reessaie.")
+    }
+}
+
+impl IntoResponse for Refus {
+    fn into_response(self) -> Response {
+        (self.0, Json(json!({ "error": self.1 }))).into_response()
+    }
+}
+
+/// Le compte de la requete, ou un refus « connecte-toi ».
+pub(crate) fn connecte(headers: &HeaderMap) -> R<Compte> {
+    compte_de(headers).ok_or(Refus(StatusCode::UNAUTHORIZED, "Connecte-toi d'abord."))
 }
 
 /// Qui suis-je ? L'admin s'en sert pour savoir s'il doit proposer de se
 /// connecter.
 async fn moi(headers: HeaderMap, ConnectInfo(who): ConnectInfo<std::net::SocketAddr>) -> Json<Value> {
     let compte = compte_de(&headers);
+    // Le clan du joueur, pour l'icone du panneau.
+    let mut vu = json!(compte);
+    if let (Some(c), Some(o)) = (&compte, vu.as_object_mut()) {
+        o.insert("clan".into(), json!(clans::bref(&base::base(), c.id)));
+    }
     Json(json!({
         "connecte": compte.is_some(),
         "admin": compte.as_ref().is_some_and(Compte::est_admin),
-        "compte": compte,
+        "compte": vu,
         "google": google::configure(),
         // Le multijoueur demande un compte, sauf sur la machine du serveur.
         "multi_libre": machine_hote(&headers, who),

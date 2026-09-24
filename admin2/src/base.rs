@@ -63,7 +63,73 @@ pub fn prepare(c: &Connection) -> rusqlite::Result<()> {
              compte_id INTEGER PRIMARY KEY REFERENCES comptes (id) ON DELETE CASCADE,
              image     BLOB NOT NULL,
              maj       INTEGER NOT NULL
-         );",
+         );
+
+         -- Amities : une demande (`acceptee` = 0), puis une amitie. Une
+         -- seule ligne par paire, dans un sens ou dans l'autre.
+         CREATE TABLE IF NOT EXISTS amities (
+             demandeur INTEGER NOT NULL REFERENCES comptes (id) ON DELETE CASCADE,
+             receveur  INTEGER NOT NULL REFERENCES comptes (id) ON DELETE CASCADE,
+             acceptee  INTEGER NOT NULL DEFAULT 0,
+             cree      INTEGER NOT NULL,
+             PRIMARY KEY (demandeur, receveur),
+             CHECK (demandeur <> receveur)
+         );
+         CREATE INDEX IF NOT EXISTS amities_recues ON amities (receveur);
+
+         -- Messages prives, entre amis.
+         CREATE TABLE IF NOT EXISTS messages (
+             id    INTEGER PRIMARY KEY AUTOINCREMENT,
+             de    INTEGER NOT NULL REFERENCES comptes (id) ON DELETE CASCADE,
+             a     INTEGER NOT NULL REFERENCES comptes (id) ON DELETE CASCADE,
+             texte TEXT NOT NULL,
+             cree  INTEGER NOT NULL,
+             lu    INTEGER NOT NULL DEFAULT 0
+         );
+         CREATE INDEX IF NOT EXISTS messages_envoyes ON messages (de, a, id);
+         CREATE INDEX IF NOT EXISTS messages_recus ON messages (a, lu);
+
+         -- Clans : un nom et un tag uniques, sans tenir compte des
+         -- majuscules. Ouvert : on entre directement ; ferme : on demande.
+         CREATE TABLE IF NOT EXISTS clans (
+             id          INTEGER PRIMARY KEY AUTOINCREMENT,
+             nom         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+             tag         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+             description TEXT NOT NULL DEFAULT '',
+             ouvert      INTEGER NOT NULL DEFAULT 1,
+             image       BLOB,
+             image_maj   INTEGER NOT NULL DEFAULT 0,
+             cree        INTEGER NOT NULL
+         );
+
+         -- Un clan par joueur au plus. `lu` : dernier message du clan lu.
+         CREATE TABLE IF NOT EXISTS clan_membres (
+             compte_id INTEGER PRIMARY KEY REFERENCES comptes (id) ON DELETE CASCADE,
+             clan_id   INTEGER NOT NULL REFERENCES clans (id) ON DELETE CASCADE,
+             rang      TEXT NOT NULL DEFAULT 'membre',
+             entre     INTEGER NOT NULL,
+             lu        INTEGER NOT NULL DEFAULT 0
+         );
+         CREATE INDEX IF NOT EXISTS clan_membres_par_clan ON clan_membres (clan_id);
+
+         -- Demandes pour entrer dans un clan ferme.
+         CREATE TABLE IF NOT EXISTS clan_demandes (
+             clan_id   INTEGER NOT NULL REFERENCES clans (id) ON DELETE CASCADE,
+             compte_id INTEGER NOT NULL REFERENCES comptes (id) ON DELETE CASCADE,
+             cree      INTEGER NOT NULL,
+             PRIMARY KEY (clan_id, compte_id)
+         );
+
+         -- Discussion du clan. `de` vide : annonce du clan (arrivee,
+         -- depart, promotion...).
+         CREATE TABLE IF NOT EXISTS clan_messages (
+             id      INTEGER PRIMARY KEY AUTOINCREMENT,
+             clan_id INTEGER NOT NULL REFERENCES clans (id) ON DELETE CASCADE,
+             de      INTEGER REFERENCES comptes (id) ON DELETE SET NULL,
+             texte   TEXT NOT NULL,
+             cree    INTEGER NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS clan_messages_par_clan ON clan_messages (clan_id, id);",
     )?;
     // Colonnes ajoutees apres coup : une base deja en service les recoit
     // ici, une base neuve aussi.

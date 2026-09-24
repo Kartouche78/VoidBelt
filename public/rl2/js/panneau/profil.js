@@ -5,44 +5,12 @@
 // L'e-mail et le mot de passe appartiennent au compte Google : on les
 // montre, avec le chemin pour les changer chez Google.
 
-const COTE = 256;
-
-function el(tag, cls, text) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
+import { carre, el } from './outils.js';
 
 function ligne(titre, ...contenu) {
   const l = el('div', 'pp-ligne');
   l.append(el('span', 'pp-titre', titre), ...contenu);
   return l;
-}
-
-/** Reduit une image a un carre de 256 px, centre : un avatar leger. */
-function carre(fichier) {
-  return new Promise((ok, ko) => {
-    const lecteur = new FileReader();
-    lecteur.onerror = () => ko(new Error('Fichier illisible.'));
-    lecteur.onload = () => {
-      const img = new Image();
-      img.onerror = () => ko(new Error('Image illisible.'));
-      img.onload = () => {
-        const c = document.createElement('canvas');
-        c.width = c.height = COTE;
-        const cote = Math.min(img.naturalWidth, img.naturalHeight);
-        c.getContext('2d').drawImage(
-          img,
-          (img.naturalWidth - cote) / 2, (img.naturalHeight - cote) / 2, cote, cote,
-          0, 0, COTE, COTE,
-        );
-        ok(c.toDataURL('image/webp', 0.9));
-      };
-      img.src = String(lecteur.result);
-    };
-    lecteur.readAsDataURL(fichier);
-  });
 }
 
 /** Remplit `box` avec le profil de `compte`. `api(chemin, options)` parle
