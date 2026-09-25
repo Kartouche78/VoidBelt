@@ -1,9 +1,10 @@
 // Panneau lateral : Start a la manette, ² au clavier, a tout moment, meme
 // en pleine partie (le jeu continue derriere, legerement floute).
 //
-// Une colonne d'icones, moins de 5 % de l'ecran : profil, amis, clan, le
-// groupe, la messagerie (nouveau message, discussion du clan,
-// conversations), puis les amis et leur etat, en direct (`social.js`).
+// Une colonne d'icones, moins de 5 % de l'ecran : profil, recherche d'un
+// joueur, amis, clan, le groupe, puis les amis et leur etat, en direct
+// (`social.js`) : en ligne d'abord, hors ligne ensuite par ordre
+// alphabetique. Un clic sur un ami ouvre votre conversation.
 // Chaque icone ouvre un pop-up colle au panneau, a la hauteur de l'icone
 // cliquee, a la taille de son contenu.
 //
@@ -13,12 +14,12 @@
 import { dessineAmis } from './amis.js';
 import { dessineClan } from './clan.js';
 import { dessineConversation } from './conversation.js';
-import { dessineFicheAmi, dessineGroupe, dessineInvitation } from './groupe.js';
-import { dessineNouveau } from './messages.js';
+import { dessineGroupe, dessineInvitation } from './groupe.js';
 import { Nouvelles } from './nouvelles.js';
 import { ICONES } from './icones.js';
 import { adresse, el } from './outils.js';
 import { dessineProfil } from './profil.js';
+import { dessineRecherche } from './recherche.js';
 import { Social } from './social.js';
 import { Toasts } from './toast.js';
 
@@ -28,7 +29,7 @@ const AIDES = {
   ami: 'Chercher un joueur par son pseudo, répondre aux demandes, voir tes amis.',
   clan: 'Rejoindre un clan, ou fonder le tien avec son tag et son écusson.',
   clanMembre: 'Ton clan : ses membres, ses demandes et ses réglages.',
-  message: 'Écrire à un ami. Vos conversations s’alignent juste en dessous.',
+  recherche: 'Trouver un joueur par son pseudo et voir son profil.',
 };
 
 export class Panneau {
@@ -61,7 +62,7 @@ export class Panneau {
     // En direct : amis, groupe, invitations, nouveaux messages.
     this.social = new Social(base);
     this.toasts = new Toasts(root, base);
-    this.horsLigne = false;
+    this.nonLus = new Map();
     this.social.on('change', () => this._social());
     this.social.on('nouvelles', () => this._nouvelles());
     this.social.on('invitation', (de) => this.toasts.invitation(de, (oui) => this.social.repondre(de.id, oui)));
@@ -149,6 +150,7 @@ export class Panneau {
         this.rejoindre?.(code);
       },
       discuter: (clan) => this._discuter({ type: 'clan', clan }),
+      voirProfil: (id) => this._voir_profil(id),
     };
   }
 
@@ -181,6 +183,7 @@ export class Panneau {
     };
 
     i('profil', 'Profil', (x) => this._ouvre_pop(x, 'profil'));
+    i('recherche', 'Rechercher un joueur', (x) => this._ouvre_pop(x, 'recherche'));
     i('ami', 'Amis', (x) => this._ouvre_pop(x, 'ami'));
     // Clan : son ecusson s'il en a un, sinon son tag ; sans clan, rejoindre.
     const clan = this.compte.clan;
@@ -198,23 +201,13 @@ export class Panneau {
     this.zoneGroupe = el('div', 'pn-zone');
     b.append(this.zoneGroupe);
 
-    // Messagerie : un separateur, la demi-icone pour ecrire, puis les
-    // conversations.
-    const sep = el('div', 'pn-sep');
-    sep.append(el('span', null, 'Messages'));
-    b.append(sep);
-    const ecrire = i('message', 'Nouveau message', (x) => this._ouvre_pop(x, 'message'));
-    ecrire.classList.add('pn-demi');
-    this.fil = el('div', 'pn-fil');
-    b.append(this.fil);
-
-    // Les amis, en ligne d'abord.
+    // Les amis, en ligne d'abord : un clic ouvre la conversation.
     this.zoneAmis = el('div', 'pn-zone');
     b.append(this.zoneAmis);
     this._social();
 
     // Redessine avec un pop-up ouvert : son icone reste marquee.
-    const ouverte = this.pop && !this.pop.startsWith('conv:') && b.querySelector(`.pn-${this.pop}`);
+    const ouverte = this.pop && !this.pop.includes(':') && b.querySelector(`.pn-${this.pop}`);
     if (ouverte) {
       ouverte.classList.add('actif');
       this.ancre = ouverte;
@@ -229,6 +222,14 @@ export class Panneau {
     if (!this.ouvert) await this.basculer();
     const x = this.barre.querySelector('.pn-profil');
     if (x && this.pop !== 'profil') this._ouvre_pop(x, 'profil');
+  }
+
+  /** Ouvre le profil public d'un joueur, dans le pop-up de la recherche. */
+  _voir_profil(id) {
+    const x = this.barre.querySelector('.pn-recherche');
+    if (!x) return;
+    if (this.pop === 'recherche') this._remplir(this.popup.querySelector('.pn-pop-corps'), 'recherche', { id });
+    else this._ouvre_pop(x, 'recherche', { id });
   }
 
   /** Infobulle a droite de l'icone : son nom, et a quoi elle sert. Elle
@@ -285,12 +286,10 @@ export class Panneau {
       dessineAmis(corps, ctx);
     } else if (quoi === 'clan') {
       dessineClan(corps, ctx);
-    } else if (quoi === 'message') {
-      dessineNouveau(corps, ctx);
+    } else if (quoi === 'recherche') {
+      dessineRecherche(corps, ctx, cible);
     } else if (quoi.startsWith('conv:')) {
       this.arret = dessineConversation(corps, ctx, cible);
-    } else if (quoi.startsWith('ami:')) {
-      dessineFicheAmi(corps, ctx, cible);
     } else if (quoi === 'groupe') {
       dessineGroupe(corps, ctx);
     } else if (quoi.startsWith('invit:')) {
@@ -310,11 +309,6 @@ export class Panneau {
   _ferme_pop() {
     this.arret?.();
     this.arret = null;
-    // Une conversation neuve restee sans message quitte la colonne.
-    if (this.neuve && this.pop === this.neuve.cle) {
-      this.fil?.querySelector(`[data-cle="${this.neuve.cle}"]`)?.remove();
-    }
-    this.neuve = null;
     this.pop = null;
     this.popup.hidden = true;
     for (const i of this.barre.querySelectorAll('.pn-icone')) i.classList.remove('actif');

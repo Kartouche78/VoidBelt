@@ -234,7 +234,6 @@ span.pn-conv-img { display: grid; place-items: center; }
   text-shadow: 0 1px 3px #000;
 }
 .pn-icone.pn-hors .pn-conv-img { filter: grayscale(1) brightness(.6); }
-.pn-replis-texte { font-size: 10px; font-weight: 700; }
 
 /* Fiche d'un ami et groupe. */
 .pg-actions { display: grid; gap: 8px; }
@@ -283,3 +282,27 @@ span.pn-conv-img { display: grid; place-items: center; }
 .tt-invit { display: grid; gap: 9px; border-left-color: var(--orange, #f07a25); }
 .tt-haut { display: flex; align-items: center; gap: 10px; }
 .tt-haut strong { font-size: 12.5px; }
+
+/* Actions sur un ami, sous l'en-tete de sa conversation ; et celles de la
+   fiche d'un joueur. */
+.pg-rang { display: flex; flex-wrap: wrap; gap: 6px; }
+.pg-rang .pa-vide { margin: 0; align-self: center; }
+
+/* Recherche d'un joueur : sa fiche. */
+.pr-haut { display: flex; }
+.pr-haut:empty { display: none; }
+.pr-fiche { display: grid; gap: 14px; }
+.pr-tete { display: flex; align-items: center; gap: 12px; }
+.pr-tete .pp-titre-pop { margin: 0 30px 2px 0; }
+.pr-avatar {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #ffffff26;
+}
+.pr-avatar.pa-initiale { display: grid; place-items: center; font-size: 22px; }
+.pr-infos { display: grid; gap: 10px; }
+.pr-clan { display: inline-flex; align-items: center; gap: 6px; }
+.pr-ecusson { width: 20px; height: 20px; object-fit: contain; }

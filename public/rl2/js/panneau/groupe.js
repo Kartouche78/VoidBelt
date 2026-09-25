@@ -1,12 +1,12 @@
-// Pop-ups du groupe : la fiche d'un ami (ecrire, inviter, rejoindre sa
+// Pop-ups du groupe : les actions sur un ami (inviter, rejoindre sa
 // partie), le groupe lui-meme, et une invitation recue.
 //
 // Les actions partent par la connexion sociale (`ctx.social`) ; la
 // reponse revient en direct et redessine le pop-up ouvert.
 //
-// `ctx` : { api, base, social, ecrire(joueur), rejoindre(code), change() }.
+// `ctx` : { api, base, social, rejoindre(code), voirProfil(id), change() }.
 
-import { appel, bouton, el, messager, pastille, sur } from './outils.js';
+import { bouton, el, pastille, sur } from './outils.js';
 import { statutTexte } from './social.js';
 
 function tete(base, j, sous) {
@@ -17,33 +17,21 @@ function tete(base, j, sous) {
   return t;
 }
 
-/** Fiche d'un ami, depuis la colonne. */
-export function dessineFicheAmi(box, ctx, ami) {
+/** Ce qu'on peut faire avec un ami, au-dessus de sa conversation :
+ *  l'inviter, rejoindre sa partie, voir son profil. */
+export function actionsAmi(ctx, ami) {
   const { social } = ctx;
-  const [msg, dire] = messager();
   const s = ami.statut || {};
   const dansMonGroupe = !!social.groupe?.membres.some((m) => m.id === ami.id);
-  const actions = el('div', 'pg-actions');
-  actions.append(bouton('Écrire', '', () => ctx.ecrire(ami)));
-  if (dansMonGroupe) {
-    actions.append(el('p', 'pa-vide', 'Il est dans ton groupe.'));
-  } else if (s.en_ligne) {
-    actions.append(bouton('Inviter dans le groupe', '', () => social.inviter(ami.id)));
+  const actions = el('div', 'pg-rang');
+  if (s.en_ligne && !dansMonGroupe) {
+    actions.append(bouton('Inviter dans le groupe', 'discret', () => social.inviter(ami.id)));
   }
   if (s.salon) {
-    actions.append(bouton(`Rejoindre sa partie (serveur ${s.salon})`, '', () => ctx.rejoindre(s.salon)));
+    actions.append(bouton(`Rejoindre sa partie (${s.salon})`, 'discret', () => ctx.rejoindre(s.salon)));
   }
-  actions.append(sur('Retirer de mes amis', async () => {
-    try {
-      await appel(ctx.api, `/api/amis/${ami.id}`, 'DELETE');
-      ctx.change();
-      dire(`${ami.pseudo} n’est plus ton ami.`, true);
-    } catch (err) {
-      dire(err.message, false);
-    }
-  }));
-  box.textContent = '';
-  box.append(tete(ctx.base, ami, statutTexte(s)), actions, msg);
+  actions.append(bouton('Profil', 'discret', () => ctx.voirProfil(ami.id)));
+  return actions;
 }
 
 /** Le groupe : ses membres, les amis a inviter, et le depart. */

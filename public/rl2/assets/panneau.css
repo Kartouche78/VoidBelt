@@ -86,10 +86,6 @@
   text-transform: uppercase;
   color: #6b7488;
 }
-/* « Nouveau message » : une demi-icone, juste avant les conversations. */
-.pn-icone.pn-demi { height: 22px; border-radius: 8px; }
-.pn-icone.pn-demi svg { width: 16px; height: 16px; }
-.pn-fil { display: grid; gap: 10px; }
 
 /* Infobulle : a droite de l'icone survolee, son nom puis son role. */
 .pn-bulle {

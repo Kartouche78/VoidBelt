@@ -4,8 +4,11 @@
 // dernier recu, toutes les 3 secondes tant que le pop-up est ouvert.
 //
 // `cible` : { type: 'ami', joueur } ou { type: 'clan', clan }.
-// `ctx` : { api, base, moi, change() }. Rend la fonction qui arrete tout.
+// `ctx` : { api, base, moi, social, change() }. Rend la fonction qui
+// arrete tout. Avec un ami, ses actions (inviter, rejoindre, profil)
+// passent sous l'en-tete.
 
+import { actionsAmi } from './groupe.js';
 import { adresse, appel, el, messager, pastille, quand } from './outils.js';
 
 const RYTHME = 3000;
@@ -119,7 +122,9 @@ export function dessineConversation(box, ctx, cible) {
 
   box.textContent = '';
   box.classList.add('pc-conv');
-  box.append(tete, fil, plusAmis, rang, msg);
+  box.append(tete);
+  if (!clan) box.append(actionsAmi(ctx, ctx.social.amis.get(cible.joueur.id) || cible.joueur));
+  box.append(fil, plusAmis, rang, msg);
   suivre().then(() => champ.focus());
   const minuterie = setInterval(suivre, RYTHME);
   return () => {

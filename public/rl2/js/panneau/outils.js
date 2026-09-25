@@ -60,6 +60,13 @@ export function pastille(base, joueur, cls = 'pa-avatar') {
   return el('span', `${cls} pa-initiale`, (joueur?.pseudo || '?').slice(0, 1).toUpperCase());
 }
 
+/** Petit chiffre rouge sur une icone ; rien a zero. */
+export function badge(x, n) {
+  if (!x) return;
+  x.querySelector('.pn-badge')?.remove();
+  if (n > 0) x.append(el('span', 'pn-badge', n > 9 ? '9+' : String(n)));
+}
+
 /** Ligne de message sous un formulaire : vert si ok, rouge sinon. */
 export function messager() {
   const msg = el('p', 'pp-msg');

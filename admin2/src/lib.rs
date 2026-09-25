@@ -5,6 +5,7 @@
 //!   comptes   comptes et roles (joueur, admin)
 //!   profil    pseudo et avatar du joueur connecte
 //!   joueurs   ce que les autres voient d'un joueur
+//!   fiche     la fiche publique d'un joueur, depuis la recherche
 //!   amis      demandes et amities
 //!   messages  messagerie privee entre amis
 //!   clans     creation et gestion des clans ; `clan_api` leurs routes et
@@ -22,6 +23,7 @@ pub mod base;
 pub mod clan_api;
 pub mod clans;
 pub mod comptes;
+pub mod fiche;
 pub mod google;
 pub mod groupes;
 pub mod joueurs;
@@ -104,6 +106,7 @@ pub fn routes() -> Router {
         .route("/api/amis", get(amis::liste_route))
         .route("/api/amis/chercher", get(amis::chercher_route))
         .route("/api/amis/{id}", post(amis::demander_route).delete(amis::retirer_route))
+        .route("/api/joueurs/{id}", get(fiche::route))
         .route("/api/messagerie", get(messages::resume_route))
         .route("/api/messages/{id}", get(messages::fil_route).post(messages::envoyer_route))
         .route("/api/clan", get(clan_api::mon_clan).put(clan_api::regler).delete(clan_api::dissoudre))

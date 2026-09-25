@@ -2,13 +2,14 @@
 // `social.js` :
 //
 //   Groupe   ses membres (couronne sur le chef) et les invitations recues
-//   Amis     en ligne d'abord, avec une pastille d'etat ; les amis hors
-//            ligne se replient derriere un compteur
+//   Amis     en ligne d'abord, avec une pastille d'etat, puis hors ligne
+//            par ordre alphabetique ; un clic ouvre la conversation, le
+//            chiffre rouge compte ses messages non lus
 //
 // Les icones passent par `panneau._icone` : infobulles et manette comme
 // les autres.
 
-import { el, pastille } from './outils.js';
+import { badge, el, pastille } from './outils.js';
 import { statutTexte } from './social.js';
 
 /** Pastille d'etat : `partie`, `menu`, `solo` ou `hors`. */
@@ -61,35 +62,18 @@ export function dessineZoneGroupe(pn, zone) {
 }
 
 export function dessineZoneAmis(pn, zone) {
-  const s = pn.social;
-  const tous = s.amisTries();
+  const tous = pn.social.amisTries();
   zone.textContent = '';
   zone.hidden = !tous.length;
   if (zone.hidden) return;
-  const enLigne = tous.filter((a) => a.statut.en_ligne);
-  const horsLigne = tous.filter((a) => !a.statut.en_ligne);
-  zone.append(separateur(`Amis · ${enLigne.length}/${tous.length}`));
-  const ami = (a) => {
-    const x = pn._icone('ami-col', a.pseudo, (b) => pn._ouvre_pop(b, `ami:${a.id}`, a), portrait(pn, a), statutTexte(a.statut));
-    x.dataset.cle = `ami:${a.id}`;
+  const enLigne = tous.filter((a) => a.statut.en_ligne).length;
+  zone.append(separateur(`Amis · ${enLigne}/${tous.length}`));
+  for (const a of tous) {
+    const cle = `conv:${a.id}`;
+    const x = pn._icone('ami-col', a.pseudo, (b) => pn._ouvre_pop(b, cle, { type: 'ami', joueur: a }), portrait(pn, a), statutTexte(a.statut));
+    x.dataset.cle = cle;
     if (!a.statut.en_ligne) x.classList.add('pn-hors');
+    badge(x, pn.nonLus?.get(a.id) || 0);
     zone.append(x);
-  };
-  enLigne.forEach(ami);
-  if (!horsLigne.length) return;
-  // Les amis hors ligne se replient : la colonne reste courte.
-  const bascule = pn._icone(
-    'replis',
-    pn.horsLigne ? 'Masquer les amis hors ligne' : `Hors ligne · ${horsLigne.length}`,
-    () => {
-      pn.horsLigne = !pn.horsLigne;
-      dessineZoneAmis(pn, zone);
-      pn._vise(zone.querySelector('.pn-replis'));
-    },
-    el('span', 'pn-replis-texte', pn.horsLigne ? '−' : `+${horsLigne.length}`),
-    pn.horsLigne ? 'Replier la liste.' : 'Voir les amis hors ligne.',
-  );
-  bascule.classList.add('pn-demi');
-  zone.append(bascule);
-  if (pn.horsLigne) horsLigne.forEach(ami);
+  }
 }
