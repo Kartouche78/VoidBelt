@@ -1,4 +1,4 @@
-//! La balle : elle roule, freine peu et rebondit fort sur les murs.
+//! La balle : elle roule, perd de la vitesse et rebondit fort sur les murs.
 
 use crate::arena;
 use crate::tune::Tune;
@@ -12,7 +12,11 @@ pub const MASS: f32 = 30.0;
 /// cela fait 1617 et non 1200, qui bridait les tirs.
 pub const MAX_SPEED: f32 = 1617.0;
 /// Frottement de roulement, en amortissement exponentiel par seconde.
-pub const DRAG: f32 = 0.03056;
+/// A 0,03 la balle ne ralentissait presque pas (97 % de sa vitesse apres
+/// une seconde) : chaque touche l'envoyait rebondir sans fin. A 0,5 elle
+/// garde 61 % apres une seconde, 37 % apres deux ; un tir plein parcourt
+/// encore deux longueurs de terrain.
+pub const DRAG: f32 = 0.5;
 pub const WALL_REST: f32 = 0.6;
 /// Rotation maximale de la balle, en rad/s. Purement visuel chez nous.
 pub const SPIN_MAX: f32 = 6.0;

@@ -179,10 +179,11 @@ fn la_balle_rebondit_sur_le_mur_du_fond() {
 
 #[test]
 fn la_balle_ralentit_toute_seule() {
-    // Rocket League freine tres peu la balle : une trainee de 0,0306 par
-    // seconde, soit environ 3 % de vitesse perdue en une seconde. On verifie
-    // l'ordre de grandeur plutot qu'un chiffre, pour que le test suive le
-    // reglage si on le change.
+    // Rocket League freine tres peu la balle (3 % par seconde), mais vu de
+    // dessus, sans gravite ni rebonds au sol, elle filait alors sans fin
+    // apres chaque touche. Elle doit perdre nettement de la vitesse, sans
+    // s'arreter net. On verifie l'ordre de grandeur plutot qu'un chiffre,
+    // pour que le test suive le reglage si on le change.
     let mut b = Ball::new();
     b.vel = v2(500.0, 0.0);
     for _ in 0..120 {
@@ -194,7 +195,8 @@ fn la_balle_ralentit_toute_seule() {
         "apres une seconde : {} au lieu de {attendu}",
         b.vel.x,
     );
-    assert!(b.vel.x > 470.0, "la balle freine bien trop : {}", b.vel.x);
+    assert!(b.vel.x < 400.0, "la balle ne ralentit presque pas : {}", b.vel.x);
+    assert!(b.vel.x > 200.0, "la balle freine bien trop : {}", b.vel.x);
 }
 
 #[test]
