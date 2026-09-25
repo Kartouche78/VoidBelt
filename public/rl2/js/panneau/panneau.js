@@ -1,8 +1,9 @@
 // Panneau lateral : Start a la manette, ² au clavier, a tout moment, meme
 // en pleine partie (le jeu continue derriere, legerement floute).
 //
-// Une colonne d'icones, moins de 5 % de l'ecran : profil, amis, clan, puis
-// la messagerie (nouveau message, discussion du clan, conversations).
+// Une colonne d'icones, moins de 5 % de l'ecran : profil, amis, clan, le
+// groupe, la messagerie (nouveau message, discussion du clan,
+// conversations), puis les amis et leur etat, en direct (`social.js`).
 // Chaque icone ouvre un pop-up colle au panneau, a la hauteur de l'icone
 // cliquee, a la taille de son contenu.
 //
@@ -12,10 +13,14 @@
 import { dessineAmis } from './amis.js';
 import { dessineClan } from './clan.js';
 import { dessineConversation } from './conversation.js';
+import { dessineFicheAmi, dessineGroupe, dessineInvitation } from './groupe.js';
+import { dessineNouveau } from './messages.js';
+import { Nouvelles } from './nouvelles.js';
 import { ICONES } from './icones.js';
-import { dessineNouveau, entreeNeuve, entreesFil } from './messages.js';
 import { adresse, el } from './outils.js';
 import { dessineProfil } from './profil.js';
+import { Social } from './social.js';
+import { Toasts } from './toast.js';
 
 /** Ce que fait chaque icone, dit dans son infobulle. */
 const AIDES = {
@@ -25,10 +30,6 @@ const AIDES = {
   clanMembre: 'Ton clan : ses membres, ses demandes et ses réglages.',
   message: 'Écrire à un ami. Vos conversations s’alignent juste en dessous.',
 };
-
-/** Relecture des nouvelles : panneau ouvert (colonne), ferme (pastille). */
-const RYTHME_OUVERT = 8000;
-const RYTHME_FERME = 20000;
 
 export class Panneau {
   /** `base` : adresse de l'API. */
@@ -57,6 +58,16 @@ export class Panneau {
     this.alerte.onclick = () => this.basculer();
     root.append(this.voile, this.barre, this.popup, this.bulle, this.alerte);
 
+    // En direct : amis, groupe, invitations, nouveaux messages.
+    this.social = new Social(base);
+    this.toasts = new Toasts(root, base);
+    this.horsLigne = false;
+    this.social.on('change', () => this._social());
+    this.social.on('nouvelles', () => this._nouvelles());
+    this.social.on('invitation', (de) => this.toasts.invitation(de, (oui) => this.social.repondre(de.id, oui)));
+    this.social.on('info', (m) => this.toasts.info(m.m));
+    this.social.on('erreur', (m) => this.toasts.info(m.m, true));
+
     // Le pop-up change de taille (liste chargee, message envoye) : il
     // reste aligne sur son icone sans deborder de l'ecran.
     new ResizeObserver(() => this._place()).observe(this.popup);
@@ -69,7 +80,11 @@ export class Panneau {
       }
     }, true);
 
-    this.actualiser().then((c) => c && this._veiller());
+    this.actualiser().then((c) => {
+      if (!c) return;
+      this._veiller();
+      this.social.demarrer();
+    });
   }
 
   api(chemin, opts = {}) {
@@ -94,6 +109,7 @@ export class Panneau {
       return;
     }
     if (!(await this.actualiser())) return;
+    this.social.demarrer();
     this.ouvert = true;
     this._dessine();
     this.barre.hidden = false;
@@ -126,6 +142,12 @@ export class Panneau {
         if (this.compte) this._dessine();
       },
       ecrire: (joueur) => this._discuter({ type: 'ami', joueur }),
+      social: this.social,
+      // Rejoindre la partie d'un ami : `main.js` sait entrer dans un salon.
+      rejoindre: (code) => {
+        this.fermer();
+        this.rejoindre?.(code);
+      },
       discuter: (clan) => this._discuter({ type: 'clan', clan }),
     };
   }
@@ -172,6 +194,10 @@ export class Panneau {
     }
     i('clan', clan ? `Clan ${clan.tag}` : 'Rejoindre un clan', (x) => this._ouvre_pop(x, 'clan'), dansClan, clan ? AIDES.clanMembre : AIDES.clan);
 
+    // Le groupe, s'il y en a un, ou les invitations recues.
+    this.zoneGroupe = el('div', 'pn-zone');
+    b.append(this.zoneGroupe);
+
     // Messagerie : un separateur, la demi-icone pour ecrire, puis les
     // conversations.
     const sep = el('div', 'pn-sep');
@@ -182,6 +208,11 @@ export class Panneau {
     this.fil = el('div', 'pn-fil');
     b.append(this.fil);
 
+    // Les amis, en ligne d'abord.
+    this.zoneAmis = el('div', 'pn-zone');
+    b.append(this.zoneAmis);
+    this._social();
+
     // Redessine avec un pop-up ouvert : son icone reste marquee.
     const ouverte = this.pop && !this.pop.startsWith('conv:') && b.querySelector(`.pn-${this.pop}`);
     if (ouverte) {
@@ -189,95 +220,6 @@ export class Panneau {
       this.ancre = ouverte;
     }
     this._nouvelles();
-  }
-
-  // ------------------------------------------------------ nouvelles ---
-
-  /** Relit la messagerie : conversations de la colonne, pastilles. */
-  async _nouvelles() {
-    let r;
-    try {
-      const res = await this.api('/api/messagerie');
-      if (!res.ok) return;
-      r = await res.json();
-    } catch {
-      return;
-    }
-    const nonLus = (r.clan?.non_lus || 0) + r.conversations.reduce((n, c) => n + c.non_lus, 0);
-    const demandes = r.demandes_amis + (r.clan?.demandes || 0);
-    if (!this.ouvert) {
-      const total = nonLus + demandes;
-      this.alerte.hidden = !total;
-      this.alerte.textContent = total > 9 ? '9+' : String(total);
-      this.alerte.title = [
-        nonLus && `${nonLus} message${nonLus > 1 ? 's' : ''} non lu${nonLus > 1 ? 's' : ''}`,
-        demandes && `${demandes} demande${demandes > 1 ? 's' : ''} en attente`,
-      ].filter(Boolean).join(' · ') + ' (Start ou ²)';
-      return;
-    }
-    badge(this.barre.querySelector('.pn-ami'), r.demandes_amis);
-    badge(this.barre.querySelector('.pn-clan'), r.clan?.demandes || 0);
-    const entrees = entreesFil(r, this.base, this.compte?.id);
-    // Une conversation neuve, sans message encore, reste en tete tant que
-    // son pop-up est ouvert.
-    if (this.neuve && this.pop === this.neuve.cle && !entrees.some((e) => e.cle === this.neuve.cle)) {
-      entrees.unshift(this.neuve);
-    }
-    this._dessine_fil(entrees);
-  }
-
-  _entree(e) {
-    const x = this._icone('conv', e.titre, (b) => this._ouvre_pop(b, e.cle, e.cible), e.contenu, e.aide);
-    x.dataset.cle = e.cle;
-    if (e.cle === 'conv:clan') x.classList.add('pn-conv-clan');
-    badge(x, e.badge);
-    return x;
-  }
-
-  /** Conversations sous « Messages ». */
-  _dessine_fil(entrees) {
-    if (!this.fil) return;
-    const visee = this.cible?.dataset.cle;
-    this.fil.textContent = '';
-    for (const e of entrees) {
-      const x = this._entree(e);
-      this.fil.append(x);
-      if (e.cle === this.pop) {
-        x.classList.add('actif');
-        this.ancre = x;
-      }
-      if (visee && e.cle === visee) {
-        this.cible = x;
-        x.classList.add('pn-vise');
-      }
-    }
-  }
-
-  /** Ouvre une conversation, meme sans message encore. */
-  _discuter(cible) {
-    const neuve = entreeNeuve(cible, this.base);
-    if (this.pop === neuve.cle) return;
-    let x = this.fil.querySelector(`[data-cle="${neuve.cle}"]`);
-    if (x) {
-      this.neuve = null;
-    } else {
-      x = this._entree(neuve);
-      this.fil.prepend(x);
-      this.neuve = neuve;
-    }
-    this._ouvre_pop(x, neuve.cle, cible);
-  }
-
-  /** Relit les nouvelles regulierement : souvent panneau ouvert, plus
-   *  rarement ferme (pour la pastille). */
-  _veiller() {
-    clearInterval(this.veille);
-    if (!this.compte) {
-      this.alerte.hidden = true;
-      return;
-    }
-    this.veille = setInterval(() => this._nouvelles(), this.ouvert ? RYTHME_OUVERT : RYTHME_FERME);
-    if (!this.ouvert) this._nouvelles();
   }
 
   // -------------------------------------------------------- pop-ups ---
@@ -326,8 +268,14 @@ export class Panneau {
     fermer.onclick = () => this._ferme_pop();
     const corps = el('div', 'pn-pop-corps');
     p.append(fermer, corps);
-    const ctx = this._ctx();
+    this._remplir(corps, quoi, cible);
+    p.hidden = false;
+    this._place();
+  }
 
+  /** Contenu du pop-up `quoi`. */
+  _remplir(corps, quoi, cible) {
+    const ctx = this._ctx();
     if (quoi === 'profil') {
       dessineProfil(corps, this.compte, ctx.api, this.base, (c) => {
         this.compte = { ...this.compte, ...c };
@@ -341,9 +289,14 @@ export class Panneau {
       dessineNouveau(corps, ctx);
     } else if (quoi.startsWith('conv:')) {
       this.arret = dessineConversation(corps, ctx, cible);
+    } else if (quoi.startsWith('ami:')) {
+      dessineFicheAmi(corps, ctx, cible);
+    } else if (quoi === 'groupe') {
+      dessineGroupe(corps, ctx);
+    } else if (quoi.startsWith('invit:')) {
+      dessineInvitation(corps, ctx, cible);
+      this.toasts.oublier(cible.id);
     }
-    p.hidden = false;
-    this._place();
   }
 
   /** Le haut du pop-up s'aligne sur son icone ; il remonte s'il deborde. */
@@ -370,6 +323,7 @@ export class Panneau {
   async _deconnecter() {
     await this.api('/api/auth/deconnexion', { method: 'POST' }).catch(() => {});
     this.compte = null;
+    this.social.arreter();
     this.fermer();
     dispatchEvent(new Event('vb-compte'));
   }
@@ -399,9 +353,7 @@ export class Panneau {
   }
 }
 
-/** Petit chiffre rouge sur une icone ; rien a zero. */
-function badge(x, n) {
-  if (!x) return;
-  x.querySelector('.pn-badge')?.remove();
-  if (n > 0) x.append(el('span', 'pn-badge', n > 9 ? '9+' : String(n)));
+// Nouvelles, conversations et zones sociales : dans `nouvelles.js`.
+for (const k of Object.getOwnPropertyNames(Nouvelles.prototype)) {
+  if (k !== 'constructor') Object.defineProperty(Panneau.prototype, k, Object.getOwnPropertyDescriptor(Nouvelles.prototype, k));
 }

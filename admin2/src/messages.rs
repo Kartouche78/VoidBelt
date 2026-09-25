@@ -150,7 +150,10 @@ pub async fn fil_route(headers: HeaderMap, Path(lui): Path<i64>, Query(a): Query
 pub async fn envoyer_route(headers: HeaderMap, Path(lui): Path<i64>, Json(corps): Json<Value>) -> R<Json<Message>> {
     let moi = connecte(&headers)?;
     let texte = corps.get("texte").and_then(Value::as_str).unwrap_or("");
-    Ok(Json(envoyer(&base::base(), moi.id, lui, texte)?))
+    let m = envoyer(&base::base(), moi.id, lui, texte)?;
+    // Le destinataire l'apprend tout de suite, sur toutes ses pages.
+    crate::social::signaler(lui, json!({ "t": "nouvelles" }));
+    Ok(Json(m))
 }
 
 #[cfg(test)]

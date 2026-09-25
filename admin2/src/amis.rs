@@ -199,12 +199,18 @@ pub async fn chercher_route(headers: HeaderMap, Query(r): Query<Recherche>) -> R
 pub async fn demander_route(headers: HeaderMap, Path(lui): Path<i64>) -> R<Json<Value>> {
     let moi = connecte(&headers)?;
     let l = demander(&base::base(), moi.id, lui)?;
+    // Demande recue ou amitie nouee : les deux le voient aussitot.
+    crate::social::pousser_amis(moi.id);
+    crate::social::pousser_amis(lui);
+    crate::social::signaler(lui, json!({ "t": "nouvelles" }));
     Ok(Json(json!({ "lien": l })))
 }
 
 pub async fn retirer_route(headers: HeaderMap, Path(lui): Path<i64>) -> R<Json<Value>> {
     let moi = connecte(&headers)?;
     retirer(&base::base(), moi.id, lui)?;
+    crate::social::pousser_amis(moi.id);
+    crate::social::pousser_amis(lui);
     Ok(Json(json!({ "lien": Lien::Aucun })))
 }
 

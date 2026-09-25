@@ -145,6 +145,9 @@ pub struct JoinParams {
     /// jamais prise dans l'adresse.
     #[serde(skip)]
     pub couleur: String,
+    /// Compte du joueur, s'il est connecte : sa presence et son groupe.
+    #[serde(skip)]
+    pub compte: Option<i64>,
 }
 
 pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
@@ -245,6 +248,7 @@ pub async fn ws(
                 params.name = nom.clone();
             }
             params.couleur = admin2::couleur_clan(c.id);
+            params.compte = Some(c.id);
         }
         None if admin2::machine_hote(&headers, who) => {}
         None => {
@@ -295,8 +299,10 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
             match rooms.get_mut(&wanted) {
                 None => Err("Aucun salon ne correspond a ce code."),
                 Some(room) => {
-                    // Aucun refus possible : le salon s'agrandit.
-                    let team = room.lighter_team();
+                    // Aucun refus possible : le salon s'agrandit. Un
+                    // membre de groupe rejoint l'equipe de son groupe.
+                    let groupe = params.compte.map(admin2::coequipiers).unwrap_or_default();
+                    let team = room.equipe_du_groupe(&groupe).unwrap_or_else(|| room.lighter_team());
                     let slot = room.seat(Seat {
                         id,
                         name: name.clone(),
@@ -306,6 +312,7 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                         chats: Vec::new(),
                         skin: skin.clone(),
                         couleur: params.couleur.clone(),
+                        compte: params.compte,
                     });
                     Ok((wanted, slot))
                 }
@@ -326,6 +333,7 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                 chats: Vec::new(),
                 skin: skin.clone(),
                 couleur: params.couleur.clone(),
+                compte: params.compte,
             });
             rooms.insert(code.clone(), room);
             Ok((code, slot))
@@ -343,6 +351,10 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
         }
         Ok(v) => v,
     };
+    // Ses amis le voient en partie, dans ce salon.
+    if let Some(c) = params.compte {
+        admin2::salon_de_jeu(c, Some(code.clone()));
+    }
 
     {
         let rooms = hub.rooms.lock().expect("hub empoisonne");
@@ -416,6 +428,10 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
             room.host = room.seats.iter().flatten().map(|s| s.id).next().unwrap_or(0);
         }
         room.announce();
+    }
+    drop(rooms);
+    if let Some(c) = params.compte {
+        admin2::salon_de_jeu(c, None);
     }
 }
 
@@ -531,6 +547,13 @@ fn handle_text(room: &mut Room, id: u32, text: &str) -> bool {
                 return false;
             }
             seat.team = team;
+            // Un groupe joue ensemble : ses membres presents suivent.
+            let groupe = seat.compte.map(admin2::coequipiers).unwrap_or_default();
+            for s in room.seats.iter_mut().flatten() {
+                if s.compte.is_some_and(|c| groupe.contains(&c)) {
+                    s.team = team;
+                }
+            }
             // En plein match on enregistre le choix pour le prochain salon,
             // sans deplacer les voitures en cours de jeu.
             room.resync();

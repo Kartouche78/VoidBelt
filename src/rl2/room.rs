@@ -42,6 +42,8 @@ pub struct Seat {
     /// Couleur du clan (`#rrggbb`), vide sans clan : la voiture et
     /// l'etiquette prennent alors la couleur de l'equipe.
     pub couleur: String,
+    /// Compte du joueur connecte : son groupe joue dans la meme equipe.
+    pub compte: Option<i64>,
 }
 
 /// Messages rapides permis par fenetre glissante : deux toutes les dix
@@ -115,6 +117,16 @@ impl Room {
             n[(s.team & 1) as usize] += 1;
         }
         u8::from(n[1] < n[0])
+    }
+
+    /// Equipe d'un membre du groupe deja assis, s'il y en a un : le groupe
+    /// joue ensemble.
+    pub fn equipe_du_groupe(&self, groupe: &[i64]) -> Option<u8> {
+        self.seats
+            .iter()
+            .flatten()
+            .find(|s| s.compte.is_some_and(|c| groupe.contains(&c)))
+            .map(|s| s.team & 1)
     }
 
     /// Installe un joueur et renvoie son siege. Un trou libre est repris,
@@ -301,6 +313,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn un_groupe_rejoint_l_equipe_de_son_premier_membre() {
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut room = Room::new("1234".into(), 1);
+        let assis = |compte, team| Seat {
+            id: compte as u32,
+            name: String::new(),
+            team,
+            idle: 0.0,
+            tx: tx.clone(),
+            chats: Vec::new(),
+            skin: String::new(),
+            couleur: String::new(),
+            compte: Some(compte),
+        };
+        room.seat(assis(10, 1));
+        room.seat(assis(20, 0));
+        assert_eq!(room.equipe_du_groupe(&[10, 30]), Some(1));
+        assert_eq!(room.equipe_du_groupe(&[20]), Some(0));
+        assert_eq!(room.equipe_du_groupe(&[99]), None, "sans membre assis, l'equilibre decide");
+        assert_eq!(room.equipe_du_groupe(&[]), None);
+    }
+
+    #[test]
     fn deux_messages_rapides_par_fenetre_de_dix_secondes() {
         let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
         let mut s = Seat {
@@ -312,6 +347,7 @@ mod tests {
             chats: Vec::new(),
             skin: String::new(),
             couleur: String::new(),
+            compte: None,
         };
         let t0 = Instant::now();
         assert!(s.may_chat(t0));

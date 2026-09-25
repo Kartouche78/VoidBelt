@@ -8,10 +8,10 @@ description = "Comptes Voidbelt : authentification Google, sessions, profils, et
 [workspace]
 
 [dependencies]
-axum = "0.8.9"
+axum = { version = "0.8.9", features = ["ws"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
-tokio = { version = "1.53.1", features = ["sync", "rt", "macros"] }
+tokio = { version = "1.53.1", features = ["sync", "rt", "macros", "time"] }
 tracing = "0.1.44"
 # Base des comptes : le meme fichier SQLite que les creations de l'admin.
 rusqlite = { version = "0.32", features = ["bundled"] }

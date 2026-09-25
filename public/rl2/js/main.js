@@ -245,6 +245,8 @@ async function boot() {
     app.finished = false;
     app.last = performance.now();
     menu.hide();
+    // Chef d'un groupe : tout le groupe le suit dans ce salon.
+    panneau.social.lancer(net.room?.code);
   }
 
   // Apercu dans /admin : la page parente pousse ses curseurs, on les
@@ -354,6 +356,24 @@ async function boot() {
   const menuPartie = menuJeu({ app, menu, panneau, shell: document.getElementById('shell') });
   input.onPanneau = () => menuPartie.basculer() || panneau.basculer();
 
+  // Groupe et amis : rejoindre la partie d'un ami, ou suivre son chef quand
+  // il lance. On quitte ce qu'on faisait (solo, autre salon) pour y aller.
+  async function rejoindreSalon(code) {
+    if (app.mode === 'online' && net.room?.code === code) return;
+    if (app.mode === 'online') net.close();
+    app.mode = 'solo';
+    app.running = false;
+    audio.stopAll();
+    await joinOnline(code);
+    // Echec (salon ferme entre-temps) : Occasionnel dit pourquoi.
+    if (app.mode !== 'online') menu.show('online');
+  }
+  panneau.rejoindre = rejoindreSalon;
+  panneau.social.on('lancer', (m) => {
+    panneau.toasts.info(`${m.chef.pseudo} lance la partie : tu le suis.`);
+    rejoindreSalon(m.salon);
+  });
+
   input.onPause = () => {
     if (menuPartie.basculer()) return;
     // Dans les ecrans de menu, la touche pause sert de retour arriere,
@@ -454,6 +474,9 @@ async function boot() {
       // permet de reprendre la partie et de reassigner un bouton de manette.
       const cmd = input.read();
       menuPartie.suivre();
+      // Ses amis voient ou il en est : menus ou solo (le salon, c'est le
+      // serveur de jeu qui le dit).
+      panneau.social.lieu(!app.running ? 'menu' : app.mode === 'online' ? 'partie' : 'solo');
       // Menu ouvert en ligne : la partie continue, la voiture au neutre.
       if (menuPartie.ouvert()) Object.assign(cmd, { throttle: 0, brake: 0, steer: 0, boost: false, drift: false });
       padMenu();

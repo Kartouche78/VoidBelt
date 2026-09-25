@@ -184,5 +184,20 @@ pub async fn fil(headers: HeaderMap, Query(a): Query<Apres>) -> R<Json<Value>> {
 pub async fn ecrire(headers: HeaderMap, Json(corps): Json<Value>) -> R<Json<clans::MessageClan>> {
     let moi = connecte(&headers)?;
     let texte = corps.get("texte").and_then(Value::as_str).unwrap_or("");
-    Ok(Json(clans::ecrire(&base::base(), moi.id, texte)?))
+    let (m, membres) = {
+        let b = base::base();
+        let m = clans::ecrire(&b, moi.id, texte)?;
+        let membres: Vec<i64> = clans::rang_de(&b, moi.id)
+            .and_then(|(k, _)| clans::membres(&b, k).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|x| x.joueur.id)
+            .collect();
+        (m, membres)
+    };
+    // Les autres membres l'apprennent tout de suite.
+    for id in membres.into_iter().filter(|&id| id != moi.id) {
+        crate::social::signaler(id, json!({ "t": "nouvelles" }));
+    }
+    Ok(Json(m))
 }

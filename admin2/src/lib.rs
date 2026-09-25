@@ -9,6 +9,8 @@
 //!   messages  messagerie privee entre amis
 //!   clans     creation et gestion des clans ; `clan_api` leurs routes et
 //!             leur discussion
+//!   social    en direct : amis en ligne, groupes, invitations, nouvelles
+//!             (`presence`, `groupes`, et `social_ws` pour la connexion)
 //!   ranked    le classement, a venir
 //!   base      le schema de tout ce qui precede
 //!
@@ -21,11 +23,15 @@ pub mod clan_api;
 pub mod clans;
 pub mod comptes;
 pub mod google;
+pub mod groupes;
 pub mod joueurs;
 pub mod messages;
+pub mod presence;
 pub mod profil;
 pub mod ranked;
 pub mod sessions;
+pub mod social;
+pub mod social_ws;
 
 use axum::{
     Json, Router,
@@ -67,6 +73,19 @@ pub fn couleur_clan(compte: i64) -> String {
     clans::couleur_de(&base::base(), compte)
 }
 
+/// Le serveur de jeu assoit un joueur dans un salon (`Some(code)`) ou l'en
+/// fait sortir (`None`) : ses amis le voient en partie, et peuvent l'y
+/// rejoindre.
+pub fn salon_de_jeu(compte: i64, code: Option<String>) {
+    social::salon(compte, code);
+}
+
+/// Les autres membres du groupe d'un joueur : le salon les met dans la
+/// meme equipe.
+pub fn coequipiers(compte: i64) -> Vec<i64> {
+    social::coequipiers(compte)
+}
+
 /// Vrai si la requete vient d'un admin connecte.
 pub fn est_admin(headers: &HeaderMap) -> bool {
     compte_de(headers).is_some_and(|c| c.est_admin())
@@ -95,6 +114,7 @@ pub fn routes() -> Router {
         .route("/api/clans", get(clan_api::chercher).post(clan_api::creer))
         .route("/api/clans/{id}/image", get(clan_api::image))
         .route("/api/clans/{id}/rejoindre", post(clan_api::rejoindre).delete(clan_api::annuler))
+        .route("/api/social", get(social_ws::ws))
 }
 
 /// Refus d'une action, avec le code HTTP et la phrase montree au joueur.
