@@ -11,12 +11,13 @@ use crate::vec::{wrap_angle, V2};
 
 // Gabarit cale sur les planches `car_*.png`, au format 2:3 : la boite de
 // collision a donc exactement les proportions de la voiture dessinee.
-// Les trois cotes portent le meme demi pour cent de plus que la mesure
-// d'origine (15.91 / 11.35 / 13.63) : la voiture grossit sans se deformer.
-pub const HALF_LEN: f32 = 15.99;
-pub const HALF_WID: f32 = 11.41;
+// Les trois cotes (et le rayon de contact de `collide.rs`) grandissent
+// ensemble : deux fois +10 % sur la mesure d'avant (15.99 / 11.41 / 13.70),
+// soit +21 %, pour une voiture plus lisible a l'ecran, sans se deformer.
+pub const HALF_LEN: f32 = 19.35;
+pub const HALF_WID: f32 = 13.81;
 /// Rayon du disque equivalent, utilise pour les contacts rapides.
-pub const RADIUS: f32 = 13.70;
+pub const RADIUS: f32 = 16.58;
 pub const MASS: f32 = 180.0;
 
 pub const DRIVE_MAX: f32 = 380.0;
