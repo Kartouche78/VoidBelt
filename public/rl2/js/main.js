@@ -17,6 +17,7 @@ import { FitEdit } from './fitedit.js';
 import { CageEdit } from './cageedit.js';
 import { Chat } from './chat.js';
 import { Panneau } from './panneau/panneau.js';
+import { menuEnLigne } from './menu-en-ligne.js';
 
 const SOLO_SEAT = 0;
 
@@ -299,6 +300,7 @@ async function boot() {
     // puisque le rendu vient apres.
     try {
       const nav = input.menuPulse();
+      if (enLigne.ouvert()) return enLigne.navigate(nav);
       if (panneau.ouvert) return panneau.navigate(nav);
       if (menu.screen) return menu.navigate(nav);
       const waiting = !document.getElementById('lobby').hidden;
@@ -347,9 +349,12 @@ async function boot() {
     history.replaceState(null, '', location.pathname);
     menu.showOnline().then(() => demande.has('profil') && panneau.ouvrirProfil());
   }
-  input.onPanneau = () => panneau.basculer();
+  // En multijoueur, Start ouvre ensemble le menu du jeu et le panneau.
+  const enLigne = menuEnLigne({ app, menu, panneau, shell: document.getElementById('shell') });
+  input.onPanneau = () => enLigne.basculer() || panneau.basculer();
 
   input.onPause = () => {
+    if (enLigne.basculer()) return;
     // Dans les ecrans de menu, la touche pause sert de retour arriere,
     // comme B a la manette.
     if (['settings', 'garage', 'stadium', 'online'].includes(menu.screen)) {
@@ -447,6 +452,9 @@ async function boot() {
       // Les entrees se lisent a chaque image, meme menu ouvert : c'est ce qui
       // permet de reprendre la partie et de reassigner un bouton de manette.
       const cmd = input.read();
+      enLigne.suivre();
+      // Menu en ligne ouvert : la partie continue, la voiture au neutre.
+      if (enLigne.ouvert()) Object.assign(cmd, { throttle: 0, brake: 0, steer: 0, boost: false, drift: false });
       padMenu();
       // Tchat rapide : seulement en partie, menu ferme. Ouvert, un menu
       // se sert deja de la croix pour se parcourir.
