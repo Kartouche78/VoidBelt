@@ -182,6 +182,8 @@ html, body {
 #teams .team.blue:hover, #teams .team.blue.mine { color: #fff; border-color: var(--blue); background: #2f7ce055; }
 #teams .team.orange:hover, #teams .team.orange.mine { color: #fff; border-color: var(--orange); background: #f07a2555; }
 #teams .team:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* Partie privee : l'equipe complete ne se rejoint plus. */
+#teams .team:disabled { opacity: .35; cursor: not-allowed; }
 #team-split {
   font-family: var(--mono);
   font-size: 11px;

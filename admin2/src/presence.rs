@@ -24,13 +24,15 @@ pub struct Statut {
     pub lieu: String,
     /// Code du salon en ligne ou il joue : ses amis peuvent l'y rejoindre.
     pub salon: Option<String>,
+    /// Ce salon est une partie privee.
+    pub prive: bool,
 }
 
 #[derive(Default)]
 pub struct Presence {
     canaux: HashMap<i64, Vec<(u64, Canal)>>,
     lieux: HashMap<i64, String>,
-    salons: HashMap<i64, String>,
+    salons: HashMap<i64, (String, bool)>,
     prochain: u64,
 }
 
@@ -64,10 +66,10 @@ impl Presence {
         self.lieux.insert(compte, lieu.into());
     }
 
-    /// Salon constate par le serveur de jeu.
-    pub fn salon(&mut self, compte: i64, code: Option<String>) {
+    /// Salon constate par le serveur de jeu, prive ou non.
+    pub fn salon(&mut self, compte: i64, code: Option<String>, prive: bool) {
         match code {
-            Some(c) => self.salons.insert(compte, c),
+            Some(c) => self.salons.insert(compte, (c, prive)),
             None => self.salons.remove(&compte),
         };
     }
@@ -76,13 +78,16 @@ impl Presence {
         if !self.en_ligne(compte) {
             return Statut::default();
         }
-        let salon = self.salons.get(&compte).cloned();
+        let (salon, prive) = match self.salons.get(&compte) {
+            Some((c, p)) => (Some(c.clone()), *p),
+            None => (None, false),
+        };
         let lieu = if salon.is_some() {
             "partie".into()
         } else {
             self.lieux.get(&compte).cloned().unwrap_or_else(|| "menu".into())
         };
-        Statut { en_ligne: true, lieu, salon }
+        Statut { en_ligne: true, lieu, salon, prive }
     }
 
     /// Envoie un message a toutes les pages ouvertes d'un joueur.
@@ -123,9 +128,9 @@ mod tests {
         assert_eq!(p.statut(1).lieu, "solo");
         p.lieu(1, "n'importe quoi");
         assert_eq!(p.statut(1).lieu, "menu");
-        p.salon(1, Some("4821".into()));
-        assert_eq!(p.statut(1), Statut { en_ligne: true, lieu: "partie".into(), salon: Some("4821".into()) });
-        p.salon(1, None);
+        p.salon(1, Some("4821".into()), false);
+        assert_eq!(p.statut(1), Statut { en_ligne: true, lieu: "partie".into(), salon: Some("4821".into()), prive: false });
+        p.salon(1, None, false);
         assert_eq!(p.statut(1).salon, None);
     }
 }

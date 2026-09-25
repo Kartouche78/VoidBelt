@@ -2,7 +2,7 @@
 // clic ouvre leur profil, dans le meme pop-up (un bouton ramene a la
 // recherche). Le serveur (`admin2/fiche.rs`) fait foi.
 //
-// `ctx` : { api, base, ecrire(joueur), social, change() }.
+// `ctx` : { api, base, ecrire(joueur), rejoindre(code), social, change() }.
 // `cible` : { id } pour ouvrir directement le profil d'un joueur.
 
 import { adresse, appel, bouton, el, messager, pastille, sur } from './outils.js';
@@ -139,6 +139,9 @@ async function dessineFiche(box, ctx, id, retour, apres = '') {
   if (j.moi) {
     actions.append(el('p', 'pa-vide', 'C’est toi !'));
   } else if (j.lien === 'ami') {
+    if (j.statut?.salon) {
+      actions.append(bouton(j.statut.prive ? 'Rejoindre sa partie privée' : 'Rejoindre sa partie', '', () => ctx.rejoindre(j.statut.salon)));
+    }
     actions.append(bouton('Écrire', '', () => ctx.ecrire(j)));
     if (j.statut?.en_ligne) actions.append(bouton('Inviter dans le groupe', 'discret', () => ctx.social.inviter(j.id)));
     actions.append(sur('Retirer de mes amis', () => refaire(chemin, 'DELETE', `${j.pseudo} n’est plus ton ami.`)));

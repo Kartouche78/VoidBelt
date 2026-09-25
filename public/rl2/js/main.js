@@ -229,21 +229,22 @@ async function boot() {
   }
 
   /** `code` vide cree un salon ; sinon on rejoint celui-la. `p` : une
-   *  partie privee a creer, { reglages, stade, dire }. */
+   *  partie privee a creer, { reglages, stade, dire }, ou seulement
+   *  { dire } pour dire ailleurs ou en est la connexion. */
   async function joinOnline(code, p = null) {
     const dire = p?.dire ?? ((t) => menu.status(t));
     dire(code ? `Connexion au salon ${code}…` : 'Creation du salon…');
     try {
-      await net.connect(code, menu.playerName(), settings.skin, !!p);
+      await net.connect(code, menu.playerName(), settings.skin, !!p?.reglages);
     } catch (err) {
       dire(err.message);
       return;
     }
-    if (p) {
+    if (p?.reglages) {
       net.setReglages(p.reglages);
       net.setStadium(p.stade.id, p.stade.corner, cageOf(p.stade));
     }
-    app.prive = !!p || !!net.room?.reglages?.prive;
+    app.prive = !!p?.reglages || !!net.room?.reglages?.prive;
     audio.unlock();
     audio.applyLevels(settings.audio);
     audio.stopAll();
@@ -308,6 +309,13 @@ async function boot() {
       b.textContent = noms[t].toUpperCase();
     });
     teamBtn.forEach((b, t) => b.classList.toggle('mine', t === mine));
+    // Partie privee : une equipe pleine ne s'ouvre plus aux autres.
+    const cap = room.reglages?.prive ? room.reglages.par_equipe : 0;
+    teamBtn.forEach((b, t) => {
+      const pleine = cap > 0 && t !== mine && n[t] >= cap;
+      b.disabled = pleine;
+      b.title = pleine ? 'Équipe complète' : 'Rejoindre cette équipe';
+    });
   }
 
   /** Menu ouvert : la manette le parcourt. Sinon, dans le salon en ligne,
@@ -401,9 +409,11 @@ async function boot() {
     app.mode = 'solo';
     app.running = false;
     audio.stopAll();
-    await joinOnline(code);
-    // Echec (salon ferme entre-temps) : Occasionnel dit pourquoi.
-    if (app.mode !== 'online') menu.show('online');
+    // Depuis le panneau, on reste ou l'on est en cas d'echec (salon ferme,
+    // partie privee complete) : une bulle dit pourquoi.
+    let dernier = '';
+    await joinOnline(code, { dire: (t) => { dernier = t; } });
+    if (app.mode !== 'online') panneau.toasts.info(dernier || 'Impossible de rejoindre cette partie.', true);
   }
   panneau.rejoindre = rejoindreSalon;
   panneau.social.on('lancer', (m) => {

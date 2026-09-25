@@ -157,10 +157,10 @@ pub fn pousser_amis(compte: i64) {
 }
 
 /// Le serveur de jeu assoit `compte` dans un salon, ou l'en fait sortir.
-pub fn salon(compte: i64, code: Option<String>) {
+pub fn salon(compte: i64, code: Option<String>, prive: bool) {
     let b = base::base();
     let mut s = social();
-    s.presence.salon(compte, code);
+    s.presence.salon(compte, code, prive);
     annoncer(&b, &s, compte);
 }
 

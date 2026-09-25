@@ -360,10 +360,6 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
         }
         Ok(v) => v,
     };
-    // Ses amis le voient en partie, dans ce salon.
-    if let Some(c) = params.compte {
-        admin2::salon_de_jeu(c, Some(code.clone()));
-    }
 
     {
         let rooms = hub.rooms.lock().expect("hub empoisonne");
@@ -382,6 +378,11 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
             });
             let _ = tx.send(Message::Text(hello.to_string().into()));
             room.announce();
+            // Ses amis le voient en partie, dans ce salon : le panneau leur
+            // propose de l'y rejoindre.
+            if let Some(c) = params.compte {
+                admin2::salon_de_jeu(c, Some(code.clone()), room.reglages.prive);
+            }
         }
     }
 
@@ -440,7 +441,7 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
     }
     drop(rooms);
     if let Some(c) = params.compte {
-        admin2::salon_de_jeu(c, None);
+        admin2::salon_de_jeu(c, None, false);
     }
 }
 
@@ -566,8 +567,13 @@ fn handle_text(room: &mut Room, id: u32, text: &str) -> bool {
                 return false;
             };
             seat.team = team;
-            // Un groupe joue ensemble : ses membres presents suivent.
-            let groupe = seat.compte.map(admin2::coequipiers).unwrap_or_default();
+            // En occasionnel, un groupe joue ensemble : ses membres presents
+            // suivent. En prive, chacun choisit son camp : on y vient entre
+            // amis, souvent tous du meme groupe, pour s'affronter.
+            let groupe = match seat.compte {
+                Some(c) if !room.reglages.prive => admin2::coequipiers(c),
+                _ => Vec::new(),
+            };
             for s in room.seats.iter_mut().flatten() {
                 if s.compte.is_some_and(|c| groupe.contains(&c)) {
                     s.team = team;

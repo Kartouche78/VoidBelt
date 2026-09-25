@@ -306,3 +306,6 @@ span.pn-conv-img { display: grid; place-items: center; }
 .pr-infos { display: grid; gap: 10px; }
 .pr-clan { display: inline-flex; align-items: center; gap: 6px; }
 .pr-ecusson { width: 20px; height: 20px; object-fit: contain; }
+
+/* Ami en partie en ligne, qu'on peut rejoindre : un liseré orange. */
+.pn-icone.pn-rejoignable .pn-conv-img { box-shadow: 0 0 0 2px var(--orange, #f07a25); }

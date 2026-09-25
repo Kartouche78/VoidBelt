@@ -76,10 +76,10 @@ pub fn couleur_clan(compte: i64) -> String {
 }
 
 /// Le serveur de jeu assoit un joueur dans un salon (`Some(code)`) ou l'en
-/// fait sortir (`None`) : ses amis le voient en partie, et peuvent l'y
-/// rejoindre.
-pub fn salon_de_jeu(compte: i64, code: Option<String>) {
-    social::salon(compte, code);
+/// fait sortir (`None`) : ses amis le voient en partie (privee ou non), et
+/// peuvent l'y rejoindre depuis le panneau.
+pub fn salon_de_jeu(compte: i64, code: Option<String>, prive: bool) {
+    social::salon(compte, code, prive);
 }
 
 /// Les autres membres du groupe d'un joueur : le salon les met dans la

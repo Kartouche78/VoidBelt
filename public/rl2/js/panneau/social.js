@@ -160,7 +160,10 @@ export class Social {
 /** Statut d'un ami en quelques mots, pour l'infobulle et sa fiche. */
 export function statutTexte(s) {
   if (!s?.en_ligne) return 'Hors ligne';
-  if (s.lieu === 'partie') return s.salon ? `En partie · Occasionnel (serveur ${s.salon})` : 'En partie';
+  if (s.lieu === 'partie') {
+    if (!s.salon) return 'En partie';
+    return s.prive ? `En partie privée (salon ${s.salon}) · tu peux le rejoindre` : `En partie · Occasionnel (serveur ${s.salon})`;
+  }
   if (s.lieu === 'solo') return 'En ligne · joue en solo';
   return 'En ligne · dans les menus';
 }

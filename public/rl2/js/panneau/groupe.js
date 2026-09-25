@@ -24,11 +24,13 @@ export function actionsAmi(ctx, ami) {
   const s = ami.statut || {};
   const dansMonGroupe = !!social.groupe?.membres.some((m) => m.id === ami.id);
   const actions = el('div', 'pg-rang');
+  // Il joue en ligne : le rejoindre passe en premier, bien visible.
+  if (s.salon) {
+    const texte = s.prive ? 'Rejoindre sa partie privée' : 'Rejoindre sa partie';
+    actions.append(bouton(texte, '', () => ctx.rejoindre(s.salon)));
+  }
   if (s.en_ligne && !dansMonGroupe) {
     actions.append(bouton('Inviter dans le groupe', 'discret', () => social.inviter(ami.id)));
-  }
-  if (s.salon) {
-    actions.append(bouton(`Rejoindre sa partie (${s.salon})`, 'discret', () => ctx.rejoindre(s.salon)));
   }
   actions.append(bouton('Profil', 'discret', () => ctx.voirProfil(ami.id)));
   return actions;

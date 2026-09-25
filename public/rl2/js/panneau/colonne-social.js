@@ -73,6 +73,8 @@ export function dessineZoneAmis(pn, zone) {
     const x = pn._icone('ami-col', a.pseudo, (b) => pn._ouvre_pop(b, cle, { type: 'ami', joueur: a }), portrait(pn, a), statutTexte(a.statut));
     x.dataset.cle = cle;
     if (!a.statut.en_ligne) x.classList.add('pn-hors');
+    // En partie en ligne : on peut le rejoindre depuis sa conversation.
+    if (a.statut.salon) x.classList.add('pn-rejoignable');
     badge(x, pn.nonLus?.get(a.id) || 0);
     zone.append(x);
   }
