@@ -10,6 +10,10 @@
 //
 // Reserve aux joueurs connectes : sans session, Start ne fait rien. Panneau
 // ferme, une pastille previent des messages et demandes en attente.
+//
+// Dans les menus, le panneau reste ouvert, sans voile (`epingler`) : la
+// souris s'en sert directement, et Start y fait passer la manette (B la
+// rend au menu). En partie, il s'ouvre et se ferme avec Start.
 
 import { dessineAmis } from './amis.js';
 import { dessineClan } from './clan.js';
@@ -40,6 +44,11 @@ export class Panneau {
     this.ouvert = false;
     this.pop = null;
     this.arret = null;
+    this.root = root;
+    // Epingle dans les menus ; `main` : la manette est dans le panneau.
+    this.epingle = false;
+    this.main = false;
+    this.voulu = false;
 
     this.voile = el('div', 'pn-voile');
     this.voile.hidden = true;
@@ -75,8 +84,11 @@ export class Panneau {
 
     addEventListener('keydown', (e) => {
       if (this.ouvert && e.key === 'Escape') {
+        // Epingle, sans pop-up ni manette : Echap revient au menu.
+        if (this.epingle && !this.pop && !this.main) return;
         e.stopPropagation();
         if (this.pop) this._ferme_pop();
+        else if (this.epingle) this.rendreMain();
         else this.fermer();
       }
     }, true);
@@ -120,7 +132,48 @@ export class Panneau {
     this._veiller();
   }
 
+  /** Panneau epingle (menus) ou non (en partie). Epingle, il s'ouvre sans
+   *  voile et sans prendre la manette ; retire, il se ferme. */
+  async epingler(on) {
+    this.voulu = on;
+    if (!on) {
+      if (this.epingle) this.fermer();
+      return;
+    }
+    if (this.epingle && this.ouvert) return;
+    if (!(await this.actualiser()) || !this.voulu) return;
+    this.epingle = true;
+    this.main = false;
+    this.root.classList.add('pn-epingle');
+    this.social.demarrer();
+    this.ouvert = true;
+    this._dessine();
+    this.barre.hidden = false;
+    this.voile.hidden = true;
+    this.alerte.hidden = true;
+    this._veiller();
+  }
+
+  /** Start dans un menu : la manette passe au panneau, ou revient. */
+  prendreMain() {
+    if (this.main) return this.rendreMain();
+    this.main = true;
+    this._vise(this.barre.querySelector('button'));
+    return true;
+  }
+
+  rendreMain() {
+    this.main = false;
+    this._cache_bulle();
+    for (const i of this.barre.querySelectorAll('.pn-vise')) i.classList.remove('pn-vise');
+    this.onRendre?.();
+    return true;
+  }
+
   fermer() {
+    this.epingle = false;
+    this.main = false;
+    this.root.classList.remove('pn-epingle');
     this._cache_bulle();
     this._ferme_pop();
     this.ouvert = false;
@@ -342,6 +395,7 @@ export class Panneau {
     if (pulse.ok) this.cible?.click();
     if (pulse.back) {
       if (this.pop) this._ferme_pop();
+      else if (this.epingle) this.rendreMain();
       else this.fermer();
     }
   }

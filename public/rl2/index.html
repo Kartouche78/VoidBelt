@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="assets/panneau.css">
 <link rel="stylesheet" href="assets/panneau-social.css">
 <link rel="stylesheet" href="assets/modes.css">
+<link rel="stylesheet" href="assets/prive.css">
 </head>
 <body>
 <div id="shell">
@@ -80,9 +81,8 @@
       <h1><img class="title-logo" src="assets/logo.png" alt="Pocket League" width="1536" height="1024"></h1>
     </div>
     <nav class="title-menu">
-      <button id="btn-play">Jouer</button>
-      <button id="btn-online">Multijoueur</button>
-      <button id="btn-garage">Personnalisation</button>
+      <button id="btn-online">Jouer</button>
+      <button id="btn-garage">Garage</button>
       <button id="btn-settings">Param&egrave;tres</button>
       <button id="btn-quit-site">Quitter</button>
     </nav>
@@ -102,10 +102,10 @@
     </nav>
   </section>
 
-  <!-- Personnalisation : voiture, et bientot boost, trainee, ballon -->
+  <!-- Garage : voiture, et bientot boost, trainee, ballon -->
   <section id="screen-garage" class="screen sheet" hidden>
     <div class="sheet-head">
-      <h2>Personnalisation</h2>
+      <h2>Garage</h2>
     </div>
     <div class="sheet-body garage">
       <div class="garage-choix">
@@ -119,15 +119,16 @@
     </nav>
   </section>
 
-  <!-- Multijoueur : un mode par case (modes.js). Les images de fond
+  <!-- Jouer : un mode par case (modes.js). Les images de fond
        viennent de assets/menu/modes/<mode>.jpg. -->
   <section id="screen-modes" class="screen sheet" hidden>
     <div class="sheet-head">
-      <h2>Multijoueur</h2>
+      <h2>Jouer</h2>
     </div>
     <div class="sheet-body">
       <div id="modes-grille">
-        <button class="mode" data-mode="occasionnel" type="button">
+        <button class="mode bientot" data-mode="occasionnel" type="button">
+          <span class="mode-badge">Verrouillé</span>
           <span class="mode-titre">Occasionnel</span>
         </button>
         <button class="mode bientot" data-mode="ranked" type="button">
@@ -138,8 +139,7 @@
           <span class="mode-badge">Bientôt</span>
           <span class="mode-titre">S’entraîner</span>
         </button>
-        <button class="mode bientot" data-mode="prive" type="button">
-          <span class="mode-badge">Bientôt</span>
+        <button class="mode" data-mode="prive" type="button">
           <span class="mode-titre">Privé</span>
         </button>
       </div>
@@ -147,6 +147,68 @@
     </div>
     <nav class="sheet-menu">
       <button id="btn-modes-back">Retour</button>
+    </nav>
+  </section>
+
+  <!-- Partie privee : l'hote regle son lobby avant de le creer (prive.js).
+       Fond : assets/menu/match_privé/background.png. -->
+  <section id="screen-prive" class="screen prive" hidden>
+    <div id="prive-joueur" class="title-joueur"></div>
+    <img class="prive-logo" src="assets/logo.png" alt="Pocket League" width="1536" height="1024">
+    <header class="prive-tete">
+      <h2>Partie privée</h2>
+      <p>Crée ton lobby et affronte tes amis</p>
+    </header>
+    <div class="prive-corps">
+      <section class="prive-bloc prive-arenes">
+        <h3>Choisir une arène</h3>
+        <div id="prive-arenes"></div>
+      </section>
+      <section class="prive-bloc prive-reglages">
+        <h3>Paramètres de la partie</h3>
+        <div class="pv-champ">
+          <span class="pv-titre">Mode de jeu</span>
+          <div class="pv-choix" id="prive-mode">
+            <button type="button" data-v="1">1v1</button>
+            <button type="button" data-v="2">2v2</button>
+          </div>
+        </div>
+        <div class="pv-champ">
+          <span class="pv-titre">Nombre de manches (BO)</span>
+          <div class="pv-pas" id="prive-manches"><button type="button" class="pv-moins" aria-label="Moins"></button><output>1</output><button type="button" class="pv-plus" aria-label="Plus"></button></div>
+        </div>
+        <div class="pv-champ">
+          <span class="pv-titre">Durée d’une manche</span>
+          <div class="pv-pas" id="prive-duree"><button type="button" class="pv-moins" aria-label="Moins"></button><output>5 minutes</output><button type="button" class="pv-plus" aria-label="Plus"></button></div>
+        </div>
+        <div class="pv-bascules">
+          <button class="pv-bascule" type="button" data-cle="reapparition"><span>Réapparition instantanée</span><i></i></button>
+          <button class="pv-bascule" type="button" disabled title="Bientôt"><span>Ralenti buts</span><i></i></button>
+          <button class="pv-bascule" type="button" data-cle="boosts"><span>Boosts</span><i></i></button>
+          <button class="pv-bascule" type="button" disabled title="Bientôt"><span>Objets spéciaux</span><i></i></button>
+          <button class="pv-bascule" type="button" data-cle="demolitions"><span>Destructions</span><i></i></button>
+          <button class="pv-bascule" type="button" disabled title="Bientôt"><span>Météo aléatoire</span><i></i></button>
+          <button class="pv-bascule" type="button" disabled title="Bientôt"><span>Physique compétitive</span><i></i></button>
+          <div class="pv-mutator" title="Bientôt"><span>Mouvement mutator</span><div class="pv-pas petit" id="prive-mutator"><button type="button" class="pv-moins" aria-label="Moins" disabled></button><output>Normal</output><button type="button" class="pv-plus" aria-label="Plus" disabled></button></div></div>
+        </div>
+        <div class="pv-equipes">
+          <div class="pv-equipe bleue">
+            <h4>Équipe bleue</h4>
+            <label class="pv-nom"><input id="prive-nom-0" type="text" maxlength="16" placeholder="Les Comètes" autocomplete="off" spellcheck="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4 11-11 3 3-11 11z"/><path d="M14 7l3 3"/></svg></label>
+            <div class="pv-joueurs" id="prive-joueurs-0"></div>
+          </div>
+          <div class="pv-equipe orange">
+            <h4>Équipe orange</h4>
+            <label class="pv-nom"><input id="prive-nom-1" type="text" maxlength="16" placeholder="Les Météores" autocomplete="off" spellcheck="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4 11-11 3 3-11 11z"/><path d="M14 7l3 3"/></svg></label>
+            <div class="pv-joueurs" id="prive-joueurs-1"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <nav class="prive-pied">
+      <button id="btn-prive-back" class="pv-retour" type="button">Retour</button>
+      <p id="prive-statut" class="pv-statut" aria-live="polite"></p>
+      <button id="btn-prive-creer" class="pv-creer" type="button">Créer le lobby</button>
     </nav>
   </section>
 

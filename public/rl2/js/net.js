@@ -78,11 +78,12 @@ export class Net {
     return this.room && this.room.host === this.you;
   }
 
-  /** `code` vide cree un salon. Resout une fois le salon rejoint. */
-  connect(code, name, skin = '') {
+  /** `code` vide cree un salon, prive si `prive`. Resout une fois le
+   *  salon rejoint. */
+  connect(code, name, skin = '', prive = false) {
     return new Promise((resolve, reject) => {
       const url = `${WS}/api/rl2/ws?room=${encodeURIComponent(code || '')}&name=${encodeURIComponent(name || '')}`
-        + `&skin=${encodeURIComponent(skin || '')}`;
+        + `&skin=${encodeURIComponent(skin || '')}${prive ? '&prive=1' : ''}`;
       const sock = new WebSocket(url);
       sock.binaryType = 'arraybuffer';
       this.sock = sock;
@@ -158,6 +159,12 @@ export class Net {
     this.sock.send(JSON.stringify({
       t: 'stadium', id, corner, goal_half: cage.half, goal_depth: cage.depth, post_r: cage.post,
     }));
+  }
+
+  /** Reglages d'un salon prive (hote seulement) : effectif, manches,
+   *  duree, interrupteurs, noms des equipes. */
+  setReglages(r) {
+    if (this.connected) this.sock.send(JSON.stringify({ t: 'reglages', ...r }));
   }
 
   /** Envoie un message rapide : deux directions, jamais du texte. */

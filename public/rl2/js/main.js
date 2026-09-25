@@ -18,6 +18,7 @@ import { CageEdit } from './cageedit.js';
 import { Chat } from './chat.js';
 import { Panneau } from './panneau/panneau.js';
 import { carteJoueur } from './carte-joueur.js';
+import { brancherPrive } from './prive.js';
 import { menuJeu } from './menu-jeu.js';
 
 const SOLO_SEAT = 0;
@@ -213,8 +214,9 @@ async function boot() {
     if (app.mode === 'online') leaveOnline('Connexion au salon perdue.');
   };
 
-  /** Quitte le salon et remonte au menu multijoueur. */
-  function leaveOnline(message, screen = 'online') {
+  /** Quitte le salon et remonte au menu d'ou l'on vient : la partie
+   *  privee, ou Occasionnel. */
+  function leaveOnline(message, screen = app.prive ? 'prive' : 'online') {
     net.close();
     app.mode = 'solo';
     app.running = false;
@@ -222,18 +224,25 @@ async function boot() {
     app.finished = false;
     audio.stopAll();
     menu.show(screen);
-    if (message) menu.status(message);
+    if (message) (screen === 'prive' ? prive.dire : menu.status.bind(menu))(message);
   }
 
-  /** `code` vide cree un salon ; sinon on rejoint celui-la. */
-  async function joinOnline(code) {
-    menu.status(code ? `Connexion au salon ${code}…` : 'Creation du salon…');
+  /** `code` vide cree un salon ; sinon on rejoint celui-la. `p` : une
+   *  partie privee a creer, { reglages, stade, dire }. */
+  async function joinOnline(code, p = null) {
+    const dire = p?.dire ?? ((t) => menu.status(t));
+    dire(code ? `Connexion au salon ${code}…` : 'Creation du salon…');
     try {
-      await net.connect(code, menu.playerName(), settings.skin);
+      await net.connect(code, menu.playerName(), settings.skin, !!p);
     } catch (err) {
-      menu.status(err.message);
+      dire(err.message);
       return;
     }
+    if (p) {
+      net.setReglages(p.reglages);
+      net.setStadium(p.stade.id, p.stade.corner, cageOf(p.stade));
+    }
+    app.prive = !!p || !!net.room?.reglages?.prive;
     audio.unlock();
     audio.applyLevels(settings.audio);
     audio.stopAll();
@@ -292,6 +301,11 @@ async function boot() {
     const n = [0, 0];
     for (const p of room.players) n[p.team & 1] += 1;
     teamSplit.textContent = `${n[0]} v ${n[1]}`;
+    // Salon prive : les equipes portent les noms choisis par l'hote.
+    const noms = room.reglages?.prive ? room.reglages.noms : ['Bleu', 'Orange'];
+    teamBtn.forEach((b, t) => {
+      b.textContent = noms[t].toUpperCase();
+    });
     teamBtn.forEach((b, t) => b.classList.toggle('mine', t === mine));
   }
 
@@ -304,7 +318,7 @@ async function boot() {
     try {
       const nav = input.menuPulse();
       if (menuPartie.ouvert()) return menuPartie.navigate(nav);
-      if (panneau.ouvert) return panneau.navigate(nav);
+      if (panneau.ouvert && (!panneau.epingle || panneau.main)) return panneau.navigate(nav);
       if (menu.screen) return menu.navigate(nav);
       const waiting = !document.getElementById('lobby').hidden;
       if (nav?.ok && waiting && !kickoff.disabled) kickoff.click();
@@ -347,6 +361,26 @@ async function boot() {
   // moment.
   const panneau = new Panneau(document.getElementById('shell'), API_HTTP);
   carteJoueur(document.getElementById('title-joueur'), panneau);
+  // Partie privee : l'hote regle, puis cree le lobby.
+  const prive = brancherPrive({ menu, panneau, creer: (p) => joinOnline('', p) });
+  menu.showPrive = () => prive.ouvrir();
+  // Dans les menus (hors partie), le panneau reste ouvert. B ou Start
+  // rendent la manette au menu, sur l'element qu'il visait.
+  panneau.onRendre = () => menu._focus(menu.cursor ?? menu.items()[0]);
+  let epingle = null;
+  function suivreEpingle() {
+    const voulu = !!menu.screen && !menuPartie.ouvert() && menu.screen !== 'pause';
+    // Ferme par un tiers alors qu'il devrait l'etre : on le rouvre (avec un
+    // compte seulement, pour ne pas relire la session a chaque image).
+    const rouvrir = voulu && !panneau.ouvert && !!panneau.compte;
+    if (voulu === epingle && !rouvrir) return;
+    epingle = voulu;
+    panneau.epingler(voulu);
+  }
+  // Connexion ou deconnexion : on refait le point.
+  addEventListener('vb-compte', () => {
+    epingle = null;
+  });
   // Retour de la connexion Google, demandee depuis le multijoueur : on y
   // revient, profil ouvert pour choisir son pseudo et son avatar.
   if (demande.get('ecran') === 'multi') {
@@ -356,7 +390,7 @@ async function boot() {
   // En partie, Start ouvre ensemble le menu du jeu et le panneau ; hors
   // partie, le panneau seul.
   const menuPartie = menuJeu({ app, menu, panneau, shell: document.getElementById('shell') });
-  input.onPanneau = () => menuPartie.basculer() || panneau.basculer();
+  input.onPanneau = () => menuPartie.basculer() || (panneau.epingle ? panneau.prendreMain() : panneau.basculer());
 
   // Groupe et amis : rejoindre la partie d'un ami, ou suivre son chef quand
   // il lance. On quitte ce qu'on faisait (solo, autre salon) pour y aller.
@@ -457,8 +491,11 @@ async function boot() {
   /** Resume du salon pour le tableau de bord, `null` en solo. */
   function lobbyInfo() {
     if (app.mode !== 'online' || !net.room) return null;
+    const r = net.room.reglages;
     return {
       code: net.room.code,
+      prive: !!r?.prive,
+      serie: r?.prive && r.manches > 1 ? `BO${r.manches} · ${r.serie[0]}–${r.serie[1]}` : '',
       players: net.room.players.length,
       seats: net.room.players.length,
       host: net.isHost,
@@ -476,6 +513,7 @@ async function boot() {
       // permet de reprendre la partie et de reassigner un bouton de manette.
       const cmd = input.read();
       menuPartie.suivre();
+      suivreEpingle();
       // Ses amis voient ou il en est : menus ou solo (le salon, c'est le
       // serveur de jeu qui le dit).
       panneau.social.lieu(!app.running ? 'menu' : app.mode === 'online' ? 'partie' : 'solo');

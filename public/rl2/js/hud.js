@@ -74,7 +74,9 @@ export class Hud {
       ? (solo ? 'En attente d’un adversaire' : 'Lancer la partie')
       : 'En attente de l’hôte';
     const n = lobby.players;
-    this.el.lobbyInfo.textContent = `SALON ${lobby.code} · ${n} JOUEUR${n > 1 ? 'S' : ''} · ECHAUFFEMENT`;
+    const prive = lobby.prive ? ' · PRIVÉ' : '';
+    const serie = lobby.serie ? ` · ${lobby.serie}` : '';
+    this.el.lobbyInfo.textContent = `SALON ${lobby.code}${prive}${serie} · ${n} JOUEUR${n > 1 ? 'S' : ''} · ECHAUFFEMENT`;
   }
 
   _message(state, phase, player) {

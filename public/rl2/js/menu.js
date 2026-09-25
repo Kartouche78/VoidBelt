@@ -38,6 +38,10 @@ function voisin(depuis, candidats, dx, dy) {
   return meilleur;
 }
 
+/** Ecrans et grilles qui se parcourent en deux dimensions, d'apres la
+ *  position a l'ecran : la partie privee pose ses reglages en colonnes. */
+const GRILLES = '#stadium-list, #garage-list, #modes-grille, #screen-prive';
+
 const PHASE_FR = {
   warmup: 'echauffement',
   countdown: 'engagement',
@@ -61,6 +65,7 @@ export class Menu {
       pause: $('screen-pause'),
       result: $('screen-result'),
       modes: $('screen-modes'),
+      prive: $('screen-prive'),
       online: $('screen-online'),
       stadium: $('screen-stadium'),
       garage: $('screen-garage'),
@@ -122,8 +127,8 @@ export class Menu {
    *  cette direction : on sort alors vers les onglets ou le pied de page,
    *  pour que l'ecran entier reste accessible. */
   _grille(cur, dx, dy) {
-    const grille = cur.closest('#stadium-list, #garage-list, #modes-grille');
-    const cases = [...grille.querySelectorAll('button')];
+    const grille = cur.closest(GRILLES);
+    const cases = [...grille.querySelectorAll('button:not([disabled]), input:not([disabled])')];
     const cible = voisin(cur, cases, dx, dy);
     if (cible) {
       this._focus(cible);
@@ -182,7 +187,7 @@ export class Menu {
     // Une grille ne se parcourt pas comme une liste : la case du dessous
     // n'est pas la suivante dans l'ordre du document, elle est une ligne
     // plus bas. Les quatre directions y servent donc vraiment.
-    if (cur?.closest('#stadium-list, #garage-list, #modes-grille') && (pulse.x || pulse.y)) {
+    if (cur?.closest(GRILLES) && (pulse.x || pulse.y)) {
       if (this._grille(cur, pulse.x, pulse.y)) return;
     }
 
@@ -255,6 +260,7 @@ export class Menu {
       stadium: 'btn-stadium-back',
       garage: 'btn-garage-back',
       modes: 'btn-modes-back',
+      prive: 'btn-prive-back',
       online: 'btn-online-back',
       pause: 'btn-resume',
       result: 'btn-result-menu',
@@ -278,10 +284,6 @@ export class Menu {
   }
 
   _wire() {
-    // Jouer passe d'abord par le choix du stade : c'est la seule chose a
-    // decider avant un solo, autant la demander plutot que de la cacher
-    // dans les parametres.
-    $('btn-play').onclick = () => this.showStadiums();
     $('btn-stadium-back').onclick = () => {
       // Depuis un salon on revient au jeu, pas a l'accueil.
       if (this.pourQui === 'salon') return this.hide();

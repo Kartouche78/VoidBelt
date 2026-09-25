@@ -5,6 +5,7 @@
 //! seulement au salon : renumeroter les voitures en plein match echangerait
 //! celles des joueurs restants.
 
+use super::prive::Reglages;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 use voidbelt_rl2::{
@@ -19,7 +20,6 @@ use std::time::{Duration, Instant};
 
 /// Effectif d'un salon vide : deux voitures, le temps que quelqu'un arrive.
 pub const IDLE_CARS: usize = CARS;
-const MATCH_SECONDS: f32 = 300.0;
 /// Delai avant de renvoyer tout le monde au salon, match termine.
 const REMATCH_AFTER: f32 = 8.0;
 /// Sans nouvelle commande pendant ce delai, on relache les gaz du joueur.
@@ -81,6 +81,10 @@ pub struct Room {
     /// l'arrondi des coins, lui, est une donnee de collision : il vit donc
     /// dans les reglages du salon et c'est ce serveur qui l'arbitre.
     pub stadium: String,
+    /// Salon prive : effectif, manches, duree, interrupteurs, noms.
+    pub reglages: Reglages,
+    /// Manches gagnees par chaque equipe dans la serie en cours.
+    pub serie: [u32; 2],
     /// Tampons reutilises : a 60 Hz, mieux vaut ne rien allouer par image.
     pub floats: Vec<f32>,
     pub events: Vec<f32>,
@@ -91,7 +95,7 @@ impl Room {
     pub fn new(code: String, seed: u32) -> Room {
         Room {
             code,
-            game: Game::warmup(seed, MATCH_SECONDS),
+            game: Game::warmup(seed, Reglages::default().secondes()),
             seats: Vec::new(),
             host: 0,
             over_for: 0.0,
@@ -99,6 +103,8 @@ impl Room {
             seed,
             tune: Tune::default(),
             stadium: String::from("voidbelt"),
+            reglages: Reglages::default(),
+            serie: [0, 0],
             floats: vec![0.0; state::state_len(IDLE_CARS)],
             events: Vec::with_capacity(64),
             bytes: Vec::with_capacity(state::state_len(IDLE_CARS) * 8),
@@ -117,6 +123,38 @@ impl Room {
             n[(s.team & 1) as usize] += 1;
         }
         u8::from(n[1] < n[0])
+    }
+
+    /// Joueurs assis dans l'equipe `team`, sans compter le joueur `sauf`.
+    pub fn effectif(&self, team: u8, sauf: u32) -> usize {
+        self.seats.iter().flatten().filter(|s| s.team & 1 == team && s.id != sauf).count()
+    }
+
+    /// Equipe ou asseoir un arrivant : celle voulue si elle a de la place,
+    /// sinon l'autre ; `None` quand le salon est complet.
+    pub fn equipe_libre(&self, voulue: u8) -> Option<u8> {
+        [voulue, voulue ^ 1].into_iter().find(|&t| self.reglages.place(self.effectif(t, u32::MAX)))
+    }
+
+    /// Les reglages du jeu, interrupteurs du salon appliques.
+    pub fn tune_effectif(&self) -> Tune {
+        self.reglages.appliquer(self.tune)
+    }
+
+    /// Nouveaux reglages de l'hote, au salon seulement : la partie est
+    /// refaite pour prendre la duree et les interrupteurs.
+    pub fn set_reglages(&mut self, v: &Value) -> bool {
+        if self.game.phase != Phase::Warmup {
+            return false;
+        }
+        let avant = self.reglages.clone();
+        self.reglages.lire(v);
+        if self.reglages == avant {
+            return false;
+        }
+        self.serie = [0, 0];
+        self.resync();
+        true
     }
 
     /// Equipe d'un membre du groupe deja assis, s'il y en a un : le groupe
@@ -190,7 +228,7 @@ impl Room {
         t.post_r = self.tune.post_r;
         self.tune = t;
         if self.game.phase == Phase::Warmup {
-            self.game.tune = t;
+            self.game.tune = self.tune_effectif();
         }
     }
 
@@ -208,8 +246,8 @@ impl Room {
             .iter()
             .map(|s| s.as_ref().map_or(0, |s| s.team & 1))
             .collect();
-        self.game = Game::warmup_with(self.seed, MATCH_SECONDS, &teams);
-        self.game.tune = self.tune;
+        self.game = Game::warmup_with(self.seed, self.reglages.secondes(), &teams);
+        self.game.tune = self.tune_effectif();
         self.floats = vec![0.0; state::state_len(self.game.cars.len())];
     }
 
@@ -231,9 +269,22 @@ impl Room {
         // Match fini : on laisse le tableau s'afficher, puis retour au salon
         // pour enchainer sans avoir a recreer la partie.
         if self.game.phase == Phase::Over {
+            // Premiere image du tableau final : la manche compte pour la
+            // serie.
+            if self.over_for == 0.0 {
+                let [b, o] = self.game.score;
+                if b != o {
+                    self.serie[usize::from(o > b)] += 1;
+                }
+                self.announce();
+            }
             self.over_for += dt;
             if self.over_for >= REMATCH_AFTER {
                 self.over_for = 0.0;
+                // Serie gagnee : la suivante repart de zero.
+                if self.serie.iter().any(|&n| n >= self.reglages.a_gagner()) {
+                    self.serie = [0, 0];
+                }
                 self.game.back_to_warmup();
                 self.announce();
             }
@@ -277,6 +328,7 @@ impl Room {
             "cars": self.game.cars.len(),
             "stadium": self.stadium,
             "players": players,
+            "reglages": self.reglages.public(self.serie),
         })
     }
 
@@ -333,6 +385,35 @@ mod tests {
         assert_eq!(room.equipe_du_groupe(&[20]), Some(0));
         assert_eq!(room.equipe_du_groupe(&[99]), None, "sans membre assis, l'equilibre decide");
         assert_eq!(room.equipe_du_groupe(&[]), None);
+    }
+
+    #[test]
+    fn un_salon_prive_borne_ses_equipes_et_compte_la_serie() {
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut room = Room::new("1234".into(), 1);
+        room.set_reglages(&json!({ "par_equipe": 1, "manches": 3, "minutes": 2 }));
+        assert_eq!(room.game.duration, 120.0);
+        let assis = |id, team| Seat {
+            id,
+            name: String::new(),
+            team,
+            idle: 0.0,
+            tx: tx.clone(),
+            chats: Vec::new(),
+            skin: String::new(),
+            couleur: String::new(),
+            compte: None,
+        };
+        assert_eq!(room.equipe_libre(0), Some(0));
+        room.seat(assis(1, 0));
+        assert_eq!(room.equipe_libre(0), Some(1), "l'equipe pleine n'est pas evitee");
+        room.seat(assis(2, 1));
+        assert_eq!(room.equipe_libre(0), None, "un salon 1v1 accepte un troisieme");
+        room.game.begin();
+        room.game.score = [2, 1];
+        room.game.phase = Phase::Over;
+        room.step(0.1);
+        assert_eq!(room.serie, [1, 0]);
     }
 
     #[test]

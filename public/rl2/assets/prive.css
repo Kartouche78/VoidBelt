@@ -1,0 +1,371 @@
+/* ------------------------------------------------- partie privee ------- */
+
+/* Plein cadre comme l'accueil : la carte du joueur en haut a gauche, le
+   logo en haut a droite, le titre, puis deux blocs (arenes, parametres)
+   et le pied (retour, creer le lobby). */
+#screen-prive.prive {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: clamp(8px, 1.6vh, 18px);
+  padding: clamp(14px, 3vh, 32px) clamp(16px, 2.4vw, 40px) clamp(12px, 2.4vh, 26px);
+  place-items: stretch;
+  background: none;
+  backdrop-filter: none;
+  overflow: hidden;
+}
+#screen-prive.prive[hidden] { display: none; }
+#screen-prive::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('menu/match_privé/background.png') center / cover no-repeat;
+}
+#screen-prive > * { position: relative; z-index: 1; min-width: 0; }
+.prive .title-joueur { position: relative; top: auto; left: auto; justify-self: start; }
+.prive-logo {
+  position: absolute !important;
+  top: clamp(4px, 1vh, 14px);
+  right: clamp(14px, 2.2vw, 38px);
+  width: clamp(120px, 10vw, 180px);
+  height: auto;
+  filter: drop-shadow(0 8px 20px #000c);
+}
+
+/* Titre : chevron orange, capitales larges, sous-titre espace, filet. */
+.prive-tete {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px clamp(14px, 1.6vw, 26px);
+  padding: 0 0 clamp(8px, 1.4vh, 14px) clamp(34px, 3vw, 50px);
+}
+.prive-tete::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: clamp(18px, 1.6vw, 26px);
+  height: clamp(34px, 5vh, 50px);
+  background: linear-gradient(#ff9b4f, var(--orange) 45%, #c9540b);
+  clip-path: polygon(100% 0, 58% 50%, 100% 100%, 44% 100%, 0 50%, 44% 0);
+}
+.prive-tete::after {
+  content: '';
+  position: absolute;
+  left: clamp(34px, 3vw, 50px);
+  right: 8%;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--orange), #f07a2566 60%, transparent);
+}
+.prive-tete h2 {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: clamp(26px, 3vw, 50px);
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 3px 18px #000;
+}
+.prive-tete p { margin: 0; font-size: clamp(9px, .8vw, 12px); letter-spacing: .3em; text-transform: uppercase; color: #9aa3b5; }
+
+/* Les deux blocs. */
+.prive-corps {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: clamp(12px, 1.3vw, 22px);
+  min-height: 0;
+}
+.prive-bloc {
+  display: grid;
+  align-content: start;
+  gap: clamp(8px, 1.3vh, 14px);
+  min-height: 0;
+  overflow-y: auto;
+  padding: clamp(12px, 1.8vh, 20px) clamp(12px, 1.3vw, 22px);
+  background: #060910d9;
+  border: 1px solid #ffffff17;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px #0009;
+  scrollbar-width: thin;
+  scrollbar-color: #2a3446 transparent;
+}
+.prive-bloc h3 {
+  position: relative;
+  margin: 0 0 4px;
+  padding-bottom: 10px;
+  font-family: var(--mono);
+  font-size: clamp(12px, 1.1vw, 17px);
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #f1ede4;
+}
+.prive-bloc h3::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--orange) 0 28%, #ffffff1a 28%);
+}
+
+/* Arenes : quatre par ligne ; la choisie s'allume en orange. */
+#prive-arenes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(8px, .9vw, 14px); }
+.prive .pv-arene {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 4px 4px 8px;
+  background: #0b1018;
+  border: 1px solid #ffffff1c;
+  border-radius: 6px;
+  font-size: clamp(9px, .72vw, 12px);
+  letter-spacing: .02em;
+  text-transform: none;
+  color: #d9d3c7;
+  line-height: 1.35;
+  outline: none;
+}
+.prive .pv-arene img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 4px; display: block; }
+.prive .pv-arene:hover,
+.prive .pv-arene.pad-focus { background: #101726; border-color: #f07a2599; outline: none; }
+.prive .pv-arene.active {
+  border-color: var(--orange);
+  box-shadow: 0 0 0 1px var(--orange), 0 0 20px #f07a2566;
+}
+.prive .pv-hasard {
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  background: radial-gradient(90% 80% at 50% 40%, #1a120c, #07090e);
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.prive .pv-hasard svg:first-child { width: 38%; max-width: 54px; }
+.prive .pv-hasard svg:last-child { width: 18%; max-width: 26px; color: var(--orange); }
+
+/* Parametres. */
+.pv-champ { display: grid; gap: 7px; }
+.pv-titre, .pv-bascule span, .pv-mutator > span {
+  font-size: clamp(9px, .74vw, 12px);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #c9c3b8;
+}
+.pv-choix { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; }
+.prive .pv-choix button {
+  padding: clamp(7px, 1.2vh, 11px);
+  background: #0b1018;
+  border: 1px solid #ffffff1c;
+  border-radius: 4px;
+  font-size: clamp(12px, 1vw, 16px);
+  text-transform: none;
+  color: #e6e1d8;
+}
+.prive .pv-choix button:hover, .prive .pv-choix button.pad-focus { background: #131b2a; border-color: #f07a2599; outline: none; }
+.prive .pv-choix button.active { background: var(--orange); border-color: #ffa25a; color: #fff; font-weight: 700; }
+
+.pv-pas {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  background: #0b1018;
+  border: 1px solid #ffffff1c;
+  border-radius: 4px;
+}
+.pv-pas output { text-align: center; font-size: clamp(12px, 1vw, 16px); color: #fff; }
+.prive .pv-pas button {
+  width: clamp(34px, 3vw, 48px);
+  height: clamp(32px, 4.6vh, 46px);
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  outline: none;
+}
+.prive .pv-pas button::before {
+  content: '';
+  display: block;
+  width: 9px;
+  height: 9px;
+  margin: auto;
+  border: solid var(--orange);
+  border-width: 0 0 2.5px 2.5px;
+  transform: translateX(2px) rotate(45deg);
+}
+.prive .pv-pas .pv-plus::before { transform: translateX(-2px) rotate(-135deg); }
+.prive .pv-pas button:hover:not(:disabled), .prive .pv-pas button.pad-focus { background: #f07a2522; }
+.prive .pv-pas button:disabled { opacity: .3; cursor: default; }
+.pv-pas.petit output { font-size: 11px; }
+.prive .pv-pas.petit button { width: 28px; height: 26px; }
+
+/* Interrupteurs, sur deux colonnes. Les grises arrivent bientot. */
+.pv-bascules {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px clamp(14px, 1.6vw, 28px);
+  padding: 4px 0;
+}
+.prive .pv-bascule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  background: none;
+  border: 0;
+  text-align: left;
+  outline: none;
+}
+.pv-bascule i {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 18px;
+  border-radius: 9px;
+  background: #1f2633;
+  transition: background .15s;
+}
+.pv-bascule i::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #6b7488;
+  transition: transform .15s, background .15s;
+}
+.pv-bascule.on i { background: var(--orange); }
+.pv-bascule.on i::after { transform: translateX(18px); background: #fff; }
+.prive .pv-bascule:hover span, .prive .pv-bascule.pad-focus span { color: #fff; }
+.prive .pv-bascule.pad-focus i { box-shadow: 0 0 0 2px #f07a2566; }
+.prive .pv-bascule:disabled { opacity: .38; cursor: default; }
+.pv-mutator { display: flex; align-items: center; justify-content: space-between; gap: 8px; opacity: .38; }
+.pv-mutator .pv-pas { width: 130px; }
+
+/* Equipes. */
+.pv-equipes { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(10px, 1vw, 16px); margin-top: 4px; }
+.pv-equipe {
+  --c: #3d8bf0;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 10px clamp(8px, .8vw, 14px) 12px;
+  background: linear-gradient(#0d1a2ecc, #070b12cc);
+  border: 1px solid #3d8bf033;
+  border-radius: 6px;
+  position: relative;
+}
+.pv-equipe.orange { --c: var(--orange); background: linear-gradient(#26140acc, #0b0806cc); border-color: #f07a2533; }
+.pv-equipe::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  width: 8px;
+  height: 34px;
+  background: var(--c);
+  clip-path: polygon(100% 0, 100% 30%, 0 100%, 0 30%);
+}
+.pv-equipe h4 { margin: 0 0 2px 10px; font-size: clamp(11px, 1vw, 15px); letter-spacing: .16em; text-transform: uppercase; color: var(--c); }
+.pv-nom { display: flex; align-items: center; gap: 6px; padding: 0 8px; background: #04060a; border: 1px solid #ffffff1c; border-radius: 4px; }
+.prive .pv-nom input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: clamp(11px, .9vw, 14px);
+  color: #fff;
+  outline: none;
+}
+.pv-nom svg { width: 15px; height: 15px; flex: none; color: var(--c); }
+.pv-nom:focus-within { border-color: var(--c); }
+.pv-joueurs { display: grid; gap: 4px; }
+.prive .pv-joueur {
+  display: grid;
+  grid-template-columns: 16px 26px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #ffffff08;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: clamp(10px, .8vw, 13px);
+  text-transform: none;
+  letter-spacing: .04em;
+  text-align: left;
+  color: #fff;
+}
+.pv-couronne { color: #f3a13a; font-size: 13px; }
+.pv-avatar { width: 26px; height: 26px; border-radius: 3px; object-fit: cover; }
+.pv-initiale { display: grid; place-items: center; background: #1a2230; font-size: 12px; }
+.pv-pseudo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prive .pv-ajout { color: #8b93a3; cursor: pointer; }
+.pv-plus-rond { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid #ffffff33; border-radius: 3px; font-size: 16px; line-height: 1; }
+.prive .pv-ajout:hover, .prive .pv-ajout.pad-focus { background: #ffffff12; border-color: #ffffff22; color: #fff; outline: none; }
+
+/* Pied : retour a gauche, creer le lobby a droite. */
+.prive-pied { display: flex; align-items: center; gap: 16px; }
+.pv-statut { flex: 1; margin: 0; font-size: 11px; letter-spacing: .08em; color: #c3ccdb; text-align: right; }
+.prive .pv-retour {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 34px 12px 22px;
+  background: #0a0e16e6;
+  border: 1px solid #ffffff2e;
+  border-radius: 4px;
+  clip-path: polygon(0 0, 92% 0, 100% 30%, 100% 100%, 0 100%);
+  font-size: clamp(11px, .9vw, 14px);
+  letter-spacing: .22em;
+  color: #e6e1d8;
+}
+.prive .pv-retour::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border: solid var(--orange);
+  border-width: 0 0 2.5px 2.5px;
+  transform: rotate(45deg);
+}
+.prive .pv-retour:hover, .prive .pv-retour.pad-focus { background: #151d2b; border-color: var(--orange); outline: none; }
+.prive .pv-creer {
+  position: relative;
+  padding: clamp(12px, 2vh, 20px) clamp(40px, 3.6vw, 64px) clamp(12px, 2vh, 20px) clamp(36px, 3vw, 54px);
+  background: linear-gradient(#ff8f3f, var(--orange) 55%, #d85d0e);
+  border: 0;
+  clip-path: polygon(5% 0, 100% 0, 100% 62%, 94% 100%, 0 100%, 0 38%);
+  font-size: clamp(14px, 1.3vw, 21px);
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: #1b0c02;
+  filter: drop-shadow(0 0 18px #f07a2588);
+}
+.prive .pv-creer::after { content: ' ›'; font-size: 1.2em; }
+.prive .pv-creer:hover, .prive .pv-creer.pad-focus { background: linear-gradient(#ffa65f, #ff8a35 55%, #e7671a); outline: none; }
+
+/* Ecran etroit : une seule colonne qui defile. */
+@media (max-width: 900px) {
+  #screen-prive.prive { display: flex; flex-direction: column; overflow-y: auto; }
+  #screen-prive > * { flex: none; }
+  #screen-prive::before { position: fixed; }
+  .prive-corps { grid-template-columns: 1fr; }
+  .prive-corps, .prive-bloc { min-height: auto; overflow: visible; }
+  #prive-arenes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .prive-logo { width: 96px; }
+  .prive .title-joueur .tj-rang, .prive .title-joueur .tj-trait:nth-of-type(2) { display: none; }
+}
+@media (max-width: 520px) {
+  .pv-bascules, .pv-equipes { grid-template-columns: 1fr; }
+  .prive-pied { flex-wrap: wrap; }
+  .pv-statut { order: 3; flex-basis: 100%; text-align: left; }
+}

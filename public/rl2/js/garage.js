@@ -1,4 +1,4 @@
-// Ecran « Personnalisation » : choisir sa voiture, et bientot son boost,
+// Ecran « Garage » : choisir sa voiture, et bientot son boost,
 // sa trainee, son ballon.
 //
 // Les voitures proposees sont la livree de son camp, puis toutes celles

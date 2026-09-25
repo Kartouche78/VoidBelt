@@ -65,19 +65,6 @@ await attendre(1500);
 
 await verifie("l'accueil s'affiche", visible('#screen-title'));
 
-// Jouer : l'accueil doit disparaitre et la grille des stades apparaitre.
-await page.click('#btn-play');
-await attendre(400);
-await verifie('Jouer ouvre le choix du stade', visible('#screen-stadium'));
-await verifie("Jouer cache bien l'accueil", visible('#screen-title').then((v) => !v));
-await verifie(
-  'la grille est remplie',
-  page.$$eval('#stadium-list button', (n) => n.length >= 10).catch(() => false),
-);
-
-await page.click('#btn-stadium-back');
-await attendre(300);
-
 // Parametres : chaque onglet doit poser quelque chose dans le corps.
 await page.click('#btn-settings');
 await attendre(400);
@@ -97,19 +84,24 @@ await verifie(
 await page.click('#btn-settings-back');
 await attendre(300);
 
-// Multijoueur : les quatre modes, puis Occasionnel et sa liste de
-// serveurs, qui doit repondre meme vide.
+// Jouer : l'accueil disparait derriere les quatre modes. Occasionnel est
+// verrouille : c'est la partie privee qui s'ouvre, arenes comprises.
 await page.click('#btn-online');
 await attendre(600);
-await verifie('le multijoueur montre ses modes', visible('#screen-modes'));
+await verifie('Jouer montre les modes', visible('#screen-modes'));
+await verifie("Jouer cache bien l'accueil", visible('#screen-title').then((v) => !v));
 await verifie(
   'quatre cases de mode',
   page.$$eval('#modes-grille .mode', (l) => l.length === 4).catch(() => false),
 );
-await page.click('.mode[data-mode="occasionnel"]');
-await attendre(1200);
-await verifie('le multijoueur s\u2019ouvre', visible('#screen-online'));
-await page.click('#btn-online-back');
+await page.click('.mode[data-mode="prive"]');
+await attendre(800);
+await verifie('la partie privee s\u2019ouvre', visible('#screen-prive'));
+await verifie(
+  'les arenes sont la',
+  page.$$eval('#prive-arenes .pv-arene', (n) => n.length >= 10).catch(() => false),
+);
+await page.click('#btn-prive-back');
 await attendre(300);
 
 await nav.close();

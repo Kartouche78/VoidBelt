@@ -19,6 +19,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use std::net::SocketAddr;
+mod prive;
 mod room;
 
 use room::{IDLE_CARS, Room, Seat};
@@ -141,6 +142,9 @@ pub struct JoinParams {
     /// Skin de voiture du joueur, tel que le catalogue le nomme.
     #[serde(default)]
     pub skin: String,
+    /// `1` : le salon cree est prive, absent de la liste publique.
+    #[serde(default)]
+    pub prive: u8,
     /// Couleur du clan du joueur : lue sur son compte par le serveur,
     /// jamais prise dans l'adresse.
     #[serde(skip)]
@@ -154,7 +158,7 @@ pub async fn rooms(State(hub): State<Arc<Hub>>) -> Json<Value> {
     let rooms = hub.rooms.lock().expect("hub empoisonne");
     let open: Vec<Value> = rooms
         .iter()
-        .filter(|(_, r)| r.taken() > 0)
+        .filter(|(_, r)| r.taken() > 0 && !r.reglages.prive)
         .map(|(code, r)| r.public(code))
         .collect();
     Json(json!({ "rooms": open }))
@@ -299,11 +303,14 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
             match rooms.get_mut(&wanted) {
                 None => Err("Aucun salon ne correspond a ce code."),
                 Some(room) => {
-                    // Aucun refus possible : le salon s'agrandit. Un
-                    // membre de groupe rejoint l'equipe de son groupe.
+                    // Un salon public s'agrandit sans fin ; un prive s'arrete
+                    // a son effectif. Un membre de groupe rejoint l'equipe
+                    // de son groupe, s'il y a la place.
                     let groupe = params.compte.map(admin2::coequipiers).unwrap_or_default();
-                    let team = room.equipe_du_groupe(&groupe).unwrap_or_else(|| room.lighter_team());
-                    let slot = room.seat(Seat {
+                    let voulue = room.equipe_du_groupe(&groupe).unwrap_or_else(|| room.lighter_team());
+                    match room.equipe_libre(voulue) {
+                        None => Err("Ce salon est complet."),
+                        Some(team) => Ok(room.seat(Seat {
                         id,
                         name: name.clone(),
                         team,
@@ -313,8 +320,9 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
                         skin: skin.clone(),
                         couleur: params.couleur.clone(),
                         compte: params.compte,
-                    });
-                    Ok((wanted, slot))
+                    })),
+                    }
+                    .map(|slot| (wanted, slot))
                 }
             }
         } else {
@@ -324,6 +332,7 @@ async fn session(mut socket: WebSocket, params: JoinParams, hub: Arc<Hub>) {
             }
             let mut room = Room::new(code.clone(), id);
             room.host = id;
+            room.reglages.prive = params.prive == 1;
             let slot = room.seat(Seat {
                 id,
                 name: name.clone(),
@@ -495,6 +504,8 @@ fn handle_text(room: &mut Room, id: u32, text: &str) -> bool {
         // Tchat rapide. On ne transporte que deux directions, jamais du
         // texte libre : le libelle vit chez le client, et un salon ne peut
         // donc pas servir a diffuser n'importe quoi a n'importe qui.
+        // Reglages du salon prive, reserves a l'hote, au salon seulement.
+        Some("reglages") if room.host == id && room.reglages.prive => room.set_reglages(&msg),
         Some("chat") => {
             let dir = |cle| {
                 msg.get(cle)
@@ -546,6 +557,14 @@ fn handle_text(room: &mut Room, id: u32, text: &str) -> bool {
             if seat.team == team {
                 return false;
             }
+            // Equipe pleine (salon prive) : on reste ou l'on est.
+            let sid = seat.id;
+            if !room.reglages.place(room.effectif(team, sid)) {
+                return false;
+            }
+            let Some(seat) = room.seats.iter_mut().flatten().find(|s| s.id == sid) else {
+                return false;
+            };
             seat.team = team;
             // Un groupe joue ensemble : ses membres presents suivent.
             let groupe = seat.compte.map(admin2::coequipiers).unwrap_or_default();
