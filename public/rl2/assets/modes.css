@@ -40,7 +40,7 @@
   background-size: cover;
   background-repeat: no-repeat;
   box-shadow: 0 18px 50px #0009;
-  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, filter .18s ease;
+  transition: border-color .25s ease, box-shadow .25s ease, filter .25s ease;
 }
 
 /* Images de fond, a deposer dans assets/menu/modes/ : un voile sombre en
@@ -73,20 +73,63 @@
 .mode:hover,
 .mode:focus-visible,
 .mode.pad-focus {
-  transform: translateY(-6px);
-  border-color: var(--orange);
-  box-shadow: 0 26px 60px #000b, 0 0 0 1px var(--orange), 0 0 40px #f07a2533;
+  border-color: #f07a2566;
+  box-shadow: 0 18px 50px #0009, 0 0 34px #f07a2522;
   outline: none;
 }
 
-.mode-num {
-  position: absolute;
-  top: clamp(14px, 1.6vw, 22px);
-  left: clamp(16px, 1.8vw, 26px);
-  font-size: 12px;
-  letter-spacing: .2em;
-  color: #ffffffb3;
+/* Survol : une bulle de lumiere fait lentement le tour du contour. Un
+   degrade conique tourne ; un masque n'en garde que le bord. `::before`
+   trace le filet net, `::after` le halo flou qui l'accompagne. */
+@property --tour {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
 }
+.mode::before,
+.mode::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--tour),
+    transparent 0deg 290deg,
+    #f07a2533 305deg,
+    #ffb070 335deg,
+    #fff6ea 347deg,
+    #ffb070 355deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .35s ease;
+  animation: mode-tour 5s linear infinite paused;
+}
+.mode::before { padding: 2px; }
+.mode::after { padding: 7px; filter: blur(7px); }
+.mode:hover::before,
+.mode:hover::after,
+.mode:focus-visible::before,
+.mode:focus-visible::after,
+.mode.pad-focus::before,
+.mode.pad-focus::after {
+  opacity: 1;
+  animation-play-state: running;
+}
+.mode:hover::after,
+.mode.pad-focus::after { opacity: .8; }
+@keyframes mode-tour {
+  to { --tour: 360deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mode::before, .mode::after { animation: none; }
+}
+
 .mode-badge {
   position: absolute;
   top: clamp(12px, 1.4vw, 20px);
@@ -108,12 +151,6 @@
   text-transform: uppercase;
   overflow-wrap: anywhere;
   text-shadow: 0 3px 18px #000;
-}
-.mode-texte {
-  font-size: clamp(11px, .9vw, 13px);
-  line-height: 1.55;
-  color: #c7cedb;
-  max-width: 28ch;
 }
 /* Un trait orange sous le titre du mode ouvert. */
 .mode:not(.bientot) .mode-titre::after {
