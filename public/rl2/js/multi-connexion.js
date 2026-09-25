@@ -63,16 +63,11 @@ export async function gardeMulti() {
   }
 
   // Connecte : le nom en salon est le pseudo du compte, que le serveur
-  // impose de toute facon. On le montre, il se change dans le profil.
+  // impose de toute facon ; il se change dans le profil. Le champ ne sert
+  // donc qu'aux essais en local, sans compte.
   const nom = $('online-name');
-  if (m.compte) {
-    nom.value = m.compte.pseudo || m.compte.nom || '';
-    nom.readOnly = true;
-    nom.title = 'Ton pseudo : il se change dans ton profil (Start ou ²).';
-  } else {
-    nom.readOnly = false;
-    nom.title = '';
-  }
+  if (m.compte) nom.value = m.compte.pseudo || m.compte.nom || '';
+  $('online-nom').hidden = !!m.compte;
   return true;
 }
 

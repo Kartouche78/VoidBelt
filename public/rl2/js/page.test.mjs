@@ -97,8 +97,16 @@ await verifie(
 await page.click('#btn-settings-back');
 await attendre(300);
 
-// Multijoueur : la liste doit repondre, meme vide.
+// Multijoueur : les quatre modes, puis Occasionnel et sa liste de
+// serveurs, qui doit repondre meme vide.
 await page.click('#btn-online');
+await attendre(600);
+await verifie('le multijoueur montre ses modes', visible('#screen-modes'));
+await verifie(
+  'quatre cases de mode',
+  page.$$eval('#modes-grille .mode', (l) => l.length === 4).catch(() => false),
+);
+await page.click('.mode[data-mode="occasionnel"]');
 await attendre(1200);
 await verifie('le multijoueur s\u2019ouvre', visible('#screen-online'));
 await page.click('#btn-online-back');

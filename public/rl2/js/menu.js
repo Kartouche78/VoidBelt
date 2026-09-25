@@ -9,6 +9,7 @@ import { listRooms } from './net.js';
 import { GROUPES, renderPicker, stadiumById } from './stadiums.js';
 import { CATEGORIES, renderGarage } from './garage.js';
 import { gardeMulti } from './multi-connexion.js';
+import { brancherModes } from './modes.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -59,6 +60,7 @@ export class Menu {
       settings: $('screen-settings'),
       pause: $('screen-pause'),
       result: $('screen-result'),
+      modes: $('screen-modes'),
       online: $('screen-online'),
       stadium: $('screen-stadium'),
       garage: $('screen-garage'),
@@ -98,7 +100,8 @@ export class Menu {
   items() {
     if (!this.screen) return [];
     const sel = 'button:not([disabled]), input:not([disabled])';
-    return [...this.screens[this.screen].querySelectorAll(sel)];
+    // Un element masque (ligne cachee, champ fichier) ne se vise pas.
+    return [...this.screens[this.screen].querySelectorAll(sel)].filter((e) => e.getClientRects().length > 0);
   }
 
   /** Le curseur est a nous, pas au navigateur. `document.activeElement`
@@ -119,7 +122,7 @@ export class Menu {
    *  cette direction : on sort alors vers les onglets ou le pied de page,
    *  pour que l'ecran entier reste accessible. */
   _grille(cur, dx, dy) {
-    const grille = cur.closest('#stadium-list, #garage-list');
+    const grille = cur.closest('#stadium-list, #garage-list, #modes-grille');
     const cases = [...grille.querySelectorAll('button')];
     const cible = voisin(cur, cases, dx, dy);
     if (cible) {
@@ -179,7 +182,7 @@ export class Menu {
     // Une grille ne se parcourt pas comme une liste : la case du dessous
     // n'est pas la suivante dans l'ordre du document, elle est une ligne
     // plus bas. Les quatre directions y servent donc vraiment.
-    if (cur?.closest('#stadium-list, #garage-list') && (pulse.x || pulse.y)) {
+    if (cur?.closest('#stadium-list, #garage-list, #modes-grille') && (pulse.x || pulse.y)) {
       if (this._grille(cur, pulse.x, pulse.y)) return;
     }
 
@@ -251,6 +254,7 @@ export class Menu {
       settings: 'btn-settings-back',
       stadium: 'btn-stadium-back',
       garage: 'btn-garage-back',
+      modes: 'btn-modes-back',
       online: 'btn-online-back',
       pause: 'btn-resume',
       result: 'btn-result-menu',
@@ -297,7 +301,8 @@ export class Menu {
     $('btn-quit-site').onclick = () => {
       window.location.href = '/';
     };
-    $('btn-online').onclick = () => this.showOnline();
+    $('btn-online').onclick = () => this.show('modes');
+    brancherModes(this);
     $('btn-garage').onclick = () => {
       this.cat = 'voiture';
       this.show('garage');
@@ -306,7 +311,7 @@ export class Menu {
     $('btn-garage-back').onclick = () => this.show('title');
     $('btn-online-create').onclick = () => this.hooks.host('');
     $('btn-online-refresh').onclick = () => this.refreshRooms();
-    $('btn-online-back').onclick = () => this.show('title');
+    $('btn-online-back').onclick = () => this.show('modes');
 
     $('btn-resume').onclick = () => this.hooks.resume();
     $('btn-pause-settings').onclick = () => {
@@ -428,7 +433,7 @@ export class Menu {
   /** Recharge la liste des salons ouverts. */
   async refreshRooms() {
     const box = $('online-list');
-    this.status('Recherche des salons…');
+    this.status('Recherche des serveurs…');
     let rooms;
     try {
       rooms = await listRooms();
@@ -439,7 +444,7 @@ export class Menu {
     }
     box.innerHTML = '';
     if (!rooms.length) {
-      this.status('Aucun salon ouvert pour l’instant. Cree le tien.');
+      this.status('Aucun serveur ouvert pour l’instant. Crée le tien.');
       return;
     }
     this.status('');

@@ -1,13 +1,14 @@
-// Menu en ligne : en multijoueur, Start (ou ², ou Echap) ouvre ensemble
-// le menu du jeu (reprendre, parametres, quitter) au centre et le panneau
-// du joueur a gauche.
+// Menu du jeu : en partie, solo comme en ligne, Start (ou ², ou Echap)
+// ouvre ensemble le menu du jeu (reprendre, parametres, quitter) au centre
+// et le panneau du joueur a gauche.
 //
-// La partie ne s'arrete pas : les autres jouent. Tant que le menu est
-// ouvert, la voiture recoit une commande neutre et roule sur son elan.
+// En solo, c'est une vraie pause. En ligne, la partie ne s'arrete pas :
+// les autres jouent ; tant que le menu est ouvert, la voiture recoit une
+// commande neutre et roule sur son elan (voir `main.js`).
 // A la manette, gauche et droite passent du panneau au menu ; le reste de
 // la navigation va a celui qui a la main.
 
-export function menuEnLigne({ app, menu, panneau, shell }) {
+export function menuJeu({ app, menu, panneau, shell }) {
   let ouvert = false;
   /** Le panneau relit la session en s'ouvrant : on ne surveille pas
    *  l'ensemble avant qu'il soit la. */
@@ -23,14 +24,16 @@ export function menuEnLigne({ app, menu, panneau, shell }) {
     menu._focus(menu.items()[0]);
   }
 
-  /** En ligne, dans un salon ou en match. */
-  const enJeu = () => app.mode === 'online' && app.running && !app.finished;
+  /** En partie : un solo en cours, ou un salon en ligne. */
+  const enJeu = () => app.running && !app.finished;
 
   async function ouvrir() {
     ouvert = true;
     main = 'menu';
-    shell.classList.add('menu-en-ligne');
-    titre.textContent = 'Menu';
+    shell.classList.add('menu-jeu');
+    // En ligne rien ne s'arrete : ce n'est pas une pause.
+    titre.textContent = app.mode === 'online' ? 'Menu' : 'Pause';
+    if (app.mode !== 'online') app.paused = true;
     menu.show('pause');
     enOuverture = true;
     try {
@@ -46,8 +49,9 @@ export function menuEnLigne({ app, menu, panneau, shell }) {
   function fermer() {
     if (!ouvert) return;
     ouvert = false;
-    shell.classList.remove('menu-en-ligne');
+    shell.classList.remove('menu-jeu');
     titre.textContent = 'Pause';
+    app.paused = false;
     if (panneau.ouvert) panneau.fermer();
     if (menu.screen === 'pause' || menu.screen === 'settings') menu.hide();
   }

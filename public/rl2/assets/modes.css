@@ -1,0 +1,143 @@
+/* Ecran Multijoueur : quatre grandes cases, une par mode (js/modes.js).
+   Chaque case pose son image de fond, assets/menu/modes/<mode>.jpg ; tant
+   qu'elle manque, un degrade propre a la case la remplace. */
+
+#screen-modes .sheet-body {
+  width: min(1240px, 100%);
+  overflow: visible;
+  display: grid;
+  align-content: center;
+  gap: 14px;
+}
+
+#modes-grille {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(12px, 1.6vw, 22px);
+  height: min(56vh, 520px);
+}
+
+.mode {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 0;
+  padding: clamp(16px, 1.8vw, 26px);
+  border: 1px solid #ffffff1f;
+  border-radius: 16px;
+  overflow: hidden;
+  text-align: left;
+  color: var(--ink);
+  font: inherit;
+  /* Les boutons des menus sont en capitales espacees : pas les cases. */
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+  background-color: #070b12;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  box-shadow: 0 18px 50px #0009;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+
+/* Images de fond, a deposer dans assets/menu/modes/ : un voile sombre en
+   bas pour le texte, l'image, puis un degrade de secours si elle manque. */
+.mode[data-mode="occasionnel"] {
+  background-image:
+    linear-gradient(to top, #04060af2 0%, #04060a99 38%, #04060a1a 70%),
+    url('menu/modes/occasionnel.jpg'),
+    radial-gradient(120% 90% at 30% 10%, #7a3a12, #070b12 75%);
+}
+.mode[data-mode="ranked"] {
+  background-image:
+    linear-gradient(to top, #04060af2 0%, #04060a99 38%, #04060a1a 70%),
+    url('menu/modes/ranked.jpg'),
+    radial-gradient(120% 90% at 30% 10%, #5b3a8c, #070b12 75%);
+}
+.mode[data-mode="entrainement"] {
+  background-image:
+    linear-gradient(to top, #04060af2 0%, #04060a99 38%, #04060a1a 70%),
+    url('menu/modes/entrainement.jpg'),
+    radial-gradient(120% 90% at 30% 10%, #1f5a4a, #070b12 75%);
+}
+.mode[data-mode="prive"] {
+  background-image:
+    linear-gradient(to top, #04060af2 0%, #04060a99 38%, #04060a1a 70%),
+    url('menu/modes/prive.jpg'),
+    radial-gradient(120% 90% at 30% 10%, #1d4f8c, #070b12 75%);
+}
+
+.mode:hover,
+.mode:focus-visible,
+.mode.pad-focus {
+  transform: translateY(-6px);
+  border-color: var(--orange);
+  box-shadow: 0 26px 60px #000b, 0 0 0 1px var(--orange), 0 0 40px #f07a2533;
+  outline: none;
+}
+
+.mode-num {
+  position: absolute;
+  top: clamp(14px, 1.6vw, 22px);
+  left: clamp(16px, 1.8vw, 26px);
+  font-size: 12px;
+  letter-spacing: .2em;
+  color: #ffffffb3;
+}
+.mode-badge {
+  position: absolute;
+  top: clamp(12px, 1.4vw, 20px);
+  right: clamp(12px, 1.4vw, 20px);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid #ffffff40;
+  background: #04060acc;
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: #cfd6e2;
+}
+.mode-titre {
+  font-family: var(--display);
+  font-size: clamp(18px, 1.8vw, 28px);
+  line-height: 1.05;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  text-shadow: 0 3px 18px #000;
+}
+.mode-texte {
+  font-size: clamp(11px, .9vw, 13px);
+  line-height: 1.55;
+  color: #c7cedb;
+  max-width: 28ch;
+}
+/* Un trait orange sous le titre du mode ouvert. */
+.mode:not(.bientot) .mode-titre::after {
+  content: '';
+  display: block;
+  width: 42px;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 2px;
+  background: var(--orange);
+}
+/* Modes a venir : visibles, mais en retrait. */
+.mode.bientot { filter: saturate(.55) brightness(.8); }
+.mode.bientot:hover,
+.mode.bientot.pad-focus { filter: saturate(.8) brightness(.95); }
+
+#modes-status { min-height: 1.4em; margin: 0; text-align: center; }
+
+/* Ecrans etroits : deux par deux, puis en colonne. */
+@media (max-width: 900px) {
+  #modes-grille { grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto; }
+  .mode { min-height: 200px; }
+}
+@media (max-width: 520px) {
+  #modes-grille { grid-template-columns: 1fr; }
+  .mode { min-height: 150px; }
+}

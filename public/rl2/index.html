@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="assets/style.css">
 <link rel="stylesheet" href="assets/panneau.css">
 <link rel="stylesheet" href="assets/panneau-social.css">
+<link rel="stylesheet" href="assets/modes.css">
 </head>
 <body>
 <div id="shell">
@@ -117,11 +118,51 @@
     </nav>
   </section>
 
-  <!-- Multijoueur -->
-  <section id="screen-online" class="screen sheet" hidden>
+  <!-- Multijoueur : un mode par case (modes.js). Les images de fond
+       viennent de assets/menu/modes/<mode>.jpg. -->
+  <section id="screen-modes" class="screen sheet" hidden>
     <div class="sheet-head">
       <p class="eyebrow">VOIDBELT &middot; ARCADE</p>
       <h2>Multijoueur</h2>
+    </div>
+    <div class="sheet-body">
+      <div id="modes-grille">
+        <button class="mode" data-mode="occasionnel" type="button">
+          <span class="mode-num">01</span>
+          <span class="mode-titre">Occasionnel</span>
+          <span class="mode-texte">Parties libres : crée un serveur ou rejoins-en un.</span>
+        </button>
+        <button class="mode bientot" data-mode="ranked" type="button">
+          <span class="mode-num">02</span>
+          <span class="mode-badge">Bientôt</span>
+          <span class="mode-titre">Ranked</span>
+          <span class="mode-texte">Matchs classés : grimpe au classement.</span>
+        </button>
+        <button class="mode bientot" data-mode="entrainement" type="button">
+          <span class="mode-num">03</span>
+          <span class="mode-badge">Bientôt</span>
+          <span class="mode-titre">S’entraîner</span>
+          <span class="mode-texte">Travaille tes tirs, tes arrêts et ton drift.</span>
+        </button>
+        <button class="mode bientot" data-mode="prive" type="button">
+          <span class="mode-num">04</span>
+          <span class="mode-badge">Bientôt</span>
+          <span class="mode-titre">Privé</span>
+          <span class="mode-texte">Crée des matchs entre potes.</span>
+        </button>
+      </div>
+      <p id="modes-status" class="note"></p>
+    </div>
+    <nav class="sheet-menu">
+      <button id="btn-modes-back">Retour</button>
+    </nav>
+  </section>
+
+  <!-- Occasionnel : les serveurs ouverts, en creer ou en rejoindre -->
+  <section id="screen-online" class="screen sheet" hidden>
+    <div class="sheet-head">
+      <p class="eyebrow">MULTIJOUEUR &middot; 01</p>
+      <h2>Occasionnel</h2>
     </div>
     <div class="sheet-body">
       <!-- Porte : en ligne, il faut un compte (multi-connexion.js). -->
@@ -136,7 +177,7 @@
       <p id="online-status" class="note"></p>
     </div>
     <nav class="sheet-menu">
-      <button id="btn-online-create">Cr&eacute;er un salon</button>
+      <button id="btn-online-create">Cr&eacute;er un serveur</button>
       <button id="btn-online-refresh">Actualiser</button>
       <button id="btn-online-back">Retour</button>
     </nav>
