@@ -25,9 +25,8 @@
   gap: 8px;
   min-height: 0;
   padding: clamp(16px, 1.8vw, 26px);
-  border: 1px solid #ffffff1f;
+  border: 2px solid #ffffff1f;
   border-radius: 16px;
-  overflow: hidden;
   text-align: left;
   color: var(--ink);
   font: inherit;
@@ -73,14 +72,20 @@
 .mode:hover,
 .mode:focus-visible,
 .mode.pad-focus {
-  border-color: #f07a2566;
+  /* La regle generique `button:hover` pose un `background` complet, qui
+     remettait l'image a sa taille naturelle : on garde son cadrage. */
+  background-color: #070b12;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  border-color: #ffffff2e;
   box-shadow: 0 18px 50px #0009, 0 0 34px #f07a2522;
   outline: none;
 }
 
-/* Survol : une bulle de lumiere fait lentement le tour du contour. Un
-   degrade conique tourne ; un masque n'en garde que le bord. `::before`
-   trace le filet net, `::after` le halo flou qui l'accompagne. */
+/* Survol : une bulle de lumiere fait lentement le tour de la bordure, dans
+   ses 2 pixels. Un degrade conique tourne ; un masque n'en garde que la
+   bordure. `::before` trace le filet net, `::after` le halo flou autour. */
 @property --tour {
   syntax: '<angle>';
   initial-value: 0deg;
@@ -90,16 +95,18 @@
 .mode::after {
   content: '';
   position: absolute;
-  inset: 0;
+  /* Pose exactement sur la bordure de 2 px. */
+  inset: -2px;
   z-index: 2;
-  border-radius: inherit;
+  /* Rayon exterieur de la bordure : 16 px + 2 px. */
+  border-radius: 18px;
   background: conic-gradient(
     from var(--tour),
-    transparent 0deg 290deg,
-    #f07a2533 305deg,
-    #ffb070 335deg,
-    #fff6ea 347deg,
-    #ffb070 355deg,
+    transparent 0deg 312deg,
+    #f07a2566 324deg,
+    #ff9a3c 336deg,
+    #ffffff 346deg,
+    #ffc58a 353deg,
     transparent 360deg
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -111,7 +118,7 @@
   animation: mode-tour 5s linear infinite paused;
 }
 .mode::before { padding: 2px; }
-.mode::after { padding: 7px; filter: blur(7px); }
+.mode::after { inset: -5px; padding: 5px; border-radius: 21px; filter: blur(6px); }
 .mode:hover::before,
 .mode:hover::after,
 .mode:focus-visible::before,
@@ -121,8 +128,10 @@
   opacity: 1;
   animation-play-state: running;
 }
-.mode:hover::after,
-.mode.pad-focus::after { opacity: .8; }
+/* Les cases a venir sont eteintes : pas leur bulle. */
+.mode.bientot::before,
+.mode.bientot::after { filter: saturate(1.8) brightness(1.3); }
+.mode.bientot::after { filter: saturate(1.8) brightness(1.3) blur(6px); }
 @keyframes mode-tour {
   to { --tour: 360deg; }
 }
