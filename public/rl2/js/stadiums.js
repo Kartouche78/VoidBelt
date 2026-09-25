@@ -44,7 +44,7 @@ export const REF = { l: 173, r: 1498, t: 130, b: 779 };
 export const STADIUMS = [
   {
     id: 'voidbelt',
-    name: 'Arène Voidbelt',
+    name: 'Arène Skidball',
     groupe: 'v1',
     // Le stade d'origine est compose de deux planches transparentes
     // superposees, pas d'une seule image : le rendu le traite a part.

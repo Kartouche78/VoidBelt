@@ -75,7 +75,7 @@ export async function initCompte() {
 function fermer(moi) {
   const porte = el('div', 'porte');
   const carte = el('div', 'porte-carte');
-  carte.append(el('h2', null, 'Admin Voidbelt'));
+  carte.append(el('h2', null, 'Admin Skidball'));
   if (!moi.google) {
     carte.append(el('p', null, 'La connexion Google n’est pas encore configurée sur le serveur.'));
   } else if (moi.connecte) {
