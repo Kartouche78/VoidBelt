@@ -1,0 +1,229 @@
+/* ------------------------------------------------------- accueil ------- */
+
+/* L'accueil ne ressemble a aucun autre ecran : l'espace plein cadre, la
+   carte du joueur en haut a gauche, le logo en haut a droite, le menu a
+   gauche. Il annule donc le voile et le centrage que `.screen` impose aux
+   panneaux. */
+#screen-title.title {
+  display: block;
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
+  overflow: hidden;
+}
+/* Ce `display` porte un identifiant : il l'emportait sur la regle
+   `.screen[hidden]`, et l'accueil restait donc affiche par-dessus les
+   autres ecrans. Il faut le rattraper a poids egal. */
+#screen-title.title[hidden] { display: none; }
+#screen-title.title::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('menu/principal/menu_background.png') center / cover no-repeat;
+}
+/* Un voile leger depuis la gauche : le fond est deja sombre, il suffit de
+   poser le menu. */
+#screen-title.title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(95deg, #04060aa6 0%, #04060a59 30%, transparent 55%);
+}
+
+/* ------------------------------------------------ carte du joueur --- */
+
+.title-joueur {
+  position: absolute;
+  z-index: 1;
+  top: clamp(18px, 3.8vh, 38px);
+  left: clamp(20px, 2.6vw, 44px);
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 1.3vw, 20px);
+  cursor: pointer;
+}
+/* Trait vertical : orange aux deux bouts, gris au milieu. */
+.tj-trait {
+  width: 2px;
+  height: clamp(44px, 6vh, 58px);
+  background: linear-gradient(#f07a25 0 28%, #6b7488 45% 55%, #f07a25 72% 100%);
+  opacity: .9;
+}
+/* Avatar dans un cadre clair, deux reperes orange en haut et en bas. */
+.tj-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(44px, 3.4vw, 56px);
+  aspect-ratio: 1;
+  border: 1.5px solid #e9e4da;
+  border-radius: 4px;
+  background: #1a2230;
+  color: #6b7488;
+  overflow: hidden;
+  box-shadow: 0 4px 16px #000a;
+}
+.tj-avatar::before,
+.tj-avatar::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 10px;
+  height: 2px;
+  transform: translateX(-50%);
+  background: var(--orange);
+}
+.tj-avatar::before { top: 0; }
+.tj-avatar::after { bottom: 0; }
+.tj-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.tj-avatar svg { width: 72%; height: 72%; margin-top: 18%; }
+.tj-infos { display: grid; gap: 8px; }
+.tj-nom {
+  font-size: clamp(11px, .95vw, 14px);
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: #f1ede4;
+  text-shadow: 0 2px 10px #000;
+}
+.tj-niveau { display: flex; align-items: center; gap: 12px; }
+.tj-niveau b {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: var(--orange);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 400;
+}
+/* Barre d'experience : blanche, puis orange, sur un rail gris. */
+.tj-barre {
+  width: clamp(90px, 8.5vw, 140px);
+  height: 3px;
+  border-radius: 2px;
+  background: #ffffff2e;
+  overflow: hidden;
+}
+.tj-barre span {
+  display: block;
+  width: 4%;
+  height: 100%;
+  background: linear-gradient(90deg, #fff 0 70%, var(--orange) 70%);
+}
+.tj-connexion { font-size: 10px; letter-spacing: .24em; text-transform: uppercase; color: var(--orange); }
+.tj-rang {
+  font-size: clamp(10px, .85vw, 13px);
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: var(--orange);
+  text-shadow: 0 0 14px #f07a2566;
+}
+.title-joueur:hover .tj-nom { color: #fff; }
+.title-joueur:hover .tj-avatar { border-color: var(--orange); }
+
+/* --------------------------------------------------------- logo --- */
+
+.title-brand {
+  position: absolute;
+  z-index: 1;
+  top: clamp(8px, 1.6vh, 20px);
+  right: clamp(16px, 2.4vw, 40px);
+}
+.title-brand h1 { margin: 0; line-height: 0; }
+.title-logo {
+  display: block;
+  width: clamp(150px, 13vw, 230px);
+  height: auto;
+  filter: drop-shadow(0 8px 20px #000c);
+}
+
+/* --------------------------------------------------------- menu --- */
+
+.title-menu {
+  position: absolute;
+  z-index: 1;
+  left: clamp(40px, 3.8vw, 64px);
+  top: 42%;
+  display: grid;
+  justify-items: start;
+}
+/* Une ligne par entree, capitales tres espacees, un filet clair dessous.
+   L'entree visee (le curseur du menu, que la souris deplace aussi)
+   grandit dans un bandeau sombre, un chevron orange a
+   gauche, une barre blanche puis orange et trois hachures dessous. */
+.title-menu button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: clamp(300px, 30vw, 520px);
+  height: clamp(54px, 9.4vh, 90px);
+  padding: 0 0 0 clamp(26px, 2.2vw, 36px);
+  background: none;
+  border: 0;
+  border-radius: 0;
+  font-family: var(--mono);
+  font-size: clamp(15px, 1.35vw, 22px);
+  font-weight: 400;
+  letter-spacing: .3em;
+  text-align: left;
+  text-transform: uppercase;
+  color: #e3dccf;
+  text-shadow: 0 2px 14px #000c;
+  transition: font-size .16s ease, color .16s;
+}
+/* Filet sous chaque entree, sauf la derniere. */
+.title-menu button::after {
+  content: '';
+  position: absolute;
+  left: clamp(26px, 2.2vw, 36px);
+  bottom: 0;
+  width: 62%;
+  height: 1.5px;
+  background: linear-gradient(90deg, #e3dccfcc, #e3dccf33 70%, transparent);
+}
+.title-menu button:last-child::after { display: none; }
+
+.title-menu button:focus-visible,
+.title-menu button.pad-focus {
+  color: #fff;
+  font-size: clamp(20px, 2.1vw, 34px);
+  font-weight: 700;
+  letter-spacing: .12em;
+  outline: none;
+  transform: none;
+  border: 0;
+  /* Bandeau sombre, et les trois hachures au bout de la barre. */
+  background:
+    repeating-linear-gradient(-60deg, transparent 0 6px, var(--orange) 6px 13px, transparent 13px 16px)
+      right 0 bottom calc(16% - 5px) / 58px 14px no-repeat,
+    linear-gradient(90deg, #080b12f2 0%, #080b12bf 60%, #080b1200 100%);
+}
+/* La barre : blanche sur son premier tiers, orange ensuite. */
+.title-menu button:focus-visible::after,
+.title-menu button.pad-focus::after {
+  display: block;
+  bottom: 16%;
+  width: calc(100% - clamp(26px, 2.2vw, 36px) - 66px);
+  height: 3px;
+  background: linear-gradient(90deg, #fff 0 32%, var(--orange) 32%);
+  box-shadow: 0 0 10px #f07a2555;
+}
+/* Chevron orange a gauche, qui deborde du bandeau. */
+.title-menu button:focus-visible::before,
+.title-menu button.pad-focus::before {
+  content: '';
+  position: absolute;
+  left: -14px;
+  top: 4%;
+  width: 30px;
+  height: 92%;
+  background: linear-gradient(#ff9b4f, var(--orange) 40%, #d65a0c);
+  clip-path: polygon(100% 0, 58% 50%, 100% 100%, 44% 100%, 0 50%, 44% 0);
+}
+
+@media (max-width: 640px) {
+  .tj-rang, .title-joueur .tj-trait:nth-of-type(2) { display: none; }
+  .title-menu { top: auto; bottom: 8vh; left: 28px; }
+}

@@ -645,105 +645,7 @@ button.stadium.active span { color: var(--orange); }
    posee au-dessus d'une grille qui defile. */
 #stadium-tabs { margin-bottom: 12px; }
 
-/* ------------------------------------------------------- accueil ------- */
-
-/* L'accueil ne ressemble a aucun autre ecran : une photo plein cadre, la
-   marque en haut a gauche, le menu en bas a gauche. Il annule donc le
-   voile et le centrage que `.screen` impose aux panneaux. */
-#screen-title.title {
-  display: block;
-  padding: 0;
-  background: none;
-  backdrop-filter: none;
-  overflow: hidden;
-}
-/* Ce `display` porte un identifiant : il l'emportait sur la regle
-   `.screen[hidden]`, et l'accueil restait donc affiche par-dessus les
-   autres ecrans. Il faut le rattraper a poids egal. */
-#screen-title.title[hidden] { display: none; }
-#screen-title.title::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: url('menu/menu_background.jpg') center / cover no-repeat;
-}
-/* Deux voiles croises : un depuis la gauche pour poser le texte, un depuis
-   le bas pour rattacher le menu au sol de l'image. */
-#screen-title.title::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(95deg, #04060af2 0%, #04060ab8 26%, #04060a33 52%, transparent 72%),
-    linear-gradient(to top, #04060ad9, transparent 42%);
-}
-
-.title-brand,
-.title-menu,
-.title-note {
-  position: absolute;
-  left: clamp(26px, 6vw, 92px);
-  z-index: 1;
-}
-.title-brand { top: clamp(24px, 6vh, 70px); }
-.title-brand h1 { font-size: clamp(44px, 6.4vw, 78px); }
-/* Logo du jeu a la place du titre en texte. Une ombre portee le detache
-   des projecteurs du fond, sans halo. */
-.title-logo {
-  display: block;
-  width: clamp(240px, 30vw, 480px);
-  height: auto;
-  filter: drop-shadow(0 10px 24px #000c);
-}
-.title-menu { bottom: clamp(60px, 13vh, 132px); display: grid; justify-items: start; }
-.title-note {
-  bottom: clamp(26px, 6vh, 58px);
-  margin: 0;
-  font-size: 10px;
-  letter-spacing: .14em;
-  color: #7c8798;
-}
-
-/* Une ligne par entree, en petites capitales tres espacees. L'entree visee
-   s'eclaircit et tire un court trait orange sous elle. */
-.title-menu button {
-  position: relative;
-  background: none;
-  border: 0;
-  border-radius: 0;
-  padding: 10px 0 12px;
-  font-size: clamp(11.5px, 1.15vw, 14px);
-  letter-spacing: .34em;
-  color: #c3ccdb;
-  opacity: .58;
-  text-shadow: 0 2px 14px #000a;
-  transition: opacity .18s, color .18s;
-}
-.title-menu button::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 3px;
-  width: 0;
-  height: 2px;
-  background: var(--orange);
-  transition: width .22s ease;
-}
-/* On reprend la main sur le liisere de navigation manette : ici le repere,
-   c'est le trait, pas un cadre autour du mot. */
-.title-menu button:hover,
-.title-menu button:focus-visible,
-.title-menu button.pad-focus {
-  color: #fff;
-  opacity: 1;
-  background: none;
-  border: 0;
-  outline: none;
-  transform: none;
-}
-.title-menu button:hover::after,
-.title-menu button:focus-visible::after,
-.title-menu button.pad-focus::after { width: 30px; }
+/* L'accueil (photo, carte du joueur, menu) : dans `accueil.css`. */
 
 /* ------------------------------------------- ecrans de menu (feuilles) --- */
 
@@ -765,7 +667,7 @@ button.stadium.active span { color: var(--orange); }
   content: '';
   position: absolute;
   inset: 0;
-  background: url('menu/menu_background.jpg') center / cover no-repeat;
+  background: url('menu/principal/menu_background.png') center / cover no-repeat;
 }
 /* Le voile est plus franc qu'a l'accueil : il y a du texte a lire jusqu'au
    milieu de l'image, et des reglages a distinguer les uns des autres. */
@@ -794,7 +696,6 @@ button.stadium.active span { color: var(--orange); }
   flex-wrap: wrap;
   gap: clamp(16px, 3vw, 40px);
 }
-.title-menu button,
 .sheet-menu button {
   position: relative;
   background: none;
@@ -808,7 +709,6 @@ button.stadium.active span { color: var(--orange); }
   text-shadow: 0 2px 14px #000a;
   transition: opacity .18s, color .18s;
 }
-.title-menu button::after,
 .sheet-menu button::after {
   content: '';
   position: absolute;
@@ -819,7 +719,6 @@ button.stadium.active span { color: var(--orange); }
   background: var(--orange);
   transition: width .22s ease;
 }
-.title-menu button:hover, .title-menu button:focus-visible, .title-menu button.pad-focus,
 .sheet-menu button:hover, .sheet-menu button:focus-visible, .sheet-menu button.pad-focus {
   color: #fff;
   opacity: 1;
@@ -828,7 +727,6 @@ button.stadium.active span { color: var(--orange); }
   outline: none;
   transform: none;
 }
-.title-menu button:hover::after, .title-menu button:focus-visible::after, .title-menu button.pad-focus::after,
 .sheet-menu button:hover::after, .sheet-menu button:focus-visible::after, .sheet-menu button.pad-focus::after {
   width: 30px;
 }

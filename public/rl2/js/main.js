@@ -17,6 +17,7 @@ import { FitEdit } from './fitedit.js';
 import { CageEdit } from './cageedit.js';
 import { Chat } from './chat.js';
 import { Panneau } from './panneau/panneau.js';
+import { carteJoueur } from './carte-joueur.js';
 import { menuJeu } from './menu-jeu.js';
 
 const SOLO_SEAT = 0;
@@ -345,6 +346,7 @@ async function boot() {
   // Panneau du joueur (profil, amis, clan, messages) : Start ou ², a tout
   // moment.
   const panneau = new Panneau(document.getElementById('shell'), API_HTTP);
+  carteJoueur(document.getElementById('title-joueur'), panneau);
   // Retour de la connexion Google, demandee depuis le multijoueur : on y
   // revient, profil ouvert pour choisir son pseudo et son avatar.
   if (demande.get('ecran') === 'multi') {
