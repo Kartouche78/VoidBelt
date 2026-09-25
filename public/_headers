@@ -1,3 +1,13 @@
 /kartalempire/latest*.json
   Cache-Control: no-cache, no-store, must-revalidate
   X-Content-Type-Options: nosniff
+
+# Jeu RL2 : scripts, styles et moteur se revalident a chaque visite (une
+# reponse 304 legere s'ils n'ont pas change). Sans ca, le navigateur gardait
+# 4 h d'anciens scripts face a une page neuve, et le jeu ne demarrait plus.
+/rl2/js/*
+  Cache-Control: no-cache
+/rl2/assets/*.css
+  Cache-Control: no-cache
+/rl2/assets/rl2.wasm
+  Cache-Control: no-cache

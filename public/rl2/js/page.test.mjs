@@ -94,6 +94,18 @@ await verifie(
   'quatre cases de mode',
   page.$$eval('#modes-grille .mode', (l) => l.length === 4).catch(() => false),
 );
+// Occasionnel : le choix des cartes, avant la partie contre le bot.
+await page.click('.mode[data-mode="occasionnel"]');
+await attendre(600);
+await verifie('Occasionnel ouvre le choix des cartes', visible('#screen-stadium'));
+await verifie(
+  'les cartes sont la',
+  page.$$eval('#stadium-list button', (n) => n.length >= 10).catch(() => false),
+);
+await page.click('#btn-stadium-back');
+await attendre(400);
+await verifie('Retour revient aux modes', visible('#screen-modes'));
+
 await page.click('.mode[data-mode="prive"]');
 await attendre(800);
 await verifie('la partie privee s\u2019ouvre', visible('#screen-prive'));

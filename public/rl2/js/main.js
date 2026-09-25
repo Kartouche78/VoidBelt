@@ -19,6 +19,7 @@ import { Chat } from './chat.js';
 import { Panneau } from './panneau/panneau.js';
 import { carteJoueur } from './carte-joueur.js';
 import { brancherPrive } from './prive.js';
+import { finirChargement } from './chargement.js';
 import { menuJeu } from './menu-jeu.js';
 
 const SOLO_SEAT = 0;
@@ -669,7 +670,9 @@ function seed() {
   return (Math.random() * 0xffffffff) >>> 0;
 }
 
-boot().catch((err) => {
+boot().then(finirChargement, (err) => {
+  // L'ecran de chargement s'efface aussi : l'erreur doit se lire.
+  finirChargement();
   console.error(err);
   const box = document.getElementById('fatal');
   box.hidden = false;

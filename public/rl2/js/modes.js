@@ -1,6 +1,6 @@
 // Ecran Jouer : quatre grandes cases, une par mode de jeu.
 //
-//   Occasionnel   parties libres, verrouille pour l'instant
+//   Occasionnel   choisir une carte, puis jouer contre le bot
 //   Ranked        le classement, a venir
 //   S'entrainer   a venir
 //   Prive         un lobby entre potes (`prive.js`)
@@ -12,7 +12,6 @@ const $ = (id) => document.getElementById(id);
 
 /** Ce que dit une case pas encore ouverte. */
 const BIENTOT = {
-  occasionnel: 'Le mode Occasionnel est verrouillé pour l’instant : joue en Privé avec tes amis.',
   ranked: 'Le mode Ranked arrive bientôt : matchs classés et saisons.',
   entrainement: 'Le mode S’entraîner arrive bientôt.',
 };
@@ -22,6 +21,11 @@ export function brancherModes(menu) {
   for (const b of document.querySelectorAll('#modes-grille .mode')) {
     b.onclick = () => {
       const mode = b.dataset.mode;
+      if (mode === 'occasionnel') {
+        statut.textContent = '';
+        menu.showStadiums('solo');
+        return;
+      }
       if (mode === 'prive') {
         statut.textContent = '';
         menu.showPrive?.();

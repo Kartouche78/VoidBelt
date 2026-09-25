@@ -2,9 +2,10 @@
 // niveau et sa barre, puis le rang. La ranked n'existe pas encore : le rang
 // dit « No Ranked », et le niveau reste a 1.
 //
-// Connecte, un clic ouvre le profil dans le panneau ; sans compte, il
-// mene a la connexion Google. Elle suit les changements du panneau
-// (`vb-compte` : pseudo, avatar, deconnexion).
+// Connecte, un clic ouvre le profil dans le panneau ; sans compte, elle
+// dit « Se connecter », en orange, et mene a la connexion Google. Elle
+// suit les changements du panneau (`vb-compte` : pseudo, avatar,
+// deconnexion).
 
 import { moi, versGoogle } from './multi-connexion.js';
 import { API_HTTP } from './net.js';
@@ -38,7 +39,8 @@ export function carteJoueur(box, panneau) {
     }
 
     const infos = el('span', 'tj-infos');
-    infos.append(el('span', 'tj-nom', c ? c.pseudo || c.nom || 'Joueur' : 'Invité'));
+    const nom = c ? c.pseudo || c.nom || 'Joueur' : m.google ? 'Se connecter' : 'Invité';
+    infos.append(el('span', 'tj-nom', nom));
     if (c) {
       const niveau = el('span', 'tj-niveau');
       const barre = el('span', 'tj-barre');
@@ -46,7 +48,7 @@ export function carteJoueur(box, panneau) {
       niveau.append(el('b', null, '1'), barre);
       infos.append(niveau);
     } else {
-      infos.append(el('span', 'tj-connexion', m.google ? 'Se connecter' : 'Hors ligne'));
+      infos.append(el('span', 'tj-connexion', m.google ? 'avec Google' : 'Hors ligne'));
     }
 
     box.append(el('span', 'tj-trait'), avatar, infos, el('span', 'tj-trait'), el('span', 'tj-rang', 'No Ranked'));

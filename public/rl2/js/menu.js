@@ -287,7 +287,7 @@ export class Menu {
     $('btn-stadium-back').onclick = () => {
       // Depuis un salon on revient au jeu, pas a l'accueil.
       if (this.pourQui === 'salon') return this.hide();
-      return this.show('title');
+      return this.show('modes');
     };
     $('btn-settings').onclick = () => {
       this.from = 'title';
@@ -337,6 +337,8 @@ export class Menu {
    *  en ligne, il pose le stade du salon et referme. */
   showStadiums(pour = 'solo') {
     this.pourQui = pour;
+    // En solo, c'est le mode Occasionnel : une carte, puis le bot.
+    document.querySelector('#screen-stadium h2').textContent = pour === 'solo' ? 'Occasionnel · choisis ta carte' : 'Choisis ton stade';
     // On s'ouvre sur l'onglet du stade en cours : le retrouver sous les
     // yeux vaut mieux que de le chercher.
     this.lot = stadiumById(this.settings.stadium).groupe ?? GROUPES[0][0];

@@ -121,6 +121,11 @@
   text-shadow: 0 0 14px #f07a2566;
 }
 .title-joueur:hover .tj-nom { color: #fff; }
+/* Sans compte : la carte est le bouton de connexion, et se voit comme tel. */
+.title-joueur.invite .tj-nom { color: var(--orange); font-weight: 700; }
+.title-joueur.invite .tj-connexion { color: #9aa3b5; }
+.title-joueur.invite .tj-avatar { border-color: var(--orange); box-shadow: 0 0 14px #f07a2555; }
+.title-joueur.invite:hover .tj-nom { color: #ff9a4d; }
 .title-joueur:hover .tj-avatar { border-color: var(--orange); }
 
 /* --------------------------------------------------------- logo --- */

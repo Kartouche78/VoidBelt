@@ -15,8 +15,81 @@
 <link rel="stylesheet" href="assets/panneau-social.css">
 <link rel="stylesheet" href="assets/modes.css">
 <link rel="stylesheet" href="assets/prive.css">
+<!-- Ecran de chargement : son style est ici, dans la page, pour paraitre
+     avant meme que les feuilles et les scripts soient arrives. -->
+<link rel="preload" as="image" href="assets/logo_chargement.webp">
+<style>
+  #chargement {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 34px;
+    background: #0d2a6e;
+    transition: opacity .5s ease, visibility .5s;
+  }
+  #chargement.fini { opacity: 0; visibility: hidden; }
+  .ch-planete {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: clamp(280px, 40vw, 560px);
+    aspect-ratio: 400 / 260;
+  }
+  .ch-planete img {
+    position: relative;
+    z-index: 1;
+    width: 72%;
+    height: auto;
+    filter: drop-shadow(0 10px 24px #0008);
+  }
+  /* L'anneau penche comme celui de Saturne ; sa moitie haute passe
+     derriere le logo, sa moitie basse devant. */
+  .ch-anneau {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 100%;
+    height: auto;
+    transform: translateY(-50%) rotate(-14deg);
+    overflow: visible;
+  }
+  .ch-anneau.arriere { clip-path: inset(0 0 50% 0); }
+  .ch-anneau.avant { z-index: 2; clip-path: inset(50% 0 0 0); }
+  .ch-anneau ellipse { fill: none; }
+  .ch-bande { stroke: #a9bdf0b3; stroke-width: 6; }
+  .ch-bande.fine { stroke: #f07a25cc; stroke-width: 2; }
+  .ch-eclat {
+    stroke: #ff9a4d;
+    stroke-width: 5;
+    stroke-linecap: round;
+    stroke-dasharray: 16 84;
+    filter: drop-shadow(0 0 6px #f07a25);
+    animation: ch-orbite 1.6s linear infinite;
+  }
+  @keyframes ch-orbite { to { stroke-dashoffset: -100; } }
+  #chargement p {
+    margin: 0;
+    font: 12px/1 'Space Mono', ui-monospace, monospace;
+    letter-spacing: .4em;
+    text-transform: uppercase;
+    color: #c9d6f2;
+  }
+  @media (prefers-reduced-motion: reduce) { .ch-eclat { animation-duration: 6s; } }
+</style>
 </head>
 <body>
+<!-- Chargement : retire par js/chargement.js une fois le jeu pret. -->
+<div id="chargement" role="status" aria-label="Chargement">
+  <div class="ch-planete">
+    <svg class="ch-anneau arriere" viewBox="0 0 400 160" aria-hidden="true"><ellipse class="ch-bande" cx="200" cy="80" rx="192" ry="40"/><ellipse class="ch-bande fine" cx="200" cy="80" rx="172" ry="33"/><ellipse class="ch-eclat" cx="200" cy="80" rx="192" ry="40" pathLength="100"/></svg>
+    <img src="assets/logo_chargement.webp" alt="Pocket League" width="720" height="495">
+    <svg class="ch-anneau avant" viewBox="0 0 400 160" aria-hidden="true"><ellipse class="ch-bande" cx="200" cy="80" rx="192" ry="40"/><ellipse class="ch-bande fine" cx="200" cy="80" rx="172" ry="33"/><ellipse class="ch-eclat" cx="200" cy="80" rx="192" ry="40" pathLength="100"/></svg>
+  </div>
+  <p>Chargement</p>
+</div>
 <div id="shell">
   <canvas id="scene"></canvas>
 
@@ -127,8 +200,7 @@
     </div>
     <div class="sheet-body">
       <div id="modes-grille">
-        <button class="mode bientot" data-mode="occasionnel" type="button">
-          <span class="mode-badge">Verrouillé</span>
+        <button class="mode" data-mode="occasionnel" type="button">
           <span class="mode-titre">Occasionnel</span>
         </button>
         <button class="mode bientot" data-mode="ranked" type="button">
