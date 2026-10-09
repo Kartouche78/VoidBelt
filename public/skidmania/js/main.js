@@ -102,10 +102,19 @@ async function boot() {
   bandeau.id = 'bandeau-gameplay';
   document.body.appendChild(bandeau);
   let bandeauFin = 0;
-  addEventListener('keydown', (e) => {
-    if (e.code !== 'F1') return;
-    e.preventDefault();
+  // indicateur permanent du gameplay en cours, cliquable
+  const indicateur = document.createElement('button');
+  indicateur.id = 'indicateur-gameplay';
+  indicateur.title = 'Changer de gameplay (F1)';
+  document.body.appendChild(indicateur);
+  const majIndicateur = () => {
+    indicateur.innerHTML = '<small>F1</small> ' + (classique ? 'CLASSIQUE' : 'DÉFAUT');
+    indicateur.classList.toggle('classique', classique);
+  };
+  majIndicateur();
+  const changerGameplay = () => {
     classique = !classique;
+    majIndicateur();
     engine.gameplay(classique ? 1 : 0);
     // changer de conduite en pleine course en fait une course d'essai
     if (mode === 'course') teleported = true;
@@ -115,6 +124,16 @@ async function boot() {
     clearTimeout(bandeauFin);
     bandeauFin = setTimeout(() => bandeau.classList.remove('vu'), 2200);
     document.body.classList.toggle('classique', classique);
+  };
+  addEventListener('keydown', (e) => {
+    if (e.code !== 'F1') return;
+    e.preventDefault();
+    changerGameplay();
+  });
+  indicateur.addEventListener('click', (e) => {
+    e.stopPropagation();
+    indicateur.blur();
+    changerGameplay();
   });
 
   // F3 : diagnostic de conduite

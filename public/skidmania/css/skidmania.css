@@ -316,3 +316,15 @@ body:not(.en-course) #recommencer { visibility: hidden; }
   opacity: 0; transition: opacity .25s; pointer-events: none;
 }
 #bandeau-gameplay.vu { opacity: 1; }
+
+/* Indicateur permanent du gameplay (F1), sous le bouton Recommencer. */
+#indicateur-gameplay {
+  position: fixed; top: 60px; left: 18px; z-index: 4; cursor: pointer;
+  font: 700 11px var(--mono); letter-spacing: .15em; color: var(--cyan);
+  background: rgba(10, 10, 11, .85); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
+}
+#indicateur-gameplay small { opacity: .6; margin-right: 4px; }
+#indicateur-gameplay.classique { color: var(--orange); border-color: var(--orange); }
+#indicateur-gameplay:hover { border-color: var(--orange); }
+/* le diagnostic passe sous l'indicateur */
+#diagnostic { top: 100px; }
