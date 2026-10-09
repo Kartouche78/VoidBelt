@@ -2,6 +2,7 @@
 *.log
 /voidbelt-rl2/target
 /admin2/target
+/voidbelt-monde/target
 
 # Reglages d'editeur, propres a la machine.
 /.cursor
@@ -38,3 +39,17 @@
 /data/voitures/
 /data/voidbelt.db*
 /data/sauvegardes/
+
+# Sources de la Koenigsegg de Skid Mania (blend, fbx, obj : 9 Mo chacun) : le
+# jeu ne sert que assets/car/koenigsegg.glb, exporte par
+# voidbelt-skidmania/blender/exporter-voiture.py.
+/public/skidmania/assets/car/koenigsegg/
+/voidbelt-skidmania/target
+
+# Sources du circuit de Skid Mania : le jeu ne sert que circuit.glb et la
+# planche virage_fleche.webp. La scene telechargee pese 214 Mo, et Cloudflare
+# Pages deploie tout ce qui est dans public/.
+/public/skidmania/assets/Circuit/assets/
+/public/skidmania/assets/Circuit/*.blend1
+/public/skidmania/assets/Circuit/virage_fleche.gif
+/public/skidmania/assets/Circuit/fleche-orange-blanc.webp

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Skid Mania · Création</title>
+<meta name="description" content="L'atelier de Skid Mania : le son du moteur, réglé et généré ici.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230A0A0B'/%3E%3Cpath d='M6 22c6-12 14-12 20-6' stroke='%23FF4D00' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="creation.css">
+</head>
+<body>
+<header class="entete">
+  <a class="retour" href="../">← Jeu</a>
+  <h1>SKID<span>MANIA</span> <small>CRÉATION</small></h1>
+  <nav class="onglets">
+    <button class="onglet actif" data-section="son">Son</button>
+  </nav>
+</header>
+
+<main id="son" class="section">
+  <aside class="moteurs">
+    <h2>Moteurs</h2>
+    <div id="liste-moteurs"></div>
+    <p class="note">Celui marqué <b>EN JEU</b> est celui de la Koenigsegg.</p>
+  </aside>
+
+  <section class="reglages">
+    <div class="titre-moteur">
+      <input id="nom-moteur" maxlength="40" aria-label="Nom du moteur">
+      <select id="architecture" aria-label="Architecture"></select>
+    </div>
+    <div id="curseurs"></div>
+    <details class="groupe">
+      <summary>Finition des sons générés</summary>
+      <div id="finition"></div>
+    </details>
+  </section>
+
+  <section class="ecoute">
+    <h2>Banc d’essai</h2>
+    <canvas id="compte-tours" width="360" height="300"></canvas>
+    <div class="scenarios" id="scenarios"></div>
+    <button class="gaz" id="gaz">MAINTENIR POUR ACCÉLÉRER</button>
+
+    <h2>Sons du jeu</h2>
+    <div class="versions">
+      <label><input type="radio" name="version" value="v2" checked> Générateur v2</label>
+      <label><input type="radio" name="version" value="reference"> Référence (avant)</label>
+    </div>
+    <button class="principal" id="generer">GÉNÉRER LES 4 SONS</button>
+    <div id="progres" class="progres"></div>
+    <div id="sons"></div>
+    <button class="principal" id="utiliser" disabled>UTILISER DANS LE JEU</button>
+    <p class="note" id="etat-jeu"></p>
+  </section>
+</main>
+
+<script type="module" src="atelier-son.js"></script>
+</body>
+</html>

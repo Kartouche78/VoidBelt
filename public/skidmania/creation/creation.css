@@ -1,0 +1,93 @@
+/* Skid Mania · Creation : l'atelier, sur les tokens du jeu. */
+
+:root {
+  --black: #0a0a0b;
+  --ink: #141416;
+  --ink-2: #1c1c20;
+  --bone: #ede7da;
+  --orange: #ff4d00;
+  --cyan: #5febf7;
+  --line: rgba(237, 231, 218, 0.16);
+  --txt-2: rgba(237, 231, 218, 0.7);
+  --titre: 'Archivo Black', Impact, sans-serif;
+  --mono: 'Space Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--black); color: var(--bone); font: 13px/1.5 var(--mono); min-height: 100vh; }
+button, input, select { font: inherit; color: inherit; }
+
+.entete {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 14px 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--black); z-index: 2;
+}
+.entete h1 { font: 26px var(--titre); letter-spacing: -0.01em; }
+.entete h1 span { color: var(--orange); }
+.entete h1 small { font: 700 12px var(--mono); letter-spacing: 0.3em; color: var(--txt-2); margin-left: 8px; }
+.retour { color: var(--txt-2); text-decoration: none; letter-spacing: 0.1em; }
+.retour:hover { color: var(--orange); }
+.onglets { display: flex; gap: 6px; margin-left: auto; }
+.onglet { background: none; border: 1px solid var(--line); border-radius: 6px; padding: 6px 14px; letter-spacing: 0.15em; cursor: pointer; }
+.onglet.actif { border-color: var(--orange); color: var(--orange); }
+
+.section {
+  display: grid; grid-template-columns: 220px minmax(0, 1fr) 380px; gap: 20px; padding: 20px;
+  align-items: start;
+}
+h2 { font: 700 11px var(--mono); letter-spacing: 0.3em; color: var(--orange); margin: 4px 0 10px; }
+.note { font-size: 11px; color: var(--txt-2); margin-top: 8px; }
+
+.moteurs { position: sticky; top: 76px; }
+#liste-moteurs { display: grid; gap: 4px; }
+.carte-moteur {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; text-align: left; cursor: pointer;
+  background: var(--ink); border: 1px solid transparent; border-radius: 6px; padding: 8px 10px;
+}
+.carte-moteur:hover { border-color: var(--line); }
+.carte-moteur.choisi { border-color: var(--orange); }
+.carte-moteur b { font-size: 13px; }
+.carte-moteur small { grid-column: 1; color: var(--txt-2); font-size: 11px; }
+.carte-moteur .badge {
+  grid-row: 1 / 3; grid-column: 2; align-self: center; font-size: 9px; letter-spacing: 0.15em;
+  color: var(--black); background: var(--cyan); border-radius: 3px; padding: 2px 5px;
+}
+
+.reglages { background: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+.titre-moteur { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+#nom-moteur {
+  flex: 1; min-width: 160px; background: var(--ink-2); border: 1px solid var(--line);
+  border-radius: 6px; padding: 8px 10px; font: 18px var(--titre);
+}
+#architecture { background: var(--ink-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.groupe { border-top: 1px solid var(--line); padding: 10px 0 4px; }
+.groupe summary, .groupe h3 { font: 700 11px var(--mono); letter-spacing: 0.25em; color: var(--cyan); cursor: pointer; margin-bottom: 6px; }
+.curseur { display: grid; grid-template-columns: minmax(0, 1fr) 80px; align-items: center; gap: 0 10px; padding: 3px 0; }
+.curseur label { color: var(--txt-2); }
+.curseur output { text-align: right; font-variant-numeric: tabular-nums; }
+.curseur input { grid-column: 1 / -1; width: 100%; accent-color: var(--orange); }
+
+.ecoute { position: sticky; top: 76px; background: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+#compte-tours { width: 100%; height: 260px; display: block; }
+.scenarios { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.scenarios button, .gaz, .son button {
+  background: var(--ink-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; letter-spacing: 0.05em;
+}
+.scenarios button:hover, .son button:hover { border-color: var(--orange); }
+.gaz { width: 100%; padding: 12px; margin-bottom: 18px; letter-spacing: 0.15em; user-select: none; touch-action: none; }
+.gaz.appuye { background: var(--orange); color: var(--black); }
+.versions { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; color: var(--txt-2); }
+.principal {
+  width: 100%; padding: 12px; border: 0; border-radius: 6px; background: var(--orange); color: var(--black);
+  font-weight: 700; letter-spacing: 0.2em; cursor: pointer; margin: 6px 0;
+}
+.principal:disabled { opacity: 0.35; cursor: default; }
+.progres { height: 4px; background: var(--ink-2); border-radius: 2px; overflow: hidden; margin: 4px 0 10px; }
+.progres i { display: block; height: 100%; background: var(--cyan); transition: width 0.2s; }
+.son { display: grid; grid-template-columns: 1fr auto auto; gap: 4px 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.son small { grid-column: 1 / -1; color: var(--txt-2); font-size: 11px; }
+
+@media (max-width: 1100px) {
+  .section { grid-template-columns: 1fr; }
+  .moteurs, .ecoute { position: static; }
+  #liste-moteurs { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}

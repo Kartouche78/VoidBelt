@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Skid Mania</title>
+<meta name="description" content="Course contre la montre sur une piste suspendue : loopings, slaloms, virages relevés, conduite drift. Moteur Rust en WebAssembly, rendu three.js.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230A0A0B'/%3E%3Cpath d='M6 22c6-12 14-12 20-6' stroke='%23FF4D00' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/skidmania.css">
+</head>
+<body>
+<canvas id="jeu"></canvas>
+
+<div id="hud">
+  <button id="recommencer" class="recommencer" title="Recommencer la course depuis le départ">↺ RECOMMENCER</button>
+  <div class="haut">
+    <div id="progression"><div id="progression-reperes"></div><b id="progression-curseur"></b></div>
+    <div id="chrono">0:00.000</div>
+    <div class="ligne"><span id="cp">CP 0/6</span><span id="meilleur"></span></div>
+    <div id="split"></div>
+  </div>
+  <div id="drift"><small>DRIFT</small><span id="drift-pts">0</span></div>
+  <div id="speedslide">SPEEDSLIDE</div>
+  <div id="encaisse"></div>
+  <div class="score"><small>SCORE DRIFT</small><span id="score">0</span></div>
+  <div class="bas">
+    <div class="compteur">
+      <b id="rapport" class="rapport">N</b>
+      <span id="vitesse">0</span><small>KM/H</small>
+    </div>
+    <div class="tours"><i id="tours-plein"></i><span id="tours-texte">0 TR/MIN</span></div>
+    <div id="jauge"><div id="jauge-plein"></div><small>BOOST</small></div>
+  </div>
+  <div class="aide clavier">R : DERNIER CHECKPOINT · SUPPR : RECOMMENCER · ÉCHAP : PARAMÈTRES · <span id="son">M : COUPER LE SON</span></div>
+  <div class="aide pad">Y : DERNIER CHECKPOINT · SELECT : RECOMMENCER · X : SON · START : PARAMÈTRES</div>
+</div>
+
+<div id="decompte"></div>
+
+<section id="accueil" class="panneau">
+  <h1>SKID<span>MANIA</span></h1>
+  <p class="sous">Une minute à 900 km/h au-dessus de la mer. Longs drifts à 90°, équerres serrées, loopings.<br>Drifte pour charger le boost, garde-le pour les lignes droites.</p>
+  <dl class="touches clavier">
+    <dt>Z Q S D / flèches</dt><dd>conduire</dd>
+    <dt>Espace / Shift</dt><dd>drift (le frein ne fait que freiner)</dd>
+    <dt>B / E (maintenir)</dt><dd>boost</dd>
+    <dt>R / ⌫</dt><dd>dernier checkpoint</dd>
+    <dt>Suppr</dt><dd>recommencer</dd>
+  </dl>
+  <dl class="touches pad">
+    <dt>Stick gauche / croix</dt><dd>diriger</dd>
+    <dt>RT / LT</dt><dd>gaz / frein</dd>
+    <dt>A / RB</dt><dd>drift (le frein ne fait que freiner)</dd>
+    <dt>B (maintenir)</dt><dd>boost</dd>
+    <dt>Y</dt><dd>dernier checkpoint</dd>
+    <dt>Select</dt><dd>recommencer</dd>
+  </dl>
+  <button class="go"><span class="clavier">ENTRÉE</span><span class="pad">A</span> POUR DÉMARRER</button>
+  <button class="ouvrir-reglages">PARAMÈTRES <small><span class="clavier">ÉCHAP</span><span class="pad">START</span></small></button>
+  <a class="lien-creation" href="creation/">CRÉATION : LE SON DU MOTEUR →</a>
+</section>
+
+<section id="arrivee" class="panneau">
+  <h2>ARRIVÉE</h2>
+  <div id="arrivee-temps">0:00.000</div>
+  <div id="arrivee-ecart"></div>
+  <div class="ligne-score">SCORE DRIFT <b id="arrivee-score">0</b></div>
+  <button id="rejouer" class="go"><span class="clavier">ENTRÉE</span><span class="pad">A</span> POUR REJOUER</button>
+  <button class="ouvrir-reglages">PARAMÈTRES <small><span class="clavier">ÉCHAP</span><span class="pad">START</span></small></button>
+</section>
+
+<section id="parametres" class="panneau">
+  <h2>PARAMÈTRES</h2>
+  <button id="parametres-recommencer" class="recommencer">↺ RECOMMENCER LA COURSE DEPUIS LE DÉPART</button>
+  <nav id="parametres-onglets"></nav>
+  <div id="parametres-liste"></div>
+  <div id="parametres-commandes" hidden></div>
+  <p class="note"><span class="clavier">Tab changer d'onglet · ↑ ↓ choisir · ← → régler · Entrée changer une touche · Échap fermer</span><span class="pad">LB RB : onglets · Croix : choisir et régler · A valider · B fermer</span><br>Commandes : clic droit sur une touche pour la vider. Chaque jeu de réglages de conduite a son propre record.</p>
+</section>
+
+<div id="chargement">
+  <div class="logo">SKID<span>MANIA</span></div>
+  <div id="chargement-etat">Chargement…</div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
