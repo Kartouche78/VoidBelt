@@ -9,6 +9,7 @@
 pub mod boite;
 pub mod camera;
 pub mod car;
+pub mod classique;
 pub mod game;
 pub mod mur;
 pub mod state;
@@ -117,6 +118,12 @@ pub extern "C" fn sm_engine(ralenti: f32, zone_rouge: f32, rapports: u32, passag
     };
     let v = boite::vitesse_de_pointe(&g.tune);
     g.boite.regler(m, v);
+}
+
+/// Gameplay : 0 Stadium Car (defaut), 1 classique (celui d'avant la refonte).
+#[no_mangle]
+pub extern "C" fn sm_gameplay(n: u32) {
+    ctx().game.classique = n == 1;
 }
 
 /// Mode de camera : 0 exterieure proche, 1 haute et eloignee, 2 embarquee.

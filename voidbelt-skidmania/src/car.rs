@@ -145,7 +145,7 @@ impl Car {
         self.vz += c.g_t * dt;
         self.vx += c.g_r * t.gravite_laterale * dt;
 
-        self.lacet(dt, input, t);
+        self.lacet(dt, input, t, c);
 
         let (fx, fz) = (self.yaw.sin(), self.yaw.cos());
         let (rx, rz) = (self.yaw.cos(), -self.yaw.sin());
@@ -201,7 +201,7 @@ impl Car {
     /// Rotation de la caisse : elle suit le volant avec un court retard, plus
     /// d'autorite en glisse, et revient vers la trajectoire quand on relache.
     /// Contre-braquer reduit donc la rotation et fait sortir du drift.
-    fn lacet(&mut self, dt: f32, input: Input, t: &Tuning) {
+    fn lacet(&mut self, dt: f32, input: Input, t: &Tuning, c: &Contact) {
         let (fx, fz) = (self.yaw.sin(), self.yaw.cos());
         let vf = self.vx * fx + self.vz * fz;
         let vl = self.vx * fz - self.vz * fx;
@@ -218,8 +218,25 @@ impl Car {
         if vf > 1.0 {
             cible += vl.atan2(vf) * t.alignement * glisse;
         }
+        // sans la touche drift, la voiture ne decroche jamais d'elle-meme :
+        // elle ne tourne pas plus vite que son adherence ne peut suivre
+        // (acceleration laterale v * rotation sous la capacite)
+        if !input.handbrake {
+            let tient = t.capacite(spd) * c.sol.adherence * t.adherence_marge / spd.max(1.0);
+            cible = cible.clamp(-tient, tient);
+        }
         self.yaw_rate += (cible - self.yaw_rate) * (t.lacet_reponse * dt).min(1.0);
-        self.yaw += self.yaw_rate * dt;
+        let a = self.yaw_rate * dt;
+        self.yaw += a;
+        // en drift, la trajectoire tourne avec la voiture : le drift suit le
+        // virage en cours au lieu de filer sur la premiere direction
+        if input.handbrake || self.sliding {
+            let r = a * t.drift_suivi;
+            let (s, k) = r.sin_cos();
+            let (vx, vz) = (self.vx, self.vz);
+            self.vx = vx * k + vz * s;
+            self.vz = vz * k - vx * s;
+        }
     }
 
     /// Propulsion, freinage, roue libre, boost. Renvoie la nouvelle `vf`.

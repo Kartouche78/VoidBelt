@@ -282,6 +282,29 @@ A / RB), qui réduit la capacité latérale (`drift_adherence`) et ralentit un
 peu (`drift_ralenti`). Cela s'écarte du §4 du prompt (gaz + frein + volant
 pour lancer le drift).
 
+### Retours du 2026-10-10
+
+- **Plus de drift involontaire.** Sans la touche drift, la rotation de la
+  voiture est bornée par ce que son adhérence peut tenir
+  (`adherence_marge`, 0,92) : volant à fond, elle tourne aussi serré que
+  possible sans décrocher.
+  - Revers : à très haute vitesse, le rayon mini en adhérence devient grand
+    (environ 300 m à 250 km/h, plus de 600 m à 400 km/h). Les virages
+    serrés se prennent au frein ou au drift.
+- **Le drift suit le virage en cours.** En drift, la direction du
+  déplacement tourne avec la voiture (`drift_suivi`, 0,6 de sa rotation),
+  au lieu de filer sur la première trajectoire. L'adhérence en drift
+  descend à 0,2.
+- **Caméra calée sur la voiture.** `cam_vitesse_dir` passe à 0, la rotation
+  suit la caisse en environ 30 ms, et l'anticipation suit l'axe de la
+  voiture : en drift, l'angle de vue sur la caisse ne change plus.
+- **F1 : gameplay classique** (`src/classique.rs`). C'est la conduite d'avant
+  la refonte : modèle PeakDrive x3, 180 m/s², drift au seuil de glisse, pas
+  de gravité, anciens murets.
+  - Elle partage la piste, le vol, la boîte et la caméra.
+  - Rappuyer sur F1 rend le gameplay par défaut.
+  - Chaque gameplay garde ses records.
+
 ### Adaptations à l'architecture du jeu
 
 Le moteur de Skid Mania ne simule pas un corps rigide sur un maillage : la

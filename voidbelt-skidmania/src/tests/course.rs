@@ -9,7 +9,8 @@ pub(super) fn pilote(g: &Game) -> Input {
     let c = &g.car;
     let t = &g.tune;
     let v = c.speed.max(1.0);
-    let avail = t.lacet_max(v) * (v / 4.0).min(1.0);
+    // sans la touche drift, la rotation est bornee par l'adherence
+    let avail = t.lacet_max(v).min(t.capacite(v) * t.adherence_marge / v) * (v / 4.0).min(1.0);
     let k_now = g.track.kappa_at(c.z + 4.0);
     let k_far = (0..6)
         .map(|i| g.track.kappa_at(c.z + 10.0 + i as f32 * v * 0.15).abs())

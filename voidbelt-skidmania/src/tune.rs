@@ -80,6 +80,12 @@ reglages! {
     /// Couple d'auto-alignement en glisse (1/s) : la carrosserie revient
     /// vers la trajectoire quand on relache.
     alignement = 1.6,
+    /// Sans la touche drift, part de la capacite laterale que le volant peut
+    /// demander : en dessous de 1, la voiture ne decroche jamais seule.
+    adherence_marge = 0.92,
+    /// En drift, part de la rotation de la voiture que suit la trajectoire
+    /// (0 = elle file tout droit, 1 = elle tourne avec la caisse).
+    drift_suivi = 0.6,
 
     // ------------------------------------------------------- adherence --
     /// Capacite laterale maximale (m/s2) a l'arret et a 600 km/h.
@@ -90,7 +96,7 @@ reglages! {
     raideur = 14.0,
     /// Touche drift tenue : capacite laterale restante, et ralentissement
     /// (m/s2). Le frein, lui, ne fait que freiner : les deux sont separes.
-    drift_adherence = 0.28,
+    drift_adherence = 0.2,
     drift_ralenti = 2.0,
     /// Part de la vitesse laterale perdue rendue vers l'avant.
     glisse_rendue = 0.12,
@@ -186,11 +192,11 @@ reglages! {
     cam2_fov_max = 90.0,
     /// Lissages separes (1/s) : position, cap, point regarde, champ.
     cam_lissage_pos = 16.0,
-    cam_lissage_rot = 9.0,
+    cam_lissage_rot = 30.0,
     cam_lissage_cible = 18.0,
     cam_lissage_fov = 4.0,
     /// Influence de la direction du deplacement sur le cap (0 a 1).
-    cam_vitesse_dir = 0.3,
+    cam_vitesse_dir = 0.0,
     /// Anticipation : regard porte devant (s de trajet, plafonne en m).
     cam_anticipation = 0.1,
     cam_anticipation_max = 16.0,

@@ -88,6 +88,8 @@ export async function loadEngine(url) {
     respawn: () => x.sm_respawn(),
     /** Moteur choisi (recette de la Creation) : la boite s'y etage. */
     setEngine: (r) => x.sm_engine(r.ralenti, r.zoneRouge, r.rapports, r.passage, r.tempsPassage, r.reactivite),
+    /** Gameplay : 0 Stadium Car (defaut), 1 classique (F1). */
+    gameplay: (n) => x.sm_gameplay(n),
     /** Camera : 0 exterieure proche, 1 haute et eloignee, 2 embarquee. */
     cameraMode: (n) => x.sm_camera_mode(n),
     restart: () => x.sm_restart(),

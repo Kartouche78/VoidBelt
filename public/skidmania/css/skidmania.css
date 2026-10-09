@@ -306,3 +306,13 @@ body:not(.en-course) #recommencer { visibility: hidden; }
   background: rgba(10, 10, 11, .72); border: 1px solid var(--line); border-radius: 6px;
   pointer-events: none;
 }
+
+/* F1 : bandeau du gameplay en cours (classique ou par defaut). */
+#bandeau-gameplay {
+  position: fixed; top: 22%; left: 50%; transform: translateX(-50%); z-index: 6;
+  padding: 10px 18px; border-radius: 6px; border: 1px solid var(--orange);
+  background: rgba(10, 10, 11, .8); color: var(--orange);
+  font: 700 13px var(--mono); letter-spacing: .25em; white-space: nowrap;
+  opacity: 0; transition: opacity .25s; pointer-events: none;
+}
+#bandeau-gameplay.vu { opacity: 1; }

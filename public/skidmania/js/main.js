@@ -77,9 +77,12 @@ async function boot() {
     engine.tuning.cam_loop_auto = local.loopEmbarquee ? 1 : 0;
     diag.montrer(local.diagnostic);
   }, input);
+  // F1 : gameplay classique (la conduite d'avant la refonte Stadium Car).
+  // Chaque gameplay garde ses propres records.
+  let classique = false;
   const useRecords = () => {
-    records.useSettings(settings.signature());
-    hud.reloadRecord(!settings.isDefault());
+    records.useSettings(settings.signature() + (classique ? '|classique' : ''));
+    hud.reloadRecord(!settings.isDefault() || classique);
   };
   useRecords();
 
@@ -95,6 +98,25 @@ async function boot() {
   addEventListener('gamepadconnected', () => padMode(true));
   addEventListener('gamepaddisconnected', () => padMode(!!input.pad()));
   addEventListener('keydown', () => padMode(false));
+  const bandeau = document.createElement('div');
+  bandeau.id = 'bandeau-gameplay';
+  document.body.appendChild(bandeau);
+  let bandeauFin = 0;
+  addEventListener('keydown', (e) => {
+    if (e.code !== 'F1') return;
+    e.preventDefault();
+    classique = !classique;
+    engine.gameplay(classique ? 1 : 0);
+    // changer de conduite en pleine course en fait une course d'essai
+    if (mode === 'course') teleported = true;
+    useRecords();
+    bandeau.textContent = classique ? 'GAMEPLAY CLASSIQUE · F1 POUR REVENIR' : 'GAMEPLAY PAR DÉFAUT';
+    bandeau.classList.add('vu');
+    clearTimeout(bandeauFin);
+    bandeauFin = setTimeout(() => bandeau.classList.remove('vu'), 2200);
+    document.body.classList.toggle('classique', classique);
+  });
+
   // F3 : diagnostic de conduite
   addEventListener('keydown', (e) => {
     if (e.code !== 'F3') return;

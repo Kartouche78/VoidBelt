@@ -11,6 +11,7 @@
 
 use crate::boite::{self, Boite, Entree};
 use crate::camera::Camera;
+use crate::classique;
 use crate::car::{Car, CarEvent, Contact, Input};
 use crate::mur::Mur;
 use crate::state::Pose;
@@ -78,6 +79,8 @@ pub struct Game {
     pub input: Input,
     pub events: Vec<Event>,
     pub wall_hit: f32,
+    /// Gameplay classique (F1) : la conduite d'avant la refonte Stadium Car.
+    pub classique: bool,
     save: Save,
     acc: f32,
     pub prev: Pose,
@@ -103,6 +106,7 @@ impl Game {
             input: Input::default(),
             events: vec![],
             wall_hit: 0.0,
+            classique: false,
             save: Save { s: 0.0, speed: 0.0, boost: 0.0, score: 0 },
             acc: 0.0,
             prev: Pose::default(),
@@ -189,7 +193,11 @@ impl Game {
     pub fn tick(&mut self) {
         let h = DT;
         // l'etagement suit la voiture, meme si les reglages changent en route
-        self.boite.v_max = boite::vitesse_de_pointe(&self.tune);
+        self.boite.v_max = if self.classique {
+            crate::car::PLAFOND
+        } else {
+            boite::vitesse_de_pointe(&self.tune)
+        };
         match self.phase {
             Phase::Countdown => {
                 let before = self.countdown.ceil() as u32;
@@ -231,6 +239,10 @@ impl Game {
     }
 
     fn au_sol(&mut self, h: f32, inp: Input) {
+        if self.classique {
+            self.au_sol_classique(h, inp);
+            return;
+        }
         let s0 = self.car.z;
         let (g_t, g_r) = self.track.gravite(s0, self.tune.gravite);
         let contact = Contact {
@@ -257,6 +269,31 @@ impl Game {
         self.susp.pas(h, &self.tune, self.car.accel, self.car.forces.laterale, true);
 
         // plus de route sous les roues : la voiture vole
+        if self.track.dans_trou(self.car.z) {
+            let f = self.track.frame_at(self.car.z);
+            self.vol = Some(Vol::decolle(&self.car, &f));
+            self.events.push(Event::Decollage);
+        }
+    }
+
+    /// Le gameplay d'avant la refonte : sa conduite et ses murets, sans
+    /// gravite le long de la piste. Vol, boite et camera restent communs.
+    fn au_sol_classique(&mut self, h: f32, inp: Input) {
+        let s0 = self.car.z;
+        let r = &classique::REGLAGES;
+        classique::pas(&mut self.car, h, inp, r);
+        let glisse = if self.car.sliding { self.car.vl.abs() } else { 0.0 };
+        let e = Entree { vitesse: self.car.vf, gaz: inp.throttle, frein: inp.brake, glisse, point_mort: false, boost: self.car.boosting };
+        self.boite.maj(e, h);
+        self.follow_track(s0);
+        let (sortie, choc) = classique::murs(&mut self.car, h, WALL, r);
+        self.wall_hit = sortie;
+        if let Some(v) = choc {
+            self.events.push(Event::Wall(v));
+            self.cam.choc((v / 20.0).min(1.0), &self.tune);
+        }
+        self.bornes();
+        self.susp.pas(h, &self.tune, self.car.accel, -self.car.vl * 3.0, true);
         if self.track.dans_trou(self.car.z) {
             let f = self.track.frame_at(self.car.z);
             self.vol = Some(Vol::decolle(&self.car, &f));

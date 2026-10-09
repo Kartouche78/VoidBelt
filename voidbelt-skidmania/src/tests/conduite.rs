@@ -201,27 +201,56 @@ fn le_speedslide_aide_dans_sa_fenetre_seulement() {
     assert_eq!(sans_gaz, 0.0, "pas de bonus pied leve");
 }
 
-/// Etat apres `secs` de jeu, avec des images de rendu de `frame` s.
-fn partie(frame: f32, secs: f32) -> (f32, f32, f32) {
+/// Etat apres `secs` de jeu, avec des images de rendu de `frame` s ; le
+/// volant `steer` est tenu entre 1,0 et 1,5 s, sur la ligne droite du depart.
+fn partie(frame: f32, secs: f32, steer: f32) -> (f32, f32, f32) {
     let mut g = Game::new(Track::build());
     g.phase = Phase::Running;
-    let mut t = 0.0;
-    while t < secs {
-        g.input = Input { throttle: 1.0, steer: if t > 2.0 && t < 3.0 { 0.6 } else { 0.0 }, ..Input::default() };
-        g.advance(frame);
-        t += frame;
+    // on compare au meme temps de jeu (meme nombre de pas de physique) :
+    // la derniere image est raccourcie pour s'arreter au meme pas
+    while g.time < secs {
+        let t = g.time;
+        g.input = Input { throttle: 1.0, steer: if t > 1.0 && t < 1.5 { steer } else { 0.0 }, ..Input::default() };
+        g.advance(frame.min(secs - g.time + 1e-4));
     }
     (g.car.z, g.car.x, g.car.speed)
 }
 
 #[test]
 fn meme_conduite_a_30_60_et_144_images_par_seconde() {
-    // pas fixe : le framerate ne change que la part interpolee
-    let a = partie(1.0 / 30.0, 6.0);
-    let b = partie(1.0 / 60.0, 6.0);
-    let c = partie(1.0 / 144.0, 6.0);
+    // pas fixe : a entrees egales, le framerate ne change rien du tout
+    let a = partie(1.0 / 30.0, 6.0, 0.0);
+    let c = partie(1.0 / 144.0, 6.0, 0.0);
+    assert_eq!(a, c, "meme partie, autre framerate");
+    // avec un coup de volant, seul l'instant ou il est lu change (une image)
+    let a = partie(1.0 / 30.0, 2.5, 0.3);
+    let b = partie(1.0 / 60.0, 2.5, 0.3);
+    let c = partie(1.0 / 144.0, 2.5, 0.3);
     println!("30 : {a:?}  60 : {b:?}  144 : {c:?}");
     for (x, y) in [(a, b), (b, c)] {
-        assert!((x.0 - y.0).abs() < 1.5 && (x.1 - y.1).abs() < 0.5 && (x.2 - y.2).abs() < 0.3);
+        assert!((x.0 - y.0).abs() < 0.5 && (x.1 - y.1).abs() < 0.3 && (x.2 - y.2).abs() < 0.2);
     }
+}
+
+#[test]
+fn sans_la_touche_drift_la_voiture_ne_decroche_jamais() {
+    for kmh in [120.0, 250.0, 400.0, 550.0] {
+        let mut c = lance(kmh / KMH);
+        roule(&mut c, 2.0, Input { steer: 1.0, ..GAZ });
+        println!("volant a fond a {kmh} km/h : glisse {:.1} deg, rayon {:.0} m", c.slip.abs().to_degrees(), c.speed / c.yaw_rate.abs().max(1e-3));
+        assert!(!c.sliding, "a {kmh} km/h, la voiture a decroche seule");
+        assert!(c.slip.abs().to_degrees() < 5.0);
+    }
+}
+
+#[test]
+fn en_drift_la_trajectoire_suit_le_virage() {
+    // la direction du deplacement tourne avec la voiture, pas seulement la caisse
+    let mut c = lance(200.0 / KMH);
+    roule(&mut c, 1.2, Input { steer: 1.0, handbrake: true, ..GAZ });
+    let trajet = c.vx.atan2(c.vz).to_degrees();
+    let caisse = c.yaw.to_degrees();
+    println!("drift 1,2 s : trajectoire tournee de {trajet:.0} deg, caisse de {caisse:.0} deg");
+    assert!(trajet > 40.0, "la trajectoire doit suivre le virage : {trajet}");
+    assert!(caisse > trajet, "la caisse reste en travers");
 }

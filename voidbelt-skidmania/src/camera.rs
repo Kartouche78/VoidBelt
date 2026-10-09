@@ -172,7 +172,9 @@ impl Camera {
 
         // point regarde : au-dessus de la voiture, porte devant selon la vitesse
         let lead = (p.speed * t.cam_anticipation).min(t.cam_anticipation_max);
-        let devant = if roule { trajet } else { avant };
+        // l'anticipation suit l'axe de la voiture : en drift, la camera garde
+        // le meme angle sur la caisse au lieu de partir avec la trajectoire
+        let devant = avant;
         let regard = self.up * t.cam_cible_haut + devant * lead * if derriere { -1.0 } else { 1.0 };
         self.regard = self.regard + (regard - self.regard) * k(t.cam_lissage_cible);
         // dans un creux ou un looping, la tangente plonge sous la route qui
